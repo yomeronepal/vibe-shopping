@@ -13,6 +13,19 @@ export interface PublishProductData {
     metadata?: Record<string, any>;
 }
 
+export interface VendorSignupData {
+    username: string;
+    email: string;
+    password: string;
+    store_name: string;
+}
+
+export interface VendorSignupResponse {
+    message: string;
+    tenant_id: number;
+    user_id: number;
+}
+
 export const vendorApi = {
     publishProduct: async (productData: PublishProductData) => {
         const formData = new FormData();
@@ -43,12 +56,17 @@ export const vendorApi = {
             formData.append('metadata', JSON.stringify(productData.metadata));
         }
 
-        const response = await apiClient.post('/products/', formData, {
+        const response = await apiClient.post('/vendor/products/', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
         });
 
+        return response.data;
+    },
+
+    signupVendor: async (data: VendorSignupData): Promise<VendorSignupResponse> => {
+        const response = await apiClient.post('/vendor/signup/', data);
         return response.data;
     },
 };

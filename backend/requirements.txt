@@ -20,6 +20,10 @@ gunicorn>=21.2.0
 python-dotenv>=1.0.0
 Pillow>=10.1.0
 google-genai>=1.0.0
+rembg>=2.0.50
+onnxruntime>=1.15.1
+numpy>=1.24.0
+django-filter>=1.15.1
 
 # Development (optional)
 # django-debug-toolbar>=4.2.0

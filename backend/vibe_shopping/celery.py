@@ -14,6 +14,15 @@ app = Celery('vibe_shopping')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Load task modules from all registered Django apps.
+
+# Beat Schedule
+app.conf.beat_schedule = {
+    'release-escrow-funds-every-hour': {
+        'task': 'core.tasks.release_escrow_funds',
+        'schedule': 3600.0, # Every 1 hour
+    },
+}
+
 app.autodiscover_tasks()
 
 # Configure Celery Beat schedule

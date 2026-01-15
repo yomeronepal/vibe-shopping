@@ -22,9 +22,11 @@ INSTALLED_APPS = [
     
     # Third-party apps
     'rest_framework',
+    'django_filters', # Added by user instruction
     'corsheaders',
     
     # Local apps
+    'vendor',         # Added by user instruction
     'core.apps.CoreConfig',
 ]
 
@@ -37,8 +39,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.TenantMiddleware', # Custom Tenant Middleware
 ]
 
+ROOT_URLCONF = 'vibe_shopping.urls'
+
+# Allow subdomains
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='.localhost,127.0.0.1,[::1]', cast=lambda v: [s.strip() for s in v.split(',')])
 ROOT_URLCONF = 'vibe_shopping.urls'
 
 TEMPLATES = [
@@ -156,4 +163,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Google Gemini AI Configuration
 GOOGLE_AI_API_KEY = config('GOOGLE_AI_API_KEY', default='')
+
+# Multi-Tenancy Configuration
+TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='vibe-shopping.com')
 

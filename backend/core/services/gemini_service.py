@@ -49,8 +49,8 @@ Analyze this product image in extreme detail and provide comprehensive e-commerc
 Generate a JSON response with the following structure. Be as detailed and specific as possible, especially with tags:
 
 {{
-    "title": "Create a compelling, SEO-optimized product title (max 60 characters)",
-    "description": "Write a detailed, persuasive product description (250-350 words). Include features, benefits, materials, use cases, and appeal.",
+    "title": "Create a compelling, SEO-optimized product title in English followed by Romanized Nepali in brackets (e.g., 'Red Velvet Sari (Rato Velvet Sari)') (max 100 characters)",
+    "description": "Write a detailed, persuasive product description (250-350 words). Include features, benefits, materials, use cases, and appeal. Use English primarily but mix in common Romanized Nepali fashion terms where natural.",
     
     "tags": [
         "Generate 20-30 highly specific, searchable tags covering:
@@ -68,6 +68,12 @@ Generate a JSON response with the following structure. Be as detailed and specif
         - Brand style (luxury, budget-friendly, eco-friendly, sustainable)
         - Activity (sports, yoga, running, hiking, office)"
     ],
+    
+    "vibe_tags": ["List 3-5 specific fashion vibes (e.g., Y2K, Cottagecore, Streetwear, Minimalist, Old Money, Cyberpunk, Boho, Preppy)"],
+    
+    "confidence_score": 0.95,
+    
+    "suggested_price_range": "25.00 - 45.00",
     
     "category": "Main product category",
     "subcategory": "More specific subcategory",

@@ -9,6 +9,8 @@ import ProductsPage from './pages/ProductsPage';
 import CartPage from './pages/CartPage';
 import WardrobePage from './pages/WardrobePage';
 import VendorPage from './pages/VendorPage';
+import VendorSignupPage from './pages/VendorSignupPage';
+import PublicStorePage from './pages/PublicStorePage';
 import VibeToggle from './components/theme/VibeToggle';
 import './index.css';
 
@@ -24,6 +26,9 @@ function App() {
               <Route path="/cart" element={<CartPage />} />
               <Route path="/wardrobe" element={<WardrobePage />} />
               <Route path="/vendor" element={<VendorPage />} />
+              <Route path="/vendor" element={<VendorPage />} />
+              <Route path="/vendor/signup" element={<VendorSignupPage />} />
+              <Route path="/store/:subdomain" element={<PublicStorePage />} />
             </Routes>
           </Layout>
           <VibeToggle />

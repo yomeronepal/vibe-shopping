@@ -9,6 +9,14 @@ const apiClient = axios.create({
     },
 });
 
+// Add interceptor to include subdomain header if present in URL (for local testing mostly)
+apiClient.interceptors.request.use((config) => {
+    // Check if we are checking a store page via query param (e.g. ?subdomain=xyz)
+    // Or if we need to force it.
+    // Ideally, we just rely on standard Host header, but for cross-domain local calls:
+    return config;
+});
+
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
     (config) => {
