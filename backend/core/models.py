@@ -23,6 +23,7 @@ class Tenant(TimeStampedModel):
     subdomain = models.SlugField(max_length=255, unique=True, null=True, blank=True)
     subscription = models.CharField(max_length=50, default='Trial')
     is_active = models.BooleanField(default=False)
+    metadata = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name
@@ -55,7 +56,9 @@ class Product(TimeStampedModel):
     tags = models.JSONField(default=list, blank=True)  # ['fashion', 'premium', ...]
     category = models.CharField(max_length=100, blank=True)
     subcategory = models.CharField(max_length=100, blank=True)
+    vibe_tags = models.JSONField(default=list, blank=True) # [Traditional, Party, ...]
     metadata = models.JSONField(default=dict, blank=True)  # attributes, occasions, etc.
+    stock_by_size = models.JSONField(default=dict, blank=True) # {"S": 10, "M": 5}
     
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -184,3 +187,43 @@ class ProductEvent(TimeStampedModel):
     
     def __str__(self):
         return f"{self.event_type} - {self.product.name}"
+
+class SocialMediaPost(TimeStampedModel):
+    """
+    Track posts made to social media platforms.
+    """
+    PLATFORM_CHOICES = [
+        ('instagram', 'Instagram'),
+        ('facebook', 'Facebook'),
+        ('tiktok', 'TikTok'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('posted', 'Posted'),
+        ('failed', 'Failed'),
+    ]
+    
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='social_posts')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='social_posts')
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Post details
+    caption = models.TextField(blank=True)
+    post_url = models.URLField(blank=True, null=True)
+    platform_post_id = models.CharField(max_length=255, blank=True)
+    
+    # Analytics and metadata
+    metadata = models.JSONField(default=dict, blank=True)  # likes, comments, errors, etc.
+    error_message = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'platform']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.platform} - {self.product.name} ({self.status})"

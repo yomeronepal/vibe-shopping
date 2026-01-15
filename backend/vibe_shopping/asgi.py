@@ -8,9 +8,25 @@ https://docs.djangoproject.com/en/5.0/howto/deployment/asgi/
 """
 
 import os
-
+import django
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vibe_shopping.settings.development')
 
-application = get_asgi_application()
+# Initialize Django ASGI application early to ensure AppRegistry is populated
+# before importing routing modules
+django_asgi_app = get_asgi_application()
+
+# Import routing modules after Django setup
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+import vendor.routing
+
+application = ProtocolTypeRouter({
+    "http": django_asgi_app,
+    "websocket": AuthMiddlewareStack(
+        URLRouter(
+            vendor.routing.websocket_urlpatterns
+        )
+    ),
+})

@@ -30,10 +30,10 @@ def health_check(request):
 @api_view(['GET'])
 def list_gemini_models(request):
     """
-    Debug endpoint to list available Gemini models
+    Debug endpoint to list available Gemini models using google-genai SDK
     """
     try:
-        import google.generativeai as genai
+        from google import genai
         from django.conf import settings
         
         api_key = settings.GOOGLE_AI_API_KEY
@@ -43,18 +43,20 @@ def list_gemini_models(request):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        genai.configure(api_key=api_key)
+        client = genai.Client(api_key=api_key)
         
         # List all available models
+        # access .models.list() 
+        # The new SDK iterator returns objects with .name, .display_name etc.
         models = []
-        for model in genai.list_models():
-            if 'generateContent' in model.supported_generation_methods:
-                models.append({
-                    'name': model.name,
-                    'display_name': model.display_name,
-                    'description': model.description,
-                    'supported_methods': model.supported_generation_methods
-                })
+        for model in client.models.list():
+            # Check if generateContent is supported (logic may vary in new SDK, listing all for now)
+            models.append({
+                'name': model.name,
+                'display_name': getattr(model, 'display_name', 'N/A'),
+                'description': getattr(model, 'description', ''),
+                'supported_actions': getattr(model, 'supported_actions', [])
+            })
         
         return Response({
             'available_models': models,

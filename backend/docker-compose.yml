@@ -44,7 +44,7 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             gunicorn --bind 0.0.0.0:8000 --workers 3 --reload vibe_shopping.wsgi:application"
+             daphne -b 0.0.0.0 -p 8000 vibe_shopping.asgi:application"
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
@@ -75,6 +75,8 @@ services:
     command: celery -A vibe_shopping worker --loglevel=info --concurrency=2
     volumes:
       - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     env_file:
       - .env
     environment:
@@ -97,6 +99,8 @@ services:
     command: celery -A vibe_shopping beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     env_file:
       - .env
     environment:

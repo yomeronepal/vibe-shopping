@@ -9,6 +9,12 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         fields = ['id', 'image', 'alt_text']
 
+class TenantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tenant
+        fields = ['id', 'name', 'subdomain', 'metadata']
+        read_only_fields = ['id', 'name', 'subdomain']
+
 class ProductSerializer(serializers.ModelSerializer):
     tenant = serializers.StringRelatedField(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
@@ -17,15 +23,12 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'tenant', 'name', 'description', 'price', 
-            'stock', 'is_active', 'status', 'image', 'images',
+            'stock', 'is_active', 'status', 'image', 'processed_image', 'images',
             'ai_generated_title', 'ai_generated_description', 
-            'tags', 'category', 'subcategory', 'metadata',
+            'tags', 'vibe_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',
             'created_at', 'updated_at'
         ]
-        read_only_fields = [
-            'tenant', 'ai_generated_title', 'ai_generated_description', 
-            'tags', 'category', 'subcategory', 'metadata', 'created_at', 'updated_at'
-        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at']
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     gallery_images = serializers.ListField(
@@ -39,7 +42,10 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'price', 
             'stock', 'image', 'gallery_images', 
-            'status'
+            'status',
+            # AI Fields
+            'ai_generated_title', 'ai_generated_description',
+            'tags', 'vibe_tags', 'category', 'subcategory', 'metadata', 'stock_by_size'
         ]
         read_only_fields = ['status'] 
     

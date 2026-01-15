@@ -6,9 +6,12 @@ router = DefaultRouter()
 router.register(r'public/products', PublicProductViewSet, basename='public-product')
 router.register(r'orders', OrderViewSet, basename='order')
 
+from rest_framework.authtoken.views import obtain_auth_token
+
 urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('gemini/models/', list_gemini_models, name='list_gemini_models'),
     path('products/generate-details/', generate_product_details, name='generate_product_details'),
+    path('auth/login/', obtain_auth_token, name='api_token_auth'),
     path('', include(router.urls)),
 ]

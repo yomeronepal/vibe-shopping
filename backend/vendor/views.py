@@ -51,16 +51,90 @@ class VendorSignupView(generics.CreateAPIView):
                     'user_id': user.id
                 }, status=status.HTTP_201_CREATED)
 
+                return Response({
+                    'message': 'Vendor account created successfully',
+                    'tenant_id': tenant.id,
+                    'user_id': user.id
+                }, status=status.HTTP_201_CREATED)
+
         except Exception as e:
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+class TenantViewSet(viewsets.GenericViewSet):
+    """
+    ViewSet to manage the Vendor's own Tenant (Store).
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Tenant.objects.filter(members__user=self.request.user)
+
+    @action(detail=False, methods=['patch'])
+    def current(self, request):
+        """
+        Update current vendor's tenant (e.g. metadata/niches).
+        """
+        if not hasattr(request.user, 'vendor_profile'):
+             return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+             
+        tenant = request.user.vendor_profile.tenant
+        
+        # Import here to avoid circular dependencies if any
+        from core.serializers import TenantSerializer
+        serializer = TenantSerializer(tenant, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get', 'patch'], url_path='social-media')
+    def social_media(self, request):
+        """
+        Get or update social media connections for vendor's tenant.
+        Expected format in metadata: {
+            'social_media': {
+                'instagram': {'connected': true, 'username': '@shop', 'access_token': '...'},
+                'facebook': {'connected': true, 'page_id': '...', 'access_token': '...'},
+                'tiktok': {'connected': true, 'username': '@shop', 'access_token': '...'}
+            }
+        }
+        """
+        if not hasattr(request.user, 'vendor_profile'):
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        tenant = request.user.vendor_profile.tenant
+        
+        if request.method == 'GET':
+            # Return current social media connections
+            social_media = tenant.metadata.get('social_media', {})
+            return Response({'social_media': social_media})
+        
+        elif request.method == 'PATCH':
+            # Update social media connections
+            social_media_data = request.data.get('social_media', {})
+            
+            # Update metadata with new social media data
+            if 'social_media' not in tenant.metadata:
+                tenant.metadata['social_media'] = {}
+            
+            tenant.metadata['social_media'].update(social_media_data)
+            tenant.save()
+            
+            return Response({
+                'message': 'Social media connections updated',
+                'social_media': tenant.metadata.get('social_media', {})
+            })
+
+
 class ProductViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Vendors to manage products.
     """
+    permission_classes = [IsAuthenticated]
+    
     def get_queryset(self):
         """
         Filter products by the current user's tenant.
@@ -99,9 +173,9 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        from core.tasks import detect_vibe
+        # from core.tasks import detect_vibe
         # Re-run analysis (which now includes Romanized Nepali prompt)
-        detect_vibe.delay(product.id)
+        # detect_vibe.delay(product.id)
         
         return Response({
             'message': 'Copy generation started. This may take a few seconds.',
@@ -125,20 +199,126 @@ class ProductViewSet(viewsets.ModelViewSet):
             'message': 'Background removal started.',
             'status': 'processing'
         }, status=status.HTTP_202_ACCEPTED)
+    
+    @action(detail=True, methods=['post'], url_path='post-to-social')
+    def post_to_social(self, request, pk=None):
+        """
+        Post product to selected social media platforms.
+        Request body: {
+            'platforms': ['instagram', 'facebook', 'tiktok'],
+            'caption': 'Custom caption...',
+            'hashtags': ['fashion', 'style']
+        }
+        """
+        product = self.get_object()
+        
+        if not product.processed_image and not product.image:
+            return Response(
+                {'error': 'Product needs an image to post.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        platforms = request.data.get('platforms', [])
+        caption = request.data.get('caption', '')
+        hashtags = request.data.get('hashtags', [])
+        
+        if not platforms:
+            return Response(
+                {'error': 'Please select at least one platform.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Build caption with hashtags
+        full_caption = caption
+        if hashtags:
+            hashtag_str = ' '.join([f'#{tag}' for tag in hashtags])
+            full_caption = f"{caption}\n\n{hashtag_str}"
+        
+        # Get tenant
+        tenant = request.user.vendor_profile.tenant
+        
+        # Import here to avoid circular dependency
+        from core.models import SocialMediaPost
+        from core.tasks import post_to_social_media_task
+        
+        # Create post records and trigger tasks
+        results = []
+        for platform in platforms:
+            # Create post record
+            social_post = SocialMediaPost.objects.create(
+                product=product,
+                tenant=tenant,
+                platform=platform,
+                caption=full_caption,
+                status='pending'
+            )
+            
+            # Trigger async task
+            post_to_social_media_task.delay(
+                social_post.id,
+                product.id,
+                platform,
+                full_caption
+            )
+            
+            results.append({
+                'platform': platform,
+                'status': 'queued',
+                'post_id': social_post.id
+            })
+        
+        return Response({
+            'message': f'Posting to {len(platforms)} platform(s) in progress...',
+            'results': results
+        }, status=status.HTTP_202_ACCEPTED)
 
     def perform_create(self, serializer):
         """
         # Automatically assign the product to the current user's tenant
         # and trigger AI processing.
         """
-        from core.tasks import detect_vibe
         
         tenant = self.request.user.vendor_profile.tenant
         product = serializer.save(tenant=tenant)
         
-        # Trigger Async AI Task
+        # Trigger background removal if product has an image
         if product.image:
-             detect_vibe.delay(product.id)
+            from core.tasks import remove_background_task
+            remove_background_task.delay(product.id)
+
+class DraftProductView(generics.CreateAPIView):
+    """
+    Endpoint to upload an image and create a draft product (BE-New).
+    This draft ID is then used for WS connection and AI generation.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductSerializer # Just for schema generation, not used for validation
+
+    def create(self, request, *args, **kwargs):
+        if 'image' not in request.FILES:
+             return Response({'error': 'Image is required'}, status=status.HTTP_400_BAD_REQUEST)
+             
+        image = request.FILES['image']
+        tenant = request.user.vendor_profile.tenant
+        
+        # Create a shell product
+        product = Product.objects.create(
+            tenant=tenant,
+            name="Draft Product", # Placeholder
+            price=0.00,           # Placeholder
+            stock=0,
+            status='draft',
+            image=image
+        )
+        
+        # Trigger background removal immediately
+        from core.tasks import remove_background_task
+        remove_background_task.delay(product.id)
+        
+        return Response({
+            'id': product.id,
+            'image_url': product.image.url
+        }, status=status.HTTP_201_CREATED)
 
 class AnalyticsViewSet(viewsets.ViewSet):
     """

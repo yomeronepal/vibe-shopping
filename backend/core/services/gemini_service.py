@@ -21,7 +21,7 @@ class GeminiProductAnalyzer:
             raise ValueError("GOOGLE_AI_API_KEY not configured in settings")
         
         self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-2.5-flash'  # Using Gemini 2.5 Flash for multimodal
+        self.model = 'gemini-2.5-flash'  # User requested model
     
     def analyze_product_image(self, image_data: bytes, price: float = None) -> dict:
         """
@@ -69,7 +69,7 @@ Generate a JSON response with the following structure. Be as detailed and specif
         - Activity (sports, yoga, running, hiking, office)"
     ],
     
-    "vibe_tags": ["List 3-5 specific fashion vibes (e.g., Y2K, Cottagecore, Streetwear, Minimalist, Old Money, Cyberpunk, Boho, Preppy)"],
+    "vibe_tags": ["List 3-5 specific fashion vibes. MUST include if applicable: Traditional, Cultural, Musical, Party, Concert, Festival, Bohemain, Streetwear, Minimalist, Y2K"],
     
     "confidence_score": 0.95,
     

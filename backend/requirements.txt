@@ -13,7 +13,10 @@ redis>=5.0.1
 django-redis>=5.4.0
 django-celery-beat>=2.5.0
 
-# WSGI Server
+# WSGI/ASGI Server
+daphne>=4.0.0
+channels>=4.0.0
+channels_redis>=4.1.0
 gunicorn>=21.2.0
 
 # Utilities
