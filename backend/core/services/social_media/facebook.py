@@ -20,8 +20,9 @@ class FacebookService(BaseSocialMediaService):
     
     def __init__(self, access_token: str = None):
         super().__init__(access_token)
-        self.app_id = getattr(settings, 'FACEBOOK_APP_ID', settings.get('INSTAGRAM_APP_ID', ''))
-        self.app_secret = getattr(settings, 'FACEBOOK_APP_SECRET', settings.get('INSTAGRAM_APP_SECRET', ''))
+        self.app_id = getattr(settings, 'FACEBOOK_APP_ID', getattr(settings, 'INSTAGRAM_APP_ID', ''))
+        self.app_secret = getattr(settings, 'FACEBOOK_APP_SECRET', getattr(settings, 'INSTAGRAM_APP_SECRET', ''))
+
     
     def get_auth_url(self, redirect_uri: str, state: str) -> str:
         """Generate Facebook OAuth URL."""

@@ -127,6 +127,160 @@ class TenantViewSet(viewsets.GenericViewSet):
                 'message': 'Social media connections updated',
                 'social_media': tenant.metadata.get('social_media', {})
             })
+    
+    @action(detail=False, methods=['get'], url_path='oauth/(?P<platform>instagram|facebook|tiktok)/start')
+    def oauth_start(self, request, platform=None):
+        """
+        Generate OAuth URL for platform authentication.
+        """
+        if not hasattr(request.user, 'vendor_profile'):
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        from core.services.social_media import InstagramService, FacebookService, TikTokService
+        from core.models import Tenant
+        import secrets
+        
+        # Initialize service to check credentials
+        if platform == 'instagram':
+            service = InstagramService()
+        elif platform == 'facebook':
+            service = FacebookService()
+        elif platform == 'tiktok':
+            service = TikTokService()
+        else:
+            return Response({'error': 'Invalid platform'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if OAuth credentials are configured
+        if not service.app_id or not service.app_secret:
+            # Demo mode: create mock connection without OAuth
+            tenant = request.user.vendor_profile.tenant
+            
+            if 'social_media' not in tenant.metadata:
+                tenant.metadata['social_media'] = {}
+            
+            tenant.metadata['social_media'][platform] = {
+                'connected': True,
+                'username': f'@demo_{platform}_account',
+                'id': f'demo_{platform}_id_123',
+                'profile_picture': None,
+                'demo_mode': True,  # Flag to indicate this is demo
+            }
+            
+            if platform == 'instagram':
+                tenant.metadata['social_media'][platform]['instagram_account_id'] = 'demo_ig_123'
+                tenant.metadata['social_media'][platform]['page_id'] = 'demo_page_123'
+            elif platform == 'facebook':
+                tenant.metadata['social_media'][platform]['page_id'] = 'demo_fb_page_123'
+            
+            tenant.save()
+            
+            # Return success response that redirects back to frontend
+            from django.shortcuts import redirect
+            frontend_url = 'http://localhost:5173'  # Frontend URL
+            return redirect(f'{frontend_url}/vendor?oauth_success={platform}&demo=true')
+        
+        # Real OAuth flow
+        # Generate state token for CSRF protection
+        state = secrets.token_urlsafe(32)
+        
+        # Store state in session
+        request.session[f'oauth_state_{platform}'] = state
+        request.session[f'oauth_tenant_id_{platform}'] = request.user.vendor_profile.tenant.id
+        
+        # Get redirect URI
+        redirect_uri = request.build_absolute_uri(f'/api/vendor/tenant/oauth/{platform}/callback/')
+        auth_url = service.get_auth_url(redirect_uri, state)
+        
+        return Response({
+            'auth_url': auth_url,
+            'platform': platform
+        })
+    
+    @action(detail=False, methods=['get'], url_path='oauth/(?P<platform>instagram|facebook|tiktok)/callback')
+    def oauth_callback(self, request, platform=None):
+        """
+        Handle OAuth callback and store tokens.
+        """
+        from core.services.social_media import InstagramService, FacebookService, TikTokService
+        from core.models import Tenant
+        from django.shortcuts import redirect
+        
+        frontend_url = 'http://localhost:5173'  # Frontend URL
+        code = request.GET.get('code')
+        state = request.GET.get('state')
+        error = request.GET.get('error')
+        
+        if error:
+            return redirect(f'{frontend_url}/vendor?oauth_error={error}')
+        
+        # Verify state token
+        stored_state = request.session.get(f'oauth_state_{platform}')
+        if not stored_state or stored_state != state:
+            return redirect(f'{frontend_url}/vendor?oauth_error=invalid_state')
+        
+        # Get tenant ID from session
+        tenant_id = request.session.get(f'oauth_tenant_id_{platform}')
+        if not tenant_id:
+            return redirect(f'{frontend_url}/vendor?oauth_error=no_tenant')
+        
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return redirect(f'{frontend_url}/vendor?oauth_error=tenant_not_found')
+        
+        # Exchange code for token
+        redirect_uri = request.build_absolute_uri(f'/api/vendor/tenant/oauth/{platform}/callback/')
+        
+        if platform == 'instagram':
+            service = InstagramService()
+        elif platform == 'facebook':
+            service = FacebookService()
+        elif platform == 'tiktok':
+            service = TikTokService()
+        else:
+            return redirect(f'{frontend_url}/vendor?oauth_error=invalid_platform')
+        
+        # Exchange code for access token
+        token_data = service.exchange_code_for_token(code, redirect_uri)
+        
+        if 'error' in token_data:
+            return redirect(f'{frontend_url}/vendor?oauth_error={token_data["error"]}')
+        
+        # Get account info
+        service.access_token = token_data['access_token']
+        account_info = service.get_account_info()
+        
+        if 'error' in account_info:
+            return redirect(f'{frontend_url}/vendor?oauth_error={account_info["error"]}')
+        
+        # Store credentials in tenant metadata
+        if 'social_media' not in tenant.metadata:
+            tenant.metadata['social_media'] = {}
+        
+        tenant.metadata['social_media'][platform] = {
+            'connected': True,
+            'access_token': token_data['access_token'],
+            'username': account_info.get('username'),
+            'id': account_info.get('id'),
+            'profile_picture': account_info.get('profile_picture'),
+        }
+        
+        # Add platform-specific data
+        if platform == 'instagram':
+            tenant.metadata['social_media'][platform]['instagram_account_id'] = account_info.get('id')
+            tenant.metadata['social_media'][platform]['page_id'] = account_info.get('page_id')
+        elif platform == 'facebook':
+            tenant.metadata['social_media'][platform]['page_id'] = account_info.get('id')
+        
+        tenant.save()
+        
+        # Clear session data
+        request.session.pop(f'oauth_state_{platform}', None)
+        request.session.pop(f'oauth_tenant_id_{platform}', None)
+        
+        # Redirect back to vendor dashboard with success
+        return redirect(f'{frontend_url}/vendor?oauth_success={platform}')
+
 
 
 class ProductViewSet(viewsets.ModelViewSet):
