@@ -42,13 +42,13 @@ const cartSlice = createSlice({
                 state.items.push({ ...action.payload, quantity: 1 });
             }
 
-            state.total = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            state.total = state.items.reduce((sum, item) => sum + parseFloat(item.price as any) * item.quantity, 0);
             localStorage.setItem('cart', JSON.stringify(state));
         },
 
         removeFromCart: (state, action: PayloadAction<number>) => {
             state.items = state.items.filter(item => item.id !== action.payload);
-            state.total = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            state.total = state.items.reduce((sum, item) => sum + parseFloat(item.price as any) * item.quantity, 0);
             localStorage.setItem('cart', JSON.stringify(state));
         },
 
@@ -56,7 +56,7 @@ const cartSlice = createSlice({
             const item = state.items.find(item => item.id === action.payload.id);
             if (item) {
                 item.quantity = action.payload.quantity;
-                state.total = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                state.total = state.items.reduce((sum, item) => sum + parseFloat(item.price as any) * item.quantity, 0);
                 localStorage.setItem('cart', JSON.stringify(state));
             }
         },

@@ -2,11 +2,16 @@ import apiClient from './client';
 
 export interface Product {
     id: number;
+    tenant: string;
     name: string;
     description: string;
-    price: number;
+    price: string; // Django DecimalField returns string usually, or number if float. Checking usages.
+    image?: string;
     stock: number;
     is_active: boolean;
+    ai_generated_title?: string;
+    ai_generated_description?: string;
+    tags?: string[];
     created_at: string;
     updated_at: string;
 }
@@ -23,14 +28,16 @@ export const productsApi = {
         const response = await apiClient.get<ProductsResponse>(`/products/?page=${page}`);
         return response.data;
     },
-
     getProduct: async (id: number): Promise<Product> => {
         const response = await apiClient.get<Product>(`/products/${id}/`);
         return response.data;
-    },
+    }
+};
 
-    searchProducts: async (query: string): Promise<ProductsResponse> => {
-        const response = await apiClient.get<ProductsResponse>(`/products/?search=${query}`);
+export const publicApi = {
+    getProducts: async (params?: any): Promise<Product[]> => {
+        // Using public endpoint
+        const response = await apiClient.get<Product[]>('/public/products/', { params });
         return response.data;
-    },
+    }
 };

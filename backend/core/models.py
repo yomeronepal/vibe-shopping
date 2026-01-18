@@ -74,6 +74,12 @@ class Product(TimeStampedModel):
     # Image
     image = models.ImageField(upload_to=product_image_path, null=True, blank=True)
     processed_image = models.ImageField(upload_to=product_image_path, null=True, blank=True)
+    
+    # POS System Fields
+    product_code = models.CharField(max_length=20, unique=True, blank=True, db_index=True,
+                                     help_text="Unique product code/SKU for POS checkout")
+    qr_code = models.ImageField(upload_to='qr_codes/', null=True, blank=True,
+                                 help_text="QR code image for quick product checkout")
 
     class Meta:
         ordering = ['-created_at']
@@ -140,11 +146,33 @@ class Order(TimeStampedModel):
         ('disputed', 'Disputed'),
     ]
     
+    ORDER_TYPE_CHOICES = [
+        ('online', 'Online'),
+        ('pos', 'Point of Sale'),
+    ]
+    
+    PAYMENT_METHOD_CHOICES = [
+        ('credit_card', 'Credit Card'),
+        ('debit_card', 'Debit Card'),
+        ('cash', 'Cash'),
+        ('mobile_payment', 'Mobile Payment'),
+        ('bank_transfer', 'Bank Transfer'),
+    ]
+    
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='orders')
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='orders')
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='orders', null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='pending_payment')
-    payment_method = models.CharField(max_length=50, default='credit_card')
+    
+    # POS System Fields
+    order_type = models.CharField(max_length=20, choices=ORDER_TYPE_CHOICES, default='online',
+                                   help_text="Order source: online or POS")
+    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='credit_card')
+    
+    # Customer info for POS orders (when no user account)
+    customer_name = models.CharField(max_length=255, blank=True, help_text="Customer name for POS orders")
+    customer_phone = models.CharField(max_length=20, blank=True, help_text="Customer phone for POS orders")
+    customer_email = models.EmailField(blank=True, help_text="Customer email for POS orders")
     
     def __str__(self):
         return f"Order #{self.id} - {self.tenant.name}"

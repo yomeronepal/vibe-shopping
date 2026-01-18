@@ -4,9 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const apiClient = axios.create({
     baseURL: API_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+    // headers: { 'Content-Type': 'application/json' } // Removed to allow auto-detection (multipart/form-data)
 });
 
 // Add interceptor to include subdomain header if present in URL (for local testing mostly)
@@ -22,7 +20,7 @@ apiClient.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            config.headers.Authorization = `Token ${token}`;
         }
         return config;
     },

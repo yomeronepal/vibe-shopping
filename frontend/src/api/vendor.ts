@@ -8,9 +8,12 @@ export interface PublishProductData {
     ai_generated_title?: string;
     ai_generated_description?: string;
     tags?: string[];
+    vibe_tags?: string[];
     category?: string;
     subcategory?: string;
     metadata?: Record<string, any>;
+    stock_by_size?: Record<string, number>;
+    stock?: number;
 }
 
 export interface VendorSignupData {
@@ -26,6 +29,28 @@ export interface VendorSignupResponse {
     user_id: number;
 }
 
+export interface Product {
+    id: number;
+    name: string;
+    description: string;
+    price: string;
+    image: string | null;
+    processed_image: string | null;
+    status: string;
+    stock: number;
+    ai_generated_title?: string;
+    tags?: string[];
+    vibe_tags?: string[];
+    category?: string;
+    subcategory?: string;
+    metadata?: Record<string, any>;
+    stock_by_size?: Record<string, number>;
+    images: { id: number; image: string; alt_text: string }[];
+    product_code?: string;
+    qr_code?: string;
+    created_at: string;
+}
+
 export const vendorApi = {
     publishProduct: async (productData: PublishProductData) => {
         const formData = new FormData();
@@ -34,7 +59,7 @@ export const vendorApi = {
         formData.append('description', productData.description);
         formData.append('price', productData.price.toString());
         formData.append('image', productData.image);
-        formData.append('stock', '10'); // Default stock
+        formData.append('stock', productData.stock?.toString() || '0');
         formData.append('is_active', 'true');
 
         if (productData.ai_generated_title) {
@@ -46,6 +71,9 @@ export const vendorApi = {
         if (productData.tags) {
             formData.append('tags', JSON.stringify(productData.tags));
         }
+        if (productData.vibe_tags) {
+            formData.append('vibe_tags', JSON.stringify(productData.vibe_tags));
+        }
         if (productData.category) {
             formData.append('category', productData.category);
         }
@@ -55,12 +83,11 @@ export const vendorApi = {
         if (productData.metadata) {
             formData.append('metadata', JSON.stringify(productData.metadata));
         }
+        if (productData.stock_by_size) {
+            formData.append('stock_by_size', JSON.stringify(productData.stock_by_size));
+        }
 
-        const response = await apiClient.post('/vendor/products/', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        const response = await apiClient.post('/vendor/products/', formData);
 
         return response.data;
     },
@@ -69,4 +96,90 @@ export const vendorApi = {
         const response = await apiClient.post('/vendor/signup/', data);
         return response.data;
     },
+
+    updateTenant: async (data: { metadata: any }) => {
+        const response = await apiClient.patch('/vendor/tenant/current/', data);
+        return response.data;
+    },
+
+    getProducts: async () => {
+        const response = await apiClient.get('/vendor/products/');
+        return response.data;
+    },
+
+    getProduct: async (id: string) => {
+        const response = await apiClient.get(`/vendor/products/${id}/`);
+        return response.data;
+    },
+
+    createDraftProduct: async (image: File) => {
+        const formData = new FormData();
+        formData.append('image', image);
+        const response = await apiClient.post('/vendor/products/draft/', formData);
+        return response.data; // { id: number, image_url: string }
+    },
+
+    updateProduct: async (id: number, productData: PublishProductData) => {
+        const formData = new FormData();
+        // ... Same appending logic as publish ...
+        // Refactoring to shared helper would be better but copy-paste for speed now.
+
+        formData.append('name', productData.name);
+        formData.append('description', productData.description);
+        formData.append('price', productData.price.toString());
+        // Image is already uploaded in draft, but if they changed it...
+        if (productData.image) {
+            formData.append('image', productData.image);
+        }
+        formData.append('stock', productData.stock?.toString() || '0');
+        formData.append('is_active', 'true');
+        formData.append('status', 'published'); // Ensure it gets published
+
+        if (productData.ai_generated_title) formData.append('ai_generated_title', productData.ai_generated_title);
+        if (productData.ai_generated_description) formData.append('ai_generated_description', productData.ai_generated_description);
+        if (productData.tags) formData.append('tags', JSON.stringify(productData.tags));
+        if (productData.vibe_tags) formData.append('vibe_tags', JSON.stringify(productData.vibe_tags));
+        if (productData.category) formData.append('category', productData.category);
+        if (productData.subcategory) formData.append('subcategory', productData.subcategory);
+        if (productData.metadata) formData.append('metadata', JSON.stringify(productData.metadata));
+        if (productData.stock_by_size) formData.append('stock_by_size', JSON.stringify(productData.stock_by_size));
+
+        const response = await apiClient.patch(`/vendor/products/${id}/`, formData);
+        return response.data;
+    },
+
+    getSocialMediaConnections: async () => {
+        const response = await apiClient.get('/vendor/tenant/social-media/');
+        return response.data;
+    },
+
+    updateSocialMediaConnections: async (data: {
+        social_media: Record<string, any>
+    }) => {
+        const response = await apiClient.patch('/vendor/tenant/social-media/', data);
+        return response.data;
+    },
+
+    startOAuth: async (platform: 'instagram' | 'facebook' | 'tiktok') => {
+        const response = await apiClient.get(`/vendor/tenant/oauth/${platform}/start/`);
+        return response.data;
+    },
+
+    // POS Methods
+    lookupProductByCode: async (code: string) => {
+        const response = await apiClient.get(`/vendor/products/lookup/?code=${code}`);
+        return response.data;
+    },
+
+    createPOSOrder: async (orderData: {
+        items: { product_id: number; quantity: number }[];
+        payment_method: string;
+        customer_name?: string;
+        customer_phone?: string;
+        customer_email?: string;
+        order_type: 'pos';
+    }) => {
+        const response = await apiClient.post('/vendor/orders/pos/', orderData);
+        return response.data;
+    }
 };

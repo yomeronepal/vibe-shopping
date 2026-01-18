@@ -4,6 +4,11 @@ export interface AIProductDetails {
     title: string;
     description: string;
     tags: string[];
+    vibe_tags?: string[];
+    suggested_price_range?: {
+        min: number;
+        max: number;
+    };
     category: string;
     subcategory: string;
     attributes: {
@@ -41,7 +46,7 @@ export const aiApi = {
         }
 
         const response = await apiClient.post<AIProductDetails>(
-            '/ai/generate-product/',
+            '/products/generate-details/',
             formData,
             {
                 headers: {

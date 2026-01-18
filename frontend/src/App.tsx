@@ -1,57 +1,77 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 import { VibeProvider } from './contexts/VibeContext';
+import { ShopThemeProvider } from './contexts/ShopThemeContext';
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
+import ChoosePathPage from './pages/ChoosePathPage';
 import ProductsPage from './pages/ProductsPage';
 import CartPage from './pages/CartPage';
 import WardrobePage from './pages/WardrobePage';
-import VendorPage from './pages/VendorPage';
+import VendorDashboardPage from './pages/VendorDashboardPage';
 import VendorSignupPage from './pages/VendorSignupPage';
+import VendorOnboardingPage from './pages/VendorOnboardingPage';
+import VendorOnboardingSuccessPage from './pages/VendorOnboardingSuccessPage';
+import VendorLoginPage from './pages/VendorLoginPage';
+import VendorEmailVerificationPage from './pages/VendorEmailVerificationPage';
 import PublicStorePage from './pages/PublicStorePage';
+import DiscoveryPage from './pages/DiscoveryPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import VibeToggle from './components/theme/VibeToggle';
 import './index.css';
 
 function App() {
   return (
-    <VibeProvider>
-      <Provider store={store}>
-        <Router>
-          <Layout>
+    <ShopThemeProvider>
+      <VibeProvider>
+        <Provider store={store}>
+          <Router>
             <Routes>
+              {/* Standalone Pages (No Layout wrapper) */}
               <Route path="/" element={<HomePage />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/wardrobe" element={<WardrobePage />} />
-              <Route path="/vendor" element={<VendorPage />} />
-              <Route path="/vendor" element={<VendorPage />} />
+              <Route path="/choose-path" element={<ChoosePathPage />} />
+              <Route path="/vendor/onboarding" element={<VendorOnboardingPage />} />
+              <Route path="/vendor/onboarding/success" element={<VendorOnboardingSuccessPage />} />
               <Route path="/vendor/signup" element={<VendorSignupPage />} />
-              <Route path="/store/:subdomain" element={<PublicStorePage />} />
+              <Route path="/vendor/login" element={<VendorLoginPage />} />
+              <Route path="/vendor/verify-email" element={<VendorEmailVerificationPage />} />
+              <Route path="/vendor" element={<VendorDashboardPage />} />
+
+              {/* Main App Layout (with Header/Footer) */}
+              <Route element={<Layout><Outlet /></Layout>}>
+                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/cart" element={<CartPage />} />
+                <Route path="/wardrobe" element={<WardrobePage />} />
+                <Route path="/discover" element={<DiscoveryPage />} />
+                <Route path="/product/:id" element={<ProductDetailPage />} />
+
+                <Route path="/store/:subdomain" element={<PublicStorePage />} />
+              </Route>
             </Routes>
-          </Layout>
-          <VibeToggle />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#fff',
-                color: '#0c4a6e',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-              },
-              success: {
-                iconTheme: {
-                  primary: '#0ea5e9',
-                  secondary: '#fff',
+            <VibeToggle />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#fff',
+                  color: '#0c4a6e',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
                 },
-              },
-            }}
-          />
-        </Router>
-      </Provider>
-    </VibeProvider>
+                success: {
+                  iconTheme: {
+                    primary: '#0ea5e9',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </Router>
+        </Provider>
+      </VibeProvider>
+    </ShopThemeProvider>
   );
 }
 

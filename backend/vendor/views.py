@@ -440,6 +440,29 @@ class ProductViewSet(viewsets.ModelViewSet):
             from core.tasks import remove_background_task
             remove_background_task.delay(product.id)
 
+    @action(detail=False, methods=['get'])
+    def lookup(self, request):
+        """
+        Lookup product by product_code (from QR scan or manual entry).
+        URL: /api/vendor/products/lookup/?code=VB-123456
+        """
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'Product code is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get current vendor's tenant
+        if not hasattr(request.user, 'vendor_profile'):
+             return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+        tenant = request.user.vendor_profile.tenant
+        
+        try:
+            # Case-insensitive lookup constrained to this tenant
+            product = Product.objects.get(product_code__iexact=code, tenant=tenant)
+            serializer = self.get_serializer(product)
+            return Response(serializer.data)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
 class DraftProductView(generics.CreateAPIView):
     """
     Endpoint to upload an image and create a draft product (BE-New).
@@ -562,3 +585,95 @@ class AnalyticsViewSet(viewsets.ViewSet):
         response_data.sort(key=lambda x: x['views'], reverse=True)
         
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+class POSOrderViewSet(viewsets.GenericViewSet):
+    """
+    ViewSet for handling POS (Point of Sale) orders.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def create(self, request):
+        """
+        Create a new POS order.
+        """
+        from core.serializers import OrderCreateSerializer
+        from core.models import Order, OrderItem
+        
+        # Verify vendor
+        if not hasattr(request.user, 'vendor_profile'):
+             return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+        tenant = request.user.vendor_profile.tenant
+        
+        # Basic validation
+        serializer = OrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        try:
+            with transaction.atomic():
+                # calculation context
+                total_amount = 0
+                items_to_create = []
+                
+                # Verify items and stock
+                for item_data in data['items']:
+                    try:
+                        product = Product.objects.get(id=item_data['product_id'], tenant=tenant)
+                    except Product.DoesNotExist:
+                         return Response({'error': f"Product ID {item_data['product_id']} not found."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                    if product.stock < item_data['quantity']:
+                        return Response({'error': f"Insufficient stock for {product.name} (Available: {product.stock})"}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Calculate price
+                    line_total = product.price * item_data['quantity']
+                    total_amount += line_total
+                    
+                    items_to_create.append({
+                        'product': product,
+                        'quantity': item_data['quantity'],
+                        'price': product.price
+                    })
+                
+                # Create Order
+                order = Order.objects.create(
+                    tenant=tenant,
+                    user=None, # No user for POS orders typically
+                    total_amount=total_amount,
+                    status='completed', # POS orders are completed immediately usually
+                    payment_method=data.get('payment_method', 'credit_card'),
+                    order_type='pos',
+                    customer_name=data.get('customer_name', ''),
+                    customer_phone=data.get('customer_phone', ''),
+                    customer_email=data.get('customer_email', '')
+                )
+                
+                # Create Order Items and Update Stock
+                for item in items_to_create:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=item['product'],
+                        quantity=item['quantity'],
+                        price=item['price']
+                    )
+                    
+                    # Update stock
+                    item['product'].stock -= item['quantity']
+                    item['product'].save()
+                    
+                    # Log event
+                    ProductEvent.objects.create(
+                        product=item['product'],
+                        event_type='purchase',
+                        country='POS' 
+                    )
+                
+                return Response({
+                    'message': 'Order created successfully',
+                    'order_id': order.id,
+                    'total_amount': total_amount
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

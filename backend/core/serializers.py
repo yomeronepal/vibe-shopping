@@ -24,11 +24,12 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tenant', 'name', 'description', 'price', 
             'stock', 'is_active', 'status', 'image', 'processed_image', 'images',
+            'product_code', 'qr_code',  # POS fields
             'ai_generated_title', 'ai_generated_description', 
             'tags', 'vibe_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['tenant', 'created_at', 'updated_at']
+        read_only_fields = ['tenant', 'product_code', 'qr_code', 'created_at', 'updated_at']
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     gallery_images = serializers.ListField(
@@ -68,12 +69,27 @@ class OrderItemSerializer(serializers.Serializer):
 
 class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemSerializer(many=True)
+    order_type = serializers.ChoiceField(choices=['online', 'pos'], default='online')
     payment_method = serializers.CharField(max_length=50, required=False, default='credit_card')
+    
+    # POS customer info (optional for online orders)
+    customer_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    customer_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    customer_email = serializers.EmailField(required=False, allow_blank=True)
     
     def validate_items(self, value):
         if not value:
             raise serializers.ValidationError("Order must contain at least one item.")
         return value
+    
+    def validate(self, data):
+        # For POS orders, require at least one customer contact method
+        if data.get('order_type') == 'pos':
+            if not any([data.get('customer_name'), data.get('customer_phone'), data.get('customer_email')]):
+                raise serializers.ValidationError(
+                    "For POS orders, please provide at least customer name, phone, or email."
+                )
+        return data
 
 class VendorSignupSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
