@@ -228,15 +228,17 @@ const VendorDashboardPage: React.FC = () => {
                             }}
                         >
                             <div className="flex justify-between items-start mb-4">
-                                <h3 className="text-lg font-bold" style={{ color: themeConfig.text }}>Recent Posts</h3>
+                                <h3 className="text-lg font-bold" style={{ color: themeConfig.text }}>Recent Products</h3>
                                 <button
-                                    className="p-1.5 rounded-lg transition-colors"
+                                    onClick={() => navigate('/vendor/products/new')}
+                                    className="p-1.5 rounded-lg transition-colors hover:opacity-80"
                                     style={{ color: primaryColor }}
                                 >
                                     <span className="material-symbols-outlined text-[20px]">add</span>
                                 </button>
                             </div>
                             <div
+                                onClick={() => navigate('/vendor/products/new')}
                                 className="flex-1 border-2 border-dashed rounded-xl flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all hover:border-opacity-80"
                                 style={{ borderColor: themeConfig.border }}
                             >
@@ -244,10 +246,10 @@ const VendorDashboardPage: React.FC = () => {
                                     className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
                                     style={{ backgroundColor: `${themeConfig.border}50` }}
                                 >
-                                    <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>post_add</span>
+                                    <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>sell</span>
                                 </div>
-                                <p className="text-sm font-semibold" style={{ color: themeConfig.text }}>Create your first post</p>
-                                <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>Start engaging your audience</p>
+                                <p className="text-sm font-semibold" style={{ color: themeConfig.text }}>Create your first product</p>
+                                <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>Add products to your store</p>
                             </div>
                         </div>
 
@@ -377,8 +379,9 @@ const VendorDashboardPage: React.FC = () => {
                 ))}
 
                 {/* Center Add Button */}
-                <div
-                    className="relative -top-8 rounded-full p-4 shadow-lg border-4"
+                <button
+                    onClick={() => navigate('/vendor/products/new')}
+                    className="relative -top-8 rounded-full p-4 shadow-lg border-4 cursor-pointer transition-transform hover:scale-105"
                     style={{
                         backgroundColor: primaryColor,
                         borderColor: themeConfig.surface,
@@ -386,7 +389,7 @@ const VendorDashboardPage: React.FC = () => {
                     }}
                 >
                     <span className="material-symbols-outlined text-white">add</span>
-                </div>
+                </button>
 
                 {[
                     { id: 'analytics', icon: 'bar_chart', label: 'Stats' },
