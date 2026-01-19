@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Tenant, VendorProfile, Product, ProductImage,
+    Tenant, VendorProfile, Product, ProductVariant, ProductImage,
     Wallet, WalletTransaction, Order, OrderItem,
     EscrowLedger, ProductEvent, SocialMediaPost, AITokenUsage
 )
@@ -51,11 +51,32 @@ class ProductAdmin(admin.ModelAdmin):
         })
     )
 
+@admin.register(ProductVariant)
+class ProductVariantAdmin(admin.ModelAdmin):
+    list_display = ['product', 'color_name', 'color_hex', 'total_stock', 'is_default', 'created_at']
+    list_filter = ['is_default', 'created_at', 'product__tenant']
+    search_fields = ['product__name', 'color_name']
+    list_editable = ['is_default']
+    readonly_fields = ['created_at', 'updated_at', 'total_stock']
+    fieldsets = (
+        ('Variant Info', {
+            'fields': ('product', 'color_name', 'color_hex', 'is_default')
+        }),
+        ('Stock Management', {
+            'fields': ('stock_by_size', 'total_stock')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
 @admin.register(ProductImage)
 class ProductImageAdmin(admin.ModelAdmin):
-    list_display = ['product', 'alt_text', 'created_at']
-    list_filter = ['created_at']
-    search_fields = ['product__name', 'alt_text']
+    list_display = ['product', 'variant', 'alt_text', 'display_order', 'created_at']
+    list_filter = ['created_at', 'variant__color_name']
+    search_fields = ['product__name', 'variant__color_name', 'alt_text']
+    list_editable = ['display_order']
     readonly_fields = ['created_at', 'updated_at']
 
 @admin.register(Wallet)

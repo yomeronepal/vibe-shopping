@@ -12,6 +12,7 @@ import CartPage from './pages/CartPage';
 import WardrobePage from './pages/WardrobePage';
 import VendorDashboardPage from './pages/VendorDashboardPage';
 import VendorProductCreatePage from './pages/VendorProductCreatePage';
+import VendorProductListPage from './pages/VendorProductListPage';
 import VendorSignupPage from './pages/VendorSignupPage';
 import VendorOnboardingPage from './pages/VendorOnboardingPage';
 import VendorOnboardingSuccessPage from './pages/VendorOnboardingSuccessPage';
@@ -20,7 +21,7 @@ import VendorEmailVerificationPage from './pages/VendorEmailVerificationPage';
 import PublicStorePage from './pages/PublicStorePage';
 import DiscoveryPage from './pages/DiscoveryPage';
 import ProductDetailPage from './pages/ProductDetailPage';
-import VibeToggle from './components/theme/VibeToggle';
+import ThemePickerButton from './components/theme/ThemePickerButton';
 import './index.css';
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
               <Route path="/vendor/login" element={<VendorLoginPage />} />
               <Route path="/vendor/verify-email" element={<VendorEmailVerificationPage />} />
               <Route path="/vendor" element={<VendorDashboardPage />} />
+              <Route path="/vendor/products" element={<VendorProductListPage />} />
               <Route path="/vendor/products/new" element={<VendorProductCreatePage />} />
 
               {/* Main App Layout (with Header/Footer) */}
@@ -52,7 +54,7 @@ function App() {
                 <Route path="/store/:subdomain" element={<PublicStorePage />} />
               </Route>
             </Routes>
-            <VibeToggle />
+            <ThemePickerButton />
             <Toaster
               position="top-right"
               toastOptions={{

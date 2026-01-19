@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import { authApi } from '../api/auth';
 import { vendorApi } from '../api/vendor';
+import ThemePickerButton from '../components/theme/ThemePickerButton';
 
 type DashboardSection = 'dashboard' | 'orders' | 'products' | 'analytics' | 'settings';
 
@@ -111,23 +112,31 @@ const VendorDashboardPage: React.FC = () => {
 
                         {/* Nav Items */}
                         <nav className="flex flex-col gap-2 mt-4">
-                            {navItems.map((item) => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setActiveSection(item.id)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeSection === item.id
-                                        ? 'font-bold'
-                                        : 'font-medium hover:opacity-80'
-                                        }`}
-                                    style={{
-                                        backgroundColor: activeSection === item.id ? `${primaryColor}15` : 'transparent',
-                                        color: activeSection === item.id ? primaryColor : themeConfig.textSecondary
-                                    }}
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                                    <span className="text-sm">{item.label}</span>
-                                </button>
-                            ))}
+                            {navItems.map((item) => {
+                                const isActive = activeSection === item.id;
+                                const NavComponent = item.id === 'products' ? Link : 'button';
+                                const navProps = item.id === 'products'
+                                    ? { to: '/vendor/products' }
+                                    : { onClick: () => setActiveSection(item.id) };
+
+                                return (
+                                    <NavComponent
+                                        key={item.id}
+                                        {...navProps}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                                            ? 'font-bold'
+                                            : 'font-medium hover:opacity-80'
+                                            }`}
+                                        style={{
+                                            backgroundColor: isActive ? `${primaryColor}15` : 'transparent',
+                                            color: isActive ? primaryColor : themeConfig.textSecondary
+                                        }}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                                        <span className="text-sm">{item.label}</span>
+                                    </NavComponent>
+                                );
+                            })}
                         </nav>
                     </div>
 
@@ -458,6 +467,8 @@ const VendorDashboardPage: React.FC = () => {
                     </button>
                 ))}
             </div>
+
+            <ThemePickerButton />
         </div>
     );
 };

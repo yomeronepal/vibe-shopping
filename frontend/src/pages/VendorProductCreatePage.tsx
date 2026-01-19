@@ -5,17 +5,28 @@ import imageCompression from 'browser-image-compression';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import { vendorApi, type WeatherTag } from '../api/vendor';
 import toast from 'react-hot-toast';
+import ThemePickerButton from '../components/theme/ThemePickerButton';
 
 interface StockBySize {
     S: number;
     M: number;
     L: number;
     XL: number;
+    [key: string]: number;
 }
 
 interface VendorProfile {
     store_name?: string;
     logo?: string;
+}
+
+interface ColorVariant {
+    id?: number;
+    color_name: string;
+    color_hex: string;
+    stock_by_size: StockBySize;
+    images: File[];
+    imageUrls: string[];
 }
 
 const VendorProductCreatePage: React.FC = () => {
@@ -47,6 +58,8 @@ const VendorProductCreatePage: React.FC = () => {
     const [aiError, setAiError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
+    const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
+    const [selectedVariantIndex, setSelectedVariantIndex] = useState<number | null>(null);
 
     useEffect(() => {
         const loadVendorProfile = async () => {
@@ -231,8 +244,14 @@ const VendorProductCreatePage: React.FC = () => {
                 category: aiSuggestions?.category || '',
                 subcategory: aiSuggestions?.subcategory || '',
                 metadata: aiSuggestions || {},
-                stock_by_size: stockBySize,
-                stock: totalStock
+                stock_by_size: colorVariants.length > 0 ? {} : stockBySize,
+                stock: colorVariants.length > 0 ? totalVariantStock : totalStock,
+                variants: colorVariants.length > 0 ? colorVariants.map(v => ({
+                    color_name: v.color_name,
+                    color_hex: v.color_hex,
+                    stock_by_size: v.stock_by_size,
+                    images: v.images
+                })) : undefined
             });
 
             toast.success('🎉 Product published successfully!');
@@ -264,7 +283,62 @@ const VendorProductCreatePage: React.FC = () => {
         }
     };
 
+    const addColorVariant = () => {
+        const newVariant = {
+            color_name: '',
+            color_hex: '#000000',
+            stock_by_size: { S: 0, M: 0, L: 0, XL: 0 },
+            images: [],
+            imageUrls: []
+        };
+        setColorVariants(prev => {
+            const updated = [...prev, newVariant];
+            console.log('Adding color variant. Total variants:', updated.length);
+            return updated;
+        });
+        toast.success('Color variant added! Fill in the details below.');
+    };
+
+    const updateVariant = (index: number, field: keyof ColorVariant, value: any) => {
+        setColorVariants(prev => {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], [field]: value };
+            return updated;
+        });
+    };
+
+    const updateVariantStock = (variantIndex: number, size: keyof StockBySize, value: number) => {
+        setColorVariants(prev => {
+            const updated = [...prev];
+            updated[variantIndex].stock_by_size = {
+                ...updated[variantIndex].stock_by_size,
+                [size]: value
+            };
+            return updated;
+        });
+    };
+
+    const removeVariant = (index: number) => {
+        setColorVariants(prev => prev.filter((_, i) => i !== index));
+        if (selectedVariantIndex === index) {
+            setSelectedVariantIndex(null);
+        }
+    };
+
+    const handleVariantImageUpload = (variantIndex: number, files: File[]) => {
+        const urls = files.map(file => URL.createObjectURL(file));
+        setColorVariants(prev => {
+            const updated = [...prev];
+            updated[variantIndex].images = [...updated[variantIndex].images, ...files];
+            updated[variantIndex].imageUrls = [...updated[variantIndex].imageUrls, ...urls];
+            return updated;
+        });
+    };
+
     const totalStock = Object.values(stockBySize).reduce((a, b) => a + b, 0);
+    const totalVariantStock = colorVariants.reduce((total, variant) =>
+        total + Object.values(variant.stock_by_size).reduce((a, b) => a + b, 0), 0
+    );
 
     return (
         <div
@@ -960,59 +1034,161 @@ const VendorProductCreatePage: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2">
                                     <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>inventory_2</span>
-                                    <h3 className="font-bold" style={{ color: themeConfig.text }}>Stock</h3>
+                                    <h3 className="font-bold" style={{ color: themeConfig.text }}>
+                                        {colorVariants.length > 0 ? `Color Variants (${colorVariants.length})` : 'Stock'}
+                                    </h3>
                                 </div>
                                 <span
                                     className="text-xs font-semibold px-2 py-1 rounded-md"
                                     style={{
-                                        backgroundColor: totalStock > 0 ? '#dcfce7' : '#fef2f2',
-                                        color: totalStock > 0 ? '#16a34a' : '#dc2626'
+                                        backgroundColor: (colorVariants.length > 0 ? totalVariantStock : totalStock) > 0 ? '#dcfce7' : '#fef2f2',
+                                        color: (colorVariants.length > 0 ? totalVariantStock : totalStock) > 0 ? '#16a34a' : '#dc2626'
                                     }}
-                                >{totalStock > 0 ? 'In Stock' : 'Out of Stock'}</span>
+                                >{(colorVariants.length > 0 ? totalVariantStock : totalStock) > 0 ? 'In Stock' : 'Out of Stock'}</span>
                             </div>
 
-                            <div className="space-y-3">
-                                {(['S', 'M', 'L', 'XL'] as const).map((size) => (
-                                    <div
-                                        key={size}
-                                        className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${stockBySize[size] === 0 ? 'opacity-60' : ''}`}
-                                        style={{ backgroundColor: `${themeConfig.surface}50`, borderColor: 'transparent' }}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span
-                                                className="w-8 h-8 rounded-lg shadow-sm flex items-center justify-center font-bold text-sm"
-                                                style={{ backgroundColor: themeConfig.surface, color: stockBySize[size] > 0 ? themeConfig.text : themeConfig.textSecondary }}
-                                            >{size}</span>
-                                            <span className="text-sm font-medium" style={{ color: themeConfig.textSecondary }}>
-                                                {size === 'S' ? 'Small' : size === 'M' ? 'Medium' : size === 'L' ? 'Large' : 'X-Large'}
-                                            </span>
+                            {colorVariants.length === 0 ? (
+                                <div className="space-y-3">
+                                    {(['S', 'M', 'L', 'XL'] as const).map((size) => (
+                                        <div
+                                            key={size}
+                                            className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${stockBySize[size] === 0 ? 'opacity-60' : ''}`}
+                                            style={{ backgroundColor: `${themeConfig.surface}50`, borderColor: 'transparent' }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span
+                                                    className="w-8 h-8 rounded-lg shadow-sm flex items-center justify-center font-bold text-sm"
+                                                    style={{ backgroundColor: themeConfig.surface, color: stockBySize[size] > 0 ? themeConfig.text : themeConfig.textSecondary }}
+                                                >{size}</span>
+                                                <span className="text-sm font-medium" style={{ color: themeConfig.textSecondary }}>
+                                                    {size === 'S' ? 'Small' : size === 'M' ? 'Medium' : size === 'L' ? 'Large' : 'X-Large'}
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="number"
+                                                value={stockBySize[size] || ''}
+                                                onChange={(e) => updateStock(size, parseInt(e.target.value) || 0)}
+                                                placeholder="0"
+                                                className="w-16 h-8 text-center rounded-lg border text-sm font-bold"
+                                                style={{
+                                                    backgroundColor: themeConfig.surface,
+                                                    borderColor: themeConfig.border,
+                                                    color: themeConfig.text
+                                                }}
+                                            />
                                         </div>
-                                        <input
-                                            type="number"
-                                            value={stockBySize[size] || ''}
-                                            onChange={(e) => updateStock(size, parseInt(e.target.value) || 0)}
-                                            placeholder="0"
-                                            className="w-16 h-8 text-center rounded-lg border text-sm font-bold"
-                                            style={{
-                                                backgroundColor: themeConfig.surface,
-                                                borderColor: themeConfig.border,
-                                                color: themeConfig.text
-                                            }}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                                    {colorVariants.map((variant, variantIdx) => (
+                                        <div
+                                            key={variantIdx}
+                                            className="p-4 rounded-xl border"
+                                            style={{ backgroundColor: `${themeConfig.surface}50`, borderColor: themeConfig.border }}
+                                        >
+                                            <div className="flex items-start gap-3 mb-3">
+                                                <input
+                                                    type="color"
+                                                    value={variant.color_hex}
+                                                    onChange={(e) => updateVariant(variantIdx, 'color_hex', e.target.value)}
+                                                    className="w-10 h-10 rounded-lg cursor-pointer border"
+                                                    style={{ borderColor: themeConfig.border }}
+                                                />
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="text"
+                                                        value={variant.color_name}
+                                                        onChange={(e) => updateVariant(variantIdx, 'color_name', e.target.value)}
+                                                        placeholder="Color name (e.g., Navy Blue)"
+                                                        className="w-full px-3 py-2 rounded-lg border text-sm font-medium"
+                                                        style={{
+                                                            backgroundColor: themeConfig.surface,
+                                                            borderColor: themeConfig.border,
+                                                            color: themeConfig.text
+                                                        }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={() => removeVariant(variantIdx)}
+                                                    className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm text-red-500">delete</span>
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {(['S', 'M', 'L', 'XL'] as const).map((size) => (
+                                                    <div key={size} className="flex items-center justify-between">
+                                                        <span className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>{size}</span>
+                                                        <input
+                                                            type="number"
+                                                            value={variant.stock_by_size[size] || ''}
+                                                            onChange={(e) => updateVariantStock(variantIdx, size, parseInt(e.target.value) || 0)}
+                                                            placeholder="0"
+                                                            className="w-16 h-7 text-center rounded-lg border text-xs font-bold"
+                                                            style={{
+                                                                backgroundColor: themeConfig.surface,
+                                                                borderColor: themeConfig.border,
+                                                                color: themeConfig.text
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="mt-3">
+                                                <label className="block text-xs font-medium mb-2" style={{ color: themeConfig.textSecondary }}>
+                                                    Variant Images
+                                                </label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {variant.imageUrls.map((url, imgIdx) => (
+                                                        <div key={imgIdx} className="w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: themeConfig.border }}>
+                                                            <img src={url} alt="" className="w-full h-full object-cover" />
+                                                        </div>
+                                                    ))}
+                                                    <label
+                                                        className="w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer hover:bg-opacity-50 transition-colors"
+                                                        style={{ borderColor: themeConfig.border, backgroundColor: `${themeConfig.surface}50` }}
+                                                    >
+                                                        <input
+                                                            type="file"
+                                                            multiple
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                                if (e.target.files) {
+                                                                    handleVariantImageUpload(variantIdx, Array.from(e.target.files));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <span className="material-symbols-outlined text-sm" style={{ color: themeConfig.textSecondary }}>add_photo_alternate</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             <button
-                                className="w-full mt-4 py-2 text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-1"
-                                style={{ backgroundColor: `${primaryColor}10`, color: primaryColor }}
+                                onClick={addColorVariant}
+                                className="w-full mt-4 py-2.5 text-sm font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                                style={{
+                                    backgroundColor: `${primaryColor}10`,
+                                    color: primaryColor,
+                                    border: `2px dashed ${primaryColor}40`
+                                }}
                             >
-                                <span className="material-symbols-outlined text-sm">add</span> Add Variant
+                                <span className="material-symbols-outlined text-base">palette</span>
+                                Add Color Variant
                             </button>
                         </div>
                     </div>
                 </div>
             </main>
+
+            <ThemePickerButton />
         </div>
     );
 };

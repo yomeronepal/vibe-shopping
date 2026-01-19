@@ -120,8 +120,11 @@ export const ShopThemeProvider: React.FC<{ children: ReactNode }> = ({ children 
     });
 
     const setTheme = (newTheme: ShopTheme) => {
+        console.log('ShopThemeContext: setTheme called with:', newTheme);
+        console.log('ShopThemeContext: Previous theme was:', theme);
         setThemeState(newTheme);
         localStorage.setItem('shop-theme', newTheme);
+        console.log('ShopThemeContext: localStorage updated');
     };
 
     const setAiThemeConfig = (config: Partial<ThemeConfig>) => {
@@ -144,8 +147,11 @@ export const ShopThemeProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     useEffect(() => {
+        console.log('ShopThemeContext: useEffect triggered - Applying theme:', theme);
         const config = customThemes[theme];
         const root = document.documentElement;
+
+        console.log('ShopThemeContext: Theme config being applied:', config);
 
         root.style.setProperty('--shop-primary', config.primary);
         root.style.setProperty('--shop-accent', config.accent);
@@ -161,6 +167,8 @@ export const ShopThemeProvider: React.FC<{ children: ReactNode }> = ({ children 
 
         document.body.classList.remove('theme-neon-vibe', 'theme-minimal', 'theme-warm-cozy', 'theme-ai-generated');
         document.body.classList.add(`theme-${theme}`);
+
+        console.log('ShopThemeContext: CSS variables and body class updated');
     }, [theme, customThemes]);
 
     return (

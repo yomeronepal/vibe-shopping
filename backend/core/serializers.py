@@ -1,13 +1,22 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Product, Tenant, VendorProfile, ProductImage
+from .models import Product, Tenant, VendorProfile, ProductImage, ProductVariant
 from django.utils.text import slugify
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'alt_text']
+        fields = ['id', 'image', 'processed_image', 'alt_text', 'display_order', 'variant']
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    total_stock = serializers.ReadOnlyField()
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'color_name', 'color_hex', 'stock_by_size', 'is_default', 'images', 'total_stock', 'created_at']
+        read_only_fields = ['id', 'total_stock', 'created_at']
 
 class TenantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,12 +27,13 @@ class TenantSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     tenant = serializers.StringRelatedField(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
-    
+    variants = ProductVariantSerializer(many=True, read_only=True)
+
     class Meta:
         model = Product
         fields = [
-            'id', 'tenant', 'name', 'description', 'price', 
-            'stock', 'is_active', 'status', 'image', 'processed_image', 'images',
+            'id', 'tenant', 'name', 'description', 'price',
+            'stock', 'is_active', 'status', 'image', 'processed_image', 'images', 'variants',
             'product_code', 'qr_code',
             'ai_generated_title', 'ai_generated_description',
             'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',

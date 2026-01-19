@@ -177,22 +177,55 @@ class Product(TimeStampedModel):
     def __str__(self):
         return self.name
 
+class ProductVariant(TimeStampedModel):
+    """
+    Product variants for different colors.
+    Each variant has its own images and stock management.
+    """
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
+
+    color_name = models.CharField(max_length=50)
+    color_hex = models.CharField(max_length=7, blank=True)
+
+    stock_by_size = models.JSONField(default=dict, blank=True)
+
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = [['product', 'color_name']]
+        ordering = ['-is_default', 'color_name']
+
+    def __str__(self):
+        return f"{self.product.name} - {self.color_name}"
+
+    @property
+    def total_stock(self):
+        """Calculate total stock across all sizes."""
+        return sum(self.stock_by_size.values()) if self.stock_by_size else 0
+
 class ProductImage(TimeStampedModel):
     """
     Additional images for a product.
+    Can be associated with a specific variant (color) or the main product.
     """
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    
+    variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE, related_name='images', null=True, blank=True)
+
     def product_gallery_path(instance, filename):
         tenant_slug = instance.product.tenant.subdomain if instance.product.tenant and instance.product.tenant.subdomain else 'default'
         return f'uploads/{tenant_slug}/products/gallery/{filename}'
-        
+
     image = models.ImageField(upload_to=product_gallery_path)
     processed_image = models.ImageField(upload_to=product_gallery_path, null=True, blank=True)
     alt_text = models.CharField(max_length=255, blank=True)
-    
-    
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['display_order', 'created_at']
+
     def __str__(self):
+        if self.variant:
+            return f"Image for {self.product.name} - {self.variant.color_name}"
         return f"Image for {self.product.name}"
 
 class Wallet(TimeStampedModel):

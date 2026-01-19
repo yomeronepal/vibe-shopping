@@ -835,14 +835,40 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        # Automatically assign the product to the current user's tenant
-        # and trigger AI processing.
+        Automatically assign the product to the current user's tenant
+        and trigger AI processing. Handle variants if provided.
         """
-        
+        from core.models import ProductVariant, ProductImage
+        import json
+
         tenant = self.request.user.vendor_profile.tenant
         product = serializer.save(tenant=tenant)
-        
-        # Trigger background removal if product has an image
+
+        variants_data = self.request.data.get('variants')
+        if variants_data:
+            if isinstance(variants_data, str):
+                variants_data = json.loads(variants_data)
+
+            for idx, variant_data in enumerate(variants_data):
+                variant = ProductVariant.objects.create(
+                    product=product,
+                    color_name=variant_data.get('color_name'),
+                    color_hex=variant_data.get('color_hex', ''),
+                    stock_by_size=variant_data.get('stock_by_size', {}),
+                    is_default=(idx == 0)
+                )
+
+                variant_images = variant_data.get('images', [])
+                if variant_images and f'variant_{idx}_images' in self.request.FILES:
+                    files = self.request.FILES.getlist(f'variant_{idx}_images')
+                    for file_idx, image_file in enumerate(files):
+                        ProductImage.objects.create(
+                            product=product,
+                            variant=variant,
+                            image=image_file,
+                            display_order=file_idx
+                        )
+
         if product.image:
             from core.tasks import remove_background_task
             remove_background_task.delay(product.id)

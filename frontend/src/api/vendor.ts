@@ -5,6 +5,13 @@ export interface WeatherTag {
     fit: string;
 }
 
+export interface ProductVariantData {
+    color_name: string;
+    color_hex: string;
+    stock_by_size: Record<string, number>;
+    images?: File[];
+}
+
 export interface PublishProductData {
     name: string;
     description: string;
@@ -20,6 +27,7 @@ export interface PublishProductData {
     metadata?: Record<string, any>;
     stock_by_size?: Record<string, number>;
     stock?: number;
+    variants?: ProductVariantData[];
 }
 
 export interface VendorSignupData {
@@ -45,6 +53,7 @@ export interface Product {
     processed_image: string | null;
     status: string;
     stock: number;
+    is_active?: boolean;
     ai_generated_title?: string;
     tags?: string[];
     vibe_tags?: string[];
@@ -96,6 +105,23 @@ export const vendorApi = {
         }
         if (productData.stock_by_size) {
             formData.append('stock_by_size', JSON.stringify(productData.stock_by_size));
+        }
+        if (productData.variants && productData.variants.length > 0) {
+            const variantsData = productData.variants.map((variant) => ({
+                color_name: variant.color_name,
+                color_hex: variant.color_hex,
+                stock_by_size: variant.stock_by_size,
+                images: variant.images?.length || 0
+            }));
+            formData.append('variants', JSON.stringify(variantsData));
+
+            productData.variants.forEach((variant, idx) => {
+                if (variant.images) {
+                    variant.images.forEach((imageFile) => {
+                        formData.append(`variant_${idx}_images`, imageFile);
+                    });
+                }
+            });
         }
 
         const response = await apiClient.post('/vendor/products/', formData);
