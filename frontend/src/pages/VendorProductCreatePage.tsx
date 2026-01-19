@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
+import imageCompression from 'browser-image-compression';
 import { useShopTheme } from '../contexts/ShopThemeContext';
+import { vendorApi, type WeatherTag } from '../api/vendor';
 import toast from 'react-hot-toast';
 
 interface StockBySize {
@@ -11,6 +13,11 @@ interface StockBySize {
     XL: number;
 }
 
+interface VendorProfile {
+    store_name?: string;
+    logo?: string;
+}
+
 const VendorProductCreatePage: React.FC = () => {
     const navigate = useNavigate();
     const { config: themeConfig } = useShopTheme();
@@ -18,25 +25,49 @@ const VendorProductCreatePage: React.FC = () => {
     const primaryColor = themeConfig.primary;
     const accentColor = themeConfig.accent;
 
+    // Vendor profile state
+    const [vendorProfile, setVendorProfile] = useState<VendorProfile>({});
+
     // Product state
-    const [title, setTitle] = useState('Linen Breeze Oversized Shirt');
-    const [description, setDescription] = useState('Perfect for breezy Kathmandu evenings, this oversized linen shirt brings an effortless touch to your wardrobe. Its breathable fabric ensures you stay cool while the relaxed fit offers a modern silhouette. Pair with denim or loose trousers for that ultimate street-chic look.');
-    const [images, setImages] = useState<string[]>(['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=600']);
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [images, setImages] = useState<string[]>([]);
+    const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-    const [stockBySize, setStockBySize] = useState<StockBySize>({ S: 12, M: 24, L: 8, XL: 0 });
-    const [vibeTags, setVibeTags] = useState(['#Boho', '#Streetwear', '#Minimalist']);
-    const [productTags, setProductTags] = useState(['Summer Collection', 'Unisex']);
+    const [stockBySize, setStockBySize] = useState<StockBySize>({ S: 0, M: 0, L: 0, XL: 0 });
+    const [vibeTags, setVibeTags] = useState<string[]>([]);
+    const [weatherTags, setWeatherTags] = useState<WeatherTag[]>([]);
+    const [productTags, setProductTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState('');
-    const [socialCaption, setSocialCaption] = useState('Summer drop is LIVE! ☀️ The Linen Breeze Shirt is here to keep you cool. Link in bio to shop the vibe. #VibeShop #NepalStyle');
-    const [postToSocial, setPostToSocial] = useState(true);
-    const [isAiScanning, setIsAiScanning] = useState(true);
+    const [socialCaption, setSocialCaption] = useState('');
+    const [postToSocial, setPostToSocial] = useState(false);
+    const [isAiScanning, setIsAiScanning] = useState(false);
+    const [aiProgress, setAiProgress] = useState(0);
+    const [aiProgressMessage, setAiProgressMessage] = useState('');
+    const [aiError, setAiError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState<any>(null);
+
+    useEffect(() => {
+        const loadVendorProfile = async () => {
+            try {
+                const profile = await vendorApi.getVendorProfile();
+                setVendorProfile({
+                    store_name: profile.store_name || 'Vibe Shop',
+                    logo: profile.logo || null
+                });
+            } catch (error) {
+                console.error('Failed to load vendor profile:', error);
+            }
+        };
+        loadVendorProfile();
+    }, []);
 
     // Pricing state
-    const [mrp, setMrp] = useState(3000);
-    const [costPrice, setCostPrice] = useState(1200);
-    const [discountEnabled, setDiscountEnabled] = useState(true);
-    const [discountPercent, setDiscountPercent] = useState(15);
+    const [mrp, setMrp] = useState(0);
+    const [costPrice, setCostPrice] = useState(0);
+    const [discountEnabled, setDiscountEnabled] = useState(false);
+    const [discountPercent, setDiscountPercent] = useState(0);
 
     // Calculate discounted price
     const discountedPrice = Math.round(mrp - (mrp * discountPercent / 100));
@@ -44,15 +75,127 @@ const VendorProductCreatePage: React.FC = () => {
     const marginPercent = Math.round((margin / costPrice) * 100);
 
     // Dropzone
-    const onDrop = useCallback((acceptedFiles: File[]) => {
-        acceptedFiles.forEach(file => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImages(prev => [...prev, reader.result as string].slice(0, 8));
-            };
-            reader.readAsDataURL(file);
-        });
-    }, []);
+    const onDrop = useCallback(async (acceptedFiles: File[]) => {
+        const newFiles = acceptedFiles.slice(0, 8 - imageFiles.length);
+
+        const compressionOptions = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+            fileType: 'image/jpeg'
+        };
+
+        const compressedFiles: File[] = [];
+
+        for (const file of newFiles) {
+            try {
+                const compressedFile = await imageCompression(file, compressionOptions);
+                compressedFiles.push(compressedFile);
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setImages(prev => [...prev, reader.result as string]);
+                };
+                reader.readAsDataURL(compressedFile);
+            } catch (error) {
+                console.error('Image compression failed:', error);
+                compressedFiles.push(file);
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setImages(prev => [...prev, reader.result as string]);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        setImageFiles(prev => [...prev, ...compressedFiles]);
+
+        if (compressedFiles.length > 0 && imageFiles.length === 0) {
+            setIsAiScanning(true);
+            setAiProgress(0);
+            setAiError(null);
+
+            const progressSteps = [
+                { progress: 15, message: 'Uploading image...' },
+                { progress: 30, message: 'AI analyzing product...' },
+                { progress: 50, message: 'Detecting colors & materials...' },
+                { progress: 70, message: 'Generating tags & vibes...' },
+                { progress: 85, message: 'Creating description...' },
+                { progress: 95, message: 'Finalizing details...' }
+            ];
+
+            let currentStep = 0;
+            const progressInterval = setInterval(() => {
+                if (currentStep < progressSteps.length) {
+                    setAiProgress(progressSteps[currentStep].progress);
+                    setAiProgressMessage(progressSteps[currentStep].message);
+                    currentStep++;
+                }
+            }, 800);
+
+            try {
+                const formData = new FormData();
+                formData.append('image', compressedFiles[0]);
+                formData.append('price', mrp.toString());
+
+                const response = await fetch('http://localhost:8000/api/products/generate-details/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Token ${localStorage.getItem('token')}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                clearInterval(progressInterval);
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'AI analysis failed');
+                }
+
+                setAiProgress(100);
+                setAiProgressMessage('Complete!');
+
+                if (data.title) {
+                    setTitle(data.title);
+                    setDescription(data.description || '');
+                    setProductTags(data.tags || []);
+                    setVibeTags(data.vibe_tags || []);
+                    setWeatherTags(data.weather_tags || []);
+                    setAiSuggestions(data);
+
+                    setTimeout(() => {
+                        toast.success('AI analysis complete!');
+                        setAiError(null);
+                    }, 500);
+                }
+            } catch (error: any) {
+                console.error('AI analysis failed:', error);
+                clearInterval(progressInterval);
+
+                let errorMessage = 'AI analysis encountered an issue. You can still create your product manually!';
+
+                if (error.message?.includes('rate_limit') || error.message?.includes('429')) {
+                    errorMessage = 'AI is taking a quick break (rate limit reached). Please wait a moment and try again, or fill in details manually.';
+                } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+                    errorMessage = 'Connection issue detected. Check your internet and try again, or proceed with manual entry.';
+                } else if (error.message?.includes('timeout')) {
+                    errorMessage = 'AI is taking longer than expected. Try with a smaller image, or add details manually.';
+                }
+
+                setAiError(errorMessage);
+                toast.error('AI analysis failed - you can still add details manually');
+            } finally {
+                setTimeout(() => {
+                    setIsAiScanning(false);
+                    setAiProgress(0);
+                    setAiProgressMessage('');
+                }, 1000);
+            }
+        }
+    }, [imageFiles.length, mrp]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -65,13 +208,38 @@ const VendorProductCreatePage: React.FC = () => {
             toast.error('Please fill in title and price');
             return;
         }
+
+        if (imageFiles.length === 0) {
+            toast.error('Please upload at least one image');
+            return;
+        }
+
         setIsPublishing(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const finalPrice = discountEnabled ? discountedPrice : mrp;
+
+            await vendorApi.publishProduct({
+                name: title,
+                description: description,
+                price: finalPrice,
+                image: imageFiles[0],
+                ai_generated_title: aiSuggestions?.ai_generated_title || title,
+                ai_generated_description: aiSuggestions?.ai_generated_description || description,
+                tags: productTags,
+                vibe_tags: vibeTags,
+                weather_tags: weatherTags,
+                category: aiSuggestions?.category || '',
+                subcategory: aiSuggestions?.subcategory || '',
+                metadata: aiSuggestions || {},
+                stock_by_size: stockBySize,
+                stock: totalStock
+            });
+
             toast.success('🎉 Product published successfully!');
             navigate('/vendor');
-        } catch {
-            toast.error('Failed to publish product');
+        } catch (error: any) {
+            console.error('Failed to publish product:', error);
+            toast.error(error.response?.data?.error || 'Failed to publish product');
         } finally {
             setIsPublishing(false);
         }
@@ -116,13 +284,21 @@ const VendorProductCreatePage: React.FC = () => {
                 <div className="max-w-[1400px] mx-auto flex items-center justify-between">
                     <Link to="/vendor" className="flex items-center gap-3">
                         <div
-                            className="size-10 rounded-xl flex items-center justify-center text-white shadow-lg"
-                            style={{ backgroundColor: primaryColor, boxShadow: `0 10px 30px -10px ${primaryColor}50` }}
+                            className="size-10 rounded-xl flex items-center justify-center shadow-lg overflow-hidden"
+                            style={{
+                                backgroundColor: vendorProfile.logo ? 'white' : themeConfig.buttonBg,
+                                color: themeConfig.buttonText,
+                                boxShadow: `0 10px 30px -10px ${primaryColor}50`
+                            }}
                         >
-                            <span className="material-symbols-outlined text-2xl">auto_awesome</span>
+                            {vendorProfile.logo ? (
+                                <img src={`http://localhost:8000${vendorProfile.logo}`} alt="Store Logo" className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="material-symbols-outlined text-2xl">auto_awesome</span>
+                            )}
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold leading-none tracking-tight" style={{ color: themeConfig.text }}>Vibe Shop</h2>
+                            <h2 className="text-xl font-bold leading-none tracking-tight" style={{ color: themeConfig.text }}>{vendorProfile.store_name || 'Vibe Shop'}</h2>
                             <span className="text-xs font-medium uppercase tracking-widest" style={{ color: themeConfig.textSecondary }}>Creator Hub</span>
                         </div>
                     </Link>
@@ -176,8 +352,8 @@ const VendorProductCreatePage: React.FC = () => {
                         <button
                             onClick={handlePublish}
                             disabled={isPublishing}
-                            className="group flex items-center gap-2 px-8 py-3 text-white rounded-2xl font-bold shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
-                            style={{ backgroundColor: primaryColor, boxShadow: `0 10px 30px -10px ${primaryColor}60` }}
+                            className="group flex items-center gap-2 px-8 py-3 rounded-2xl font-bold shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
+                            style={{ backgroundColor: themeConfig.buttonBg, color: themeConfig.buttonText, boxShadow: `0 10px 30px -10px ${primaryColor}60` }}
                         >
                             <span className="material-symbols-outlined">{isPublishing ? 'hourglass_empty' : 'rocket_launch'}</span>
                             {isPublishing ? 'Publishing...' : 'Quick Publish'}
@@ -311,24 +487,101 @@ const VendorProductCreatePage: React.FC = () => {
                             className="flex flex-col rounded-[24px] shadow-lg p-6 md:p-8 transition-all hover:-translate-y-0.5"
                             style={{ backgroundColor: themeConfig.cardBg }}
                         >
-                            {/* AI Status */}
+                            {/* AI Status with Progress Bar */}
                             {isAiScanning && (
                                 <div
-                                    className="flex items-center gap-3 mb-8 p-3 rounded-xl border"
+                                    className="mb-8 p-5 rounded-2xl border"
                                     style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}20` }}
                                 >
-                                    <span className="relative flex h-3 w-3">
-                                        <span
-                                            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                                            style={{ backgroundColor: primaryColor }}
-                                        ></span>
-                                        <span
-                                            className="relative inline-flex rounded-full h-3 w-3"
-                                            style={{ backgroundColor: primaryColor }}
-                                        ></span>
-                                    </span>
-                                    <span className="text-sm font-bold" style={{ color: primaryColor }}>Gemini is scanning for vibes...</span>
-                                    <span className="ml-auto text-xs font-medium" style={{ color: `${primaryColor}80` }}>85% confidence</span>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <span className="relative flex h-3 w-3">
+                                            <span
+                                                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                                style={{ backgroundColor: primaryColor }}
+                                            ></span>
+                                            <span
+                                                className="relative inline-flex rounded-full h-3 w-3"
+                                                style={{ backgroundColor: primaryColor }}
+                                            ></span>
+                                        </span>
+                                        <span className="text-sm font-bold flex-1" style={{ color: primaryColor }}>
+                                            {aiProgressMessage || 'AI analyzing...'}
+                                        </span>
+                                        <span className="text-sm font-bold tabular-nums" style={{ color: primaryColor }}>
+                                            {aiProgress}%
+                                        </span>
+                                    </div>
+
+                                    <div className="relative w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: `${primaryColor}15` }}>
+                                        <div
+                                            className="absolute top-0 left-0 h-full rounded-full transition-all duration-500 ease-out"
+                                            style={{
+                                                width: `${aiProgress}%`,
+                                                background: `linear-gradient(90deg, ${primaryColor}, ${accentColor})`,
+                                                boxShadow: `0 0 10px ${primaryColor}40`
+                                            }}
+                                        >
+                                            <div
+                                                className="absolute inset-0 animate-pulse"
+                                                style={{
+                                                    background: `linear-gradient(90deg, transparent, ${primaryColor}30, transparent)`,
+                                                    animation: 'shimmer 1.5s infinite'
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* AI Error Message */}
+                            {aiError && (
+                                <div
+                                    className="mb-8 p-5 rounded-2xl border"
+                                    style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex-shrink-0 mt-0.5">
+                                            <span className="material-symbols-outlined text-red-500">error</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-sm font-bold text-red-900 mb-1">AI Analysis Failed</h4>
+                                            <p className="text-sm text-red-700 mb-3">{aiError}</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setAiError(null);
+                                                        if (imageFiles.length > 0) {
+                                                            const event = { target: { files: imageFiles } };
+                                                            onDrop(imageFiles);
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all hover:shadow-sm"
+                                                    style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}
+                                                >
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-sm">refresh</span>
+                                                        Try Again
+                                                    </span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setAiError(null)}
+                                                    className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all hover:shadow-sm"
+                                                    style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}
+                                                >
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-sm">edit</span>
+                                                        Add Manually
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setAiError(null)}
+                                            className="flex-shrink-0 p-1 rounded-lg hover:bg-red-100 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-sm text-red-500">close</span>
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -666,20 +919,35 @@ const VendorProductCreatePage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="h-px w-full" style={{ backgroundColor: themeConfig.border }}></div>
-
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="material-symbols-outlined text-amber-400">wb_sunny</span>
-                                    <h3 className="font-bold" style={{ color: themeConfig.text }}>Weather Fit</h3>
+                                    <span className="material-symbols-outlined" style={{ color: accentColor }}>wb_sunny</span>
+                                    <h3 className="font-bold" style={{ color: themeConfig.text }}>Weather Match</h3>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-sm font-bold border border-amber-100 flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[14px]">sunny</span>SunnyDay
-                                    </span>
-                                    <span className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-bold border border-blue-100 flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[14px]">water_drop</span>Monsoon
-                                    </span>
+                                <div className="space-y-3">
+                                    {weatherTags.map((weatherTag, index) => (
+                                        <div
+                                            key={index}
+                                            className="p-3 rounded-xl border transition-all"
+                                            style={{
+                                                backgroundColor: `${themeConfig.surface}50`,
+                                                borderColor: themeConfig.border
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <span
+                                                    className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide"
+                                                    style={{
+                                                        backgroundColor: `${primaryColor}15`,
+                                                        color: primaryColor
+                                                    }}
+                                                >{weatherTag.tag}</span>
+                                            </div>
+                                            <p className="text-sm leading-relaxed" style={{ color: themeConfig.textSecondary }}>
+                                                {weatherTag.fit}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { vendorApi } from '../api/vendor';
 import type { VendorSignupData } from '../api/vendor';
@@ -15,6 +15,20 @@ const VendorSignupPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { isAuthenticated, isOnboardingComplete } = await vendorApi.checkAuthStatus();
+            if (isAuthenticated) {
+                if (isOnboardingComplete) {
+                    navigate('/vendor');
+                } else {
+                    navigate('/vendor/onboarding');
+                }
+            }
+        };
+        checkAuth();
+    }, [navigate]);
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
             ...formData,
@@ -28,8 +42,13 @@ const VendorSignupPage: React.FC = () => {
         setLoading(true);
 
         try {
-            await vendorApi.signupVendor(formData);
-            navigate('/vendor/verify-email', { state: { email: formData.email } });
+            const response = await vendorApi.signupVendor(formData);
+            // Store the auth token for auto-login
+            if (response.token) {
+                localStorage.setItem('token', response.token);
+            }
+            // Redirect to onboarding
+            navigate('/vendor/onboarding');
         } catch (err: any) {
             console.error(err);
             setError(err.response?.data?.error || 'Signup failed. Please try again.');

@@ -141,13 +141,13 @@ CELERY_TIMEZONE = TIME_ZONE
 # Redis Cache Configuration
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': config('REDIS_URL', default='redis://redis:6379/1'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },
         'KEY_PREFIX': 'vibe_shopping',
-        'TIMEOUT': 300,  # 5 minutes default
+        'TIMEOUT': 300,
     }
 }
 
@@ -160,11 +160,21 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Removed auth for development
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '100/hour',
+        'anon': '50/hour',
+        'ai_analysis': '10/minute',
+        'logo_analysis': '5/minute',
+    },
 }
 
 # CORS Configuration (adjust for your frontend)
@@ -177,6 +187,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Google Gemini AI Configuration
 GOOGLE_AI_API_KEY = config('GOOGLE_AI_API_KEY', default='')
+
+# OpenAI Configuration (Fallback)
+OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 
 # Multi-Tenancy Configuration
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='vibe-shopping.com')

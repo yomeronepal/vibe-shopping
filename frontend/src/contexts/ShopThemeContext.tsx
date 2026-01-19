@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
-export type ShopTheme = 'neon-vibe' | 'minimal' | 'warm-cozy';
+export type ShopTheme = 'neon-vibe' | 'minimal' | 'warm-cozy' | 'ai-generated';
 
-interface ThemeConfig {
+export interface ThemeConfig {
     name: string;
     description: string;
     primary: string;
@@ -16,7 +16,7 @@ interface ThemeConfig {
     buttonBg: string;
     buttonText: string;
     gradient: string;
-    textGradient: string; // Vibrant gradient for text that's always visible
+    textGradient: string;
 }
 
 const themeConfigs: Record<ShopTheme, ThemeConfig> = {
@@ -66,7 +66,23 @@ const themeConfigs: Record<ShopTheme, ThemeConfig> = {
         buttonBg: '#d97706',
         buttonText: '#ffffff',
         gradient: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
-        textGradient: 'linear-gradient(135deg, #ea580c, #f97316)', // Orange gradient
+        textGradient: 'linear-gradient(135deg, #ea580c, #f97316)',
+    },
+    'ai-generated': {
+        name: 'AI Generated',
+        description: 'Custom theme from your logo',
+        primary: '#6366f1',
+        accent: '#8b5cf6',
+        background: '#faf5ff',
+        surface: '#f5f3ff',
+        text: '#1e1b4b',
+        textSecondary: '#6b7280',
+        border: '#e5e7eb',
+        cardBg: '#ffffff',
+        buttonBg: '#6366f1',
+        buttonText: '#ffffff',
+        gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+        textGradient: 'linear-gradient(135deg, #6366f1, #a855f7)'
     },
 };
 
@@ -75,6 +91,7 @@ interface ShopThemeContextType {
     setTheme: (theme: ShopTheme) => void;
     config: ThemeConfig;
     allThemes: typeof themeConfigs;
+    setAiThemeConfig: (config: Partial<ThemeConfig>) => void;
 }
 
 const ShopThemeContext = createContext<ShopThemeContextType | undefined>(undefined);
@@ -85,13 +102,49 @@ export const ShopThemeProvider: React.FC<{ children: ReactNode }> = ({ children 
         return (saved as ShopTheme) || 'neon-vibe';
     });
 
+    const [customThemes, setCustomThemes] = useState<Record<ShopTheme, ThemeConfig>>(() => {
+        const savedAiTheme = localStorage.getItem('ai-theme-config');
+        if (savedAiTheme) {
+            try {
+                const aiTheme = JSON.parse(savedAiTheme);
+                console.log('Loaded AI theme from localStorage:', aiTheme);
+                return {
+                    ...themeConfigs,
+                    'ai-generated': aiTheme
+                };
+            } catch (e) {
+                console.error('Failed to parse saved AI theme:', e);
+            }
+        }
+        return themeConfigs;
+    });
+
     const setTheme = (newTheme: ShopTheme) => {
         setThemeState(newTheme);
         localStorage.setItem('shop-theme', newTheme);
     };
 
+    const setAiThemeConfig = (config: Partial<ThemeConfig>) => {
+        const updatedAiTheme = {
+            ...customThemes['ai-generated'],
+            ...config
+        };
+        console.log('Updating AI theme config:', updatedAiTheme);
+
+        setCustomThemes(prev => {
+            const newThemes = {
+                ...prev,
+                'ai-generated': updatedAiTheme
+            };
+
+            localStorage.setItem('ai-theme-config', JSON.stringify(updatedAiTheme));
+
+            return newThemes;
+        });
+    };
+
     useEffect(() => {
-        const config = themeConfigs[theme];
+        const config = customThemes[theme];
         const root = document.documentElement;
 
         root.style.setProperty('--shop-primary', config.primary);
@@ -106,17 +159,17 @@ export const ShopThemeProvider: React.FC<{ children: ReactNode }> = ({ children 
         root.style.setProperty('--shop-button-text', config.buttonText);
         root.style.setProperty('--shop-gradient', config.gradient);
 
-        // Add theme class to body
-        document.body.classList.remove('theme-neon-vibe', 'theme-minimal', 'theme-warm-cozy');
+        document.body.classList.remove('theme-neon-vibe', 'theme-minimal', 'theme-warm-cozy', 'theme-ai-generated');
         document.body.classList.add(`theme-${theme}`);
-    }, [theme]);
+    }, [theme, customThemes]);
 
     return (
         <ShopThemeContext.Provider value={{
             theme,
             setTheme,
-            config: themeConfigs[theme],
-            allThemes: themeConfigs
+            config: customThemes[theme],
+            allThemes: customThemes,
+            setAiThemeConfig
         }}>
             {children}
         </ShopThemeContext.Provider>

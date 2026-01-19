@@ -8,6 +8,8 @@ from django.contrib.auth.models import User
 from core.models import Product, Tenant, VendorProfile, ProductEvent
 # We'll need to move serializers or import them. For now import from core.
 from core.serializers import ProductSerializer, ProductCreateSerializer, VendorSignupSerializer
+from core.throttles import LogoAnalysisThrottle
+from .serializers import OnboardingProfileSerializer, KYCSubmissionSerializer, OnboardingStatusSerializer
 
 class VendorSignupView(generics.CreateAPIView):
     serializer_class = VendorSignupSerializer
@@ -20,6 +22,7 @@ class VendorSignupView(generics.CreateAPIView):
         try:
             with transaction.atomic():
                 from django.utils.text import slugify
+                from rest_framework.authtoken.models import Token
                 
                 # Create Tenant
                 store_name = serializer.validated_data['store_name']
@@ -45,16 +48,14 @@ class VendorSignupView(generics.CreateAPIView):
                     role='owner'
                 )
 
-                return Response({
-                    'message': 'Vendor account created successfully',
-                    'tenant_id': tenant.id,
-                    'user_id': user.id
-                }, status=status.HTTP_201_CREATED)
+                # Create auth token for auto-login
+                token, _ = Token.objects.get_or_create(user=user)
 
                 return Response({
                     'message': 'Vendor account created successfully',
                     'tenant_id': tenant.id,
-                    'user_id': user.id
+                    'user_id': user.id,
+                    'token': token.key  # Return token for auto-login
                 }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -281,6 +282,412 @@ class TenantViewSet(viewsets.GenericViewSet):
         # Redirect back to vendor dashboard with success
         return redirect(f'{frontend_url}/vendor?oauth_success={platform}')
 
+
+class OnboardingViewSet(viewsets.GenericViewSet):
+    """
+    ViewSet to manage vendor onboarding process.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_tenant(self, request):
+        """Helper to get the current user's tenant."""
+        if not hasattr(request.user, 'vendor_profile'):
+            return None
+        return request.user.vendor_profile.tenant
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """
+        Get current onboarding status for the vendor.
+        """
+        tenant = self.get_tenant(request)
+        if not tenant:
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        metadata = tenant.metadata or {}
+        onboarding = metadata.get('onboarding', {})
+        social_media = metadata.get('social_media', {})
+
+        # Check profile completion
+        profile_complete = bool(
+            metadata.get('bio') or 
+            metadata.get('brandVibe') or 
+            metadata.get('niches')
+        )
+
+        # Check KYC status
+        kyc_data = onboarding.get('kyc', {})
+        kyc_status = kyc_data.get('status', 'pending')
+
+        # Check if any socials are connected
+        socials_connected = any(
+            platform_data.get('connected', False) 
+            for platform_data in social_media.values()
+        )
+
+        # Check if theme is selected
+        theme_selected = bool(metadata.get('shopTheme'))
+
+        # Determine current step
+        if not profile_complete:
+            current_step = 1
+        elif kyc_status == 'pending':
+            current_step = 2
+        elif not socials_connected and not onboarding.get('socials_skipped', False):
+            current_step = 3
+        else:
+            current_step = 4
+
+        is_complete = onboarding.get('is_complete', False)
+
+        # Get vendor's AI-generated theme from Theme model
+        from core.models import Theme
+        ai_theme = Theme.objects.filter(tenant=tenant, is_ai_generated=True).first()
+
+        logo_url = None
+        if metadata.get('logo'):
+            from django.conf import settings
+            logo_url = f"{settings.MEDIA_URL}{metadata.get('logo')}"
+
+        return Response({
+            'current_step': current_step,
+            'profile_complete': profile_complete,
+            'kyc_status': kyc_status,
+            'socials_connected': socials_connected,
+            'theme_selected': theme_selected,
+            'is_complete': is_complete,
+            'ai_theme': ai_theme.to_dict() if ai_theme else None,
+            'store_name': tenant.name,
+            'logo': logo_url,
+        })
+
+    @action(detail=False, methods=['post'])
+    def profile(self, request):
+        """
+        Save onboarding profile data (Step 1).
+        """
+        tenant = self.get_tenant(request)
+        if not tenant:
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = OnboardingProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Update tenant metadata
+        if tenant.metadata is None:
+            tenant.metadata = {}
+
+        # Save profile fields to metadata
+        if data.get('bio'):
+            tenant.metadata['bio'] = data['bio']
+        if data.get('category'):
+            tenant.metadata['niches'] = [data['category']]
+        if data.get('brand_vibes'):
+            tenant.metadata['brandVibe'] = data['brand_vibes']
+        if data.get('ai_persona') is not None:
+            tenant.metadata['aiPersona'] = data['ai_persona']
+
+        # Handle logo upload
+        if 'logo' in request.FILES:
+            logo_file = request.FILES['logo']
+            # Save logo to tenant
+            tenant_slug = tenant.subdomain if tenant.subdomain else 'default'
+            logo_path = f'uploads/{tenant_slug}/logo/{logo_file.name}'
+            
+            from django.core.files.storage import default_storage
+            saved_path = default_storage.save(logo_path, logo_file)
+            tenant.metadata['logo'] = saved_path
+
+        # Mark profile as started in onboarding tracker
+        if 'onboarding' not in tenant.metadata:
+            tenant.metadata['onboarding'] = {}
+        tenant.metadata['onboarding']['profile_saved'] = True
+
+        tenant.save()
+
+        return Response({
+            'message': 'Profile saved successfully',
+            'metadata': tenant.metadata
+        })
+
+    @action(detail=False, methods=['post'])
+    def kyc(self, request):
+        """
+        Submit KYC documents (Step 2).
+        """
+        tenant = self.get_tenant(request)
+        if not tenant:
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = KYCSubmissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if tenant.metadata is None:
+            tenant.metadata = {}
+        if 'onboarding' not in tenant.metadata:
+            tenant.metadata['onboarding'] = {}
+
+        kyc_data = {
+            'pan_vat_number': data['pan_vat_number'],
+            'business_reg_no': data.get('business_reg_no', ''),
+            'status': 'submitted',
+            'submitted_at': str(import_datetime_now())
+        }
+
+        # Handle KYC document upload
+        if 'kyc_document' in request.FILES:
+            doc_file = request.FILES['kyc_document']
+            tenant_slug = tenant.subdomain if tenant.subdomain else 'default'
+            doc_path = f'uploads/{tenant_slug}/kyc/{doc_file.name}'
+            
+            from django.core.files.storage import default_storage
+            saved_path = default_storage.save(doc_path, doc_file)
+            kyc_data['document_path'] = saved_path
+
+        tenant.metadata['onboarding']['kyc'] = kyc_data
+        tenant.metadata['panVatNumber'] = data['pan_vat_number']
+        tenant.metadata['businessRegNo'] = data.get('business_reg_no', '')
+
+        tenant.save()
+
+        return Response({
+            'message': 'KYC documents submitted successfully',
+            'kyc_status': 'submitted'
+        })
+
+    @action(detail=False, methods=['post'], url_path='skip-socials')
+    def skip_socials(self, request):
+        """
+        Skip social media connection (Step 3).
+        """
+        tenant = self.get_tenant(request)
+        if not tenant:
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        if tenant.metadata is None:
+            tenant.metadata = {}
+        if 'onboarding' not in tenant.metadata:
+            tenant.metadata['onboarding'] = {}
+
+        tenant.metadata['onboarding']['socials_skipped'] = True
+        tenant.save()
+
+        return Response({'message': 'Social media connection skipped'})
+
+    @action(detail=False, methods=['post'])
+    def complete(self, request):
+        """
+        Complete onboarding and activate tenant (Step 4).
+        """
+        tenant = self.get_tenant(request)
+        if not tenant:
+            return Response({'error': 'Vendor profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Save theme if provided
+        theme = request.data.get('theme')
+        if theme:
+            if tenant.metadata is None:
+                tenant.metadata = {}
+            tenant.metadata['shopTheme'] = theme
+
+        # Mark onboarding as complete
+        if 'onboarding' not in tenant.metadata:
+            tenant.metadata['onboarding'] = {}
+        tenant.metadata['onboarding']['is_complete'] = True
+        tenant.metadata['onboarding']['completed_at'] = str(import_datetime_now())
+
+        # Activate tenant
+        tenant.is_active = True
+        tenant.save()
+
+        return Response({
+            'message': 'Onboarding completed successfully',
+            'tenant_active': True
+        })
+
+
+def import_datetime_now():
+    """Helper to get current datetime."""
+    from django.utils import timezone
+    return timezone.now()
+
+
+class ThemeViewSet(viewsets.ViewSet):
+    """
+    ViewSet to list available shop themes.
+    """
+    permission_classes = [AllowAny]
+
+    def list(self, request):
+        """
+        GET /api/vendor/themes/ - List all themes (defaults + vendor's themes)
+        """
+        from core.models import Theme
+        
+        # Get default themes
+        default_themes = Theme.objects.filter(is_default=True)
+        
+        # Get vendor's themes if authenticated
+        vendor_themes = []
+        if request.user.is_authenticated and hasattr(request.user, 'vendor_profile'):
+            tenant = request.user.vendor_profile.tenant
+            vendor_themes = Theme.objects.filter(tenant=tenant)
+        
+        # Combine and return
+        all_themes = list(default_themes) + list(vendor_themes)
+        return Response([theme.to_dict() for theme in all_themes])
+
+    def retrieve(self, request, pk=None):
+        """
+        GET /api/vendor/themes/{id}/ - Get theme by slug or ID
+        """
+        from core.models import Theme
+        
+        # Try to find by slug first, then by ID
+        theme = Theme.objects.filter(slug=pk).first()
+        if not theme:
+            try:
+                theme = Theme.objects.get(id=int(pk))
+            except (ValueError, Theme.DoesNotExist):
+                pass
+        
+        if theme:
+            return Response(theme.to_dict())
+        return Response({'error': 'Theme not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class LogoAnalysisView(generics.CreateAPIView):
+    """
+    Analyze uploaded logo and recommend matching theme using Gemini AI.
+    POST /api/vendor/onboarding/analyze-logo/
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [LogoAnalysisThrottle]
+
+    def create(self, request, *args, **kwargs):
+        if 'logo' not in request.FILES:
+            return Response(
+                {'error': 'Logo image is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        logo_file = request.FILES['logo']
+        logo_data = logo_file.read()
+
+        try:
+            from core.services.gemini_service import GeminiLogoAnalyzer
+            from core.models import Theme
+            from core.utils.ai_tracker import track_ai_usage, estimate_image_tokens, estimate_text_tokens
+
+            tenant = request.user.vendor_profile.tenant
+
+            analyzer = GeminiLogoAnalyzer()
+            result = analyzer.analyze_logo(logo_data)
+
+            if result['success']:
+                ai_provider = result.get('ai_provider', 'gemini')
+
+                input_tokens = estimate_image_tokens(logo_data)
+                output_tokens = estimate_text_tokens(str(result['data']))
+
+                track_ai_usage(
+                    tenant=tenant,
+                    ai_provider=ai_provider,
+                    operation_type='logo_analysis',
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    success=True,
+                    user=request.user,
+                    metadata={'logo_filename': logo_file.name}
+                )
+                palette = result['data'].get('custom_palette', {})
+                
+                # Create or update AI-generated theme for this vendor
+                ai_theme, created = Theme.objects.update_or_create(
+                    tenant=tenant,
+                    is_ai_generated=True,
+                    defaults={
+                        'name': 'AI Generated Theme',
+                        'slug': 'ai-generated',
+                        'description': result['data'].get('recommendation_reason', 'Theme generated from logo analysis'),
+                        'is_default': False,
+                        'primary': palette.get('primary', '#8A2BE2'),
+                        'accent': palette.get('accent', '#a855f7'),
+                        'background': palette.get('background', '#f5f3f8'),
+                        'surface': palette.get('surface', '#ffffff'),
+                        'text': palette.get('text', '#1a1a2e'),
+                        'text_secondary': palette.get('textSecondary', '#6b7280'),
+                        'border': palette.get('border', '#e5e7eb'),
+                        'card_bg': palette.get('cardBg', '#ffffff'),
+                        'button_bg': palette.get('buttonBg', palette.get('primary', '#8A2BE2')),
+                        'button_text': palette.get('buttonText', '#ffffff'),
+                        'gradient': palette.get('gradient', f"linear-gradient(135deg, {palette.get('primary', '#8A2BE2')} 0%, {palette.get('accent', '#a855f7')} 100%)"),
+                        'text_gradient': palette.get('textGradient', f"linear-gradient(135deg, {palette.get('primary', '#8A2BE2')}, {palette.get('accent', '#a855f7')})"),
+                        'brand_style': result['data'].get('brand_style', ''),
+                        'brand_keywords': result['data'].get('brand_keywords', []),
+                        'recommendation_reason': result['data'].get('recommendation_reason', ''),
+                    }
+                )
+                
+                # Get the recommended default theme
+                recommended_preset_slug = result['data'].get('recommended_theme', 'neon-vibe')
+                recommended_theme = Theme.objects.filter(is_default=True, slug=recommended_preset_slug).first()
+                
+                return Response({
+                    'analysis': result['data'],
+                    'ai_theme': ai_theme.to_dict(),
+                    'recommended_theme_details': recommended_theme.to_dict() if recommended_theme else None,
+                    'saved': True,
+                    'created': created
+                }, status=status.HTTP_200_OK)
+            else:
+                ai_provider = result.get('ai_provider', 'gemini')
+                input_tokens = estimate_image_tokens(logo_data)
+
+                track_ai_usage(
+                    tenant=tenant,
+                    ai_provider=ai_provider,
+                    operation_type='logo_analysis',
+                    input_tokens=input_tokens,
+                    output_tokens=0,
+                    success=False,
+                    error_message=result['error'],
+                    user=request.user,
+                    metadata={'logo_filename': logo_file.name}
+                )
+
+                return Response(
+                    {'error': result['error']},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        except ValueError as e:
+            track_ai_usage(
+                tenant=tenant,
+                ai_provider='gemini',
+                operation_type='logo_analysis',
+                success=False,
+                error_message=f'Configuration error: {str(e)}',
+                user=request.user
+            )
+            return Response(
+                {'error': f'Configuration error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            track_ai_usage(
+                tenant=tenant,
+                ai_provider='gemini',
+                operation_type='logo_analysis',
+                success=False,
+                error_message=f'Analysis failed: {str(e)}',
+                user=request.user
+            )
+            return Response(
+                {'error': f'Analysis failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class ProductViewSet(viewsets.ModelViewSet):

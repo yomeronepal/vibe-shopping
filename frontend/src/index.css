@@ -247,6 +247,15 @@ body.theme-warm-cozy {
     animation: shimmer-move 3s infinite;
 }
 
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
 /* Pop-in Animation */
 @keyframes pop-in {
     0% {

@@ -1,11 +1,14 @@
 from rest_framework import viewsets, status, generics
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db import transaction
 from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
+from rest_framework.authtoken.models import Token
 from .models import Product, Tenant, VendorProfile, Order, OrderItem, EscrowLedger, Wallet, ProductEvent
 from .serializers import ProductSerializer, ProductCreateSerializer, VendorSignupSerializer
+from .throttles import AIAnalysisThrottle
 
 # Create your views here.
 
@@ -17,6 +20,49 @@ def health_check(request):
         'message': 'Vibe Shopping API is running'
     })
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def vendor_login(request):
+    """
+    Custom login endpoint that returns token and onboarding status
+    """
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    if not username or not password:
+        return Response(
+            {'error': 'Username and password are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = authenticate(username=username, password=password)
+
+    if not user:
+        return Response(
+            {'error': 'Invalid credentials'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    token, _ = Token.objects.get_or_create(user=user)
+
+    is_onboarding_complete = False
+    tenant_id = None
+
+    if hasattr(user, 'vendor_profile'):
+        tenant = user.vendor_profile.tenant
+        tenant_id = tenant.id
+        metadata = tenant.metadata or {}
+        onboarding = metadata.get('onboarding', {})
+        is_onboarding_complete = onboarding.get('is_complete', False)
+
+    return Response({
+        'token': token.key,
+        'user_id': user.id,
+        'username': user.username,
+        'tenant_id': tenant_id,
+        'is_onboarding_complete': is_onboarding_complete
+    })
+
 
 
 
@@ -26,6 +72,18 @@ def health_check(request):
 
 
 
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def vendor_logout(request):
+    """
+    Logout endpoint that deletes the user's auth token
+    """
+    try:
+        request.user.auth_token.delete()
+        return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def list_gemini_models(request):
@@ -100,6 +158,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         return Product.objects.none()  # Or return global marketplace products if applicable
 
 @api_view(['POST'])
+@throttle_classes([AIAnalysisThrottle])
 def generate_product_details(request):
     """
     Generate comprehensive product details from uploaded image using Gemini AI
@@ -126,20 +185,50 @@ def generate_product_details(request):
     # Read image data
     image_data = image_file.read()
     
-    # Import service here to avoid circular imports
     from .services.gemini_service import GeminiProductAnalyzer
-    
+    from .utils.ai_tracker import track_ai_usage, estimate_image_tokens, estimate_text_tokens
+
+    tenant = None
+    if hasattr(request.user, 'vendor_profile'):
+        tenant = request.user.vendor_profile.tenant
+
     try:
-        # Analyze with Gemini AI
         analyzer = GeminiProductAnalyzer()
         result = analyzer.analyze_product_image(
             image_data,
             price=float(price) if price else None
         )
-        
+
         if result['success']:
+            ai_provider = result.get('ai_provider', 'gemini')
+
+            input_tokens = estimate_image_tokens(image_data)
+            output_tokens = estimate_text_tokens(str(result['data']))
+
+            if tenant:
+                track_ai_usage(
+                    tenant=tenant,
+                    ai_provider=ai_provider,
+                    operation_type='product_analysis',
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    success=True,
+                    user=request.user if request.user.is_authenticated else None,
+                    metadata={'price': price}
+                )
+
             return Response(result['data'], status=status.HTTP_200_OK)
         else:
+            if tenant:
+                track_ai_usage(
+                    tenant=tenant,
+                    ai_provider='gemini',
+                    operation_type='product_analysis',
+                    success=False,
+                    error_message=result['error'],
+                    user=request.user if request.user.is_authenticated else None
+                )
+
             return Response(
                 {'error': result['error']},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -9,7 +9,7 @@ const CATEGORIES = ['Fashion & Apparel', 'Home & Living', 'Tech & Gadgets', 'Art
 const VendorOnboardingPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { theme: selectedShopTheme, setTheme: setShopTheme, config: themeConfig, allThemes } = useShopTheme();
+    const { theme: selectedShopTheme, setTheme: setShopTheme, config: themeConfig, allThemes, setAiThemeConfig } = useShopTheme();
 
     // Initialize step from URL parameter or default to 1
     const initialStep = parseInt(searchParams.get('step') || '1', 10);
@@ -24,6 +24,61 @@ const VendorOnboardingPage: React.FC = () => {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
+
+    useEffect(() => {
+        const loadSavedTheme = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    navigate('/vendor/login');
+                    return;
+                }
+
+                const status = await vendorApi.getOnboardingStatus();
+                console.log('Onboarding status:', status);
+
+                if (status.is_complete) {
+                    navigate('/vendor');
+                    return;
+                }
+
+                if (status.ai_theme) {
+                    setAiAnalysis(status.ai_theme);
+
+                    if (status.ai_theme.recommended_preset) {
+                        setAiRecommendedTheme(status.ai_theme.recommended_preset);
+                    }
+
+                    const palette = status.ai_theme.custom_palette || status.ai_theme.colors;
+                    if (palette) {
+                        console.log('Loading saved AI theme palette:', palette);
+                        const aiTheme = {
+                            name: 'AI Generated',
+                            description: status.ai_theme.recommendation_reason || 'Custom theme from your logo',
+                            primary: palette.primary,
+                            accent: palette.accent,
+                            background: palette.background,
+                            surface: palette.surface,
+                            text: palette.text,
+                            textSecondary: palette.textSecondary,
+                            border: palette.border,
+                            cardBg: palette.cardBg,
+                            buttonBg: palette.buttonBg || palette.primary,
+                            buttonText: palette.buttonText || '#ffffff',
+                            gradient: palette.gradient || `linear-gradient(135deg, ${palette.primary} 0%, ${palette.accent} 100%)`,
+                            textGradient: palette.textGradient || `linear-gradient(135deg, ${palette.primary}, ${palette.accent})`
+                        };
+
+                        setAiThemeConfig(aiTheme);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load onboarding status:', error);
+                navigate('/vendor/login');
+            }
+        };
+        loadSavedTheme();
+    }, [setAiThemeConfig, navigate]);
 
     // Step 1: Profile state
     const [shopName, setShopName] = useState('');
@@ -40,15 +95,63 @@ const VendorOnboardingPage: React.FC = () => {
     const [kycDocument, setKycDocument] = useState<File | null>(null);
     const [kycDocPreview, setKycDocPreview] = useState<string | null>(null);
 
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // AI Theme Recommendation state
+    const [aiRecommendedTheme, setAiRecommendedTheme] = useState<string | null>(null);
+    const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+    const [analyzingLogo, setAnalyzingLogo] = useState(false);
+
+
+    const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             setLogo(file);
             const reader = new FileReader();
             reader.onloadend = () => setLogoPreview(reader.result as string);
             reader.readAsDataURL(file);
+
+            setAnalyzingLogo(true);
+            try {
+                const result = await vendorApi.analyzeLogoForTheme(file);
+                console.log('Logo analysis result:', result);
+
+                if (result.analysis) {
+                    setAiRecommendedTheme(result.analysis.recommended_theme);
+                    setAiAnalysis(result.analysis);
+
+                    const palette = result.analysis.custom_palette || result.analysis.colors;
+                    console.log('Extracted palette:', palette);
+
+                    if (palette) {
+                        const aiTheme = {
+                            name: 'AI Generated',
+                            description: result.analysis.recommendation_reason || 'Custom theme from your logo',
+                            primary: palette.primary,
+                            accent: palette.accent,
+                            background: palette.background,
+                            surface: palette.surface,
+                            text: palette.text,
+                            textSecondary: palette.textSecondary,
+                            border: palette.border,
+                            cardBg: palette.cardBg,
+                            buttonBg: palette.buttonBg || palette.primary,
+                            buttonText: palette.buttonText || '#ffffff',
+                            gradient: palette.gradient || `linear-gradient(135deg, ${palette.primary} 0%, ${palette.accent} 100%)`,
+                            textGradient: palette.textGradient || `linear-gradient(135deg, ${palette.primary}, ${palette.accent})`
+                        };
+
+                        console.log('Setting AI theme config:', aiTheme);
+                        setAiThemeConfig(aiTheme);
+                        setShopTheme('ai-generated');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to analyze logo:', error);
+            } finally {
+                setAnalyzingLogo(false);
+            }
         }
     };
+
 
     const handleKycDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -73,41 +176,47 @@ const VendorOnboardingPage: React.FC = () => {
     };
 
     const handleNext = async () => {
-        if (step < 4) {
-            setStep(step + 1);
-        } else {
-            setLoading(true);
-            try {
-                await vendorApi.updateTenant({
-                    metadata: {
-                        niches: [category],
-                        bio,
-                        brandVibe: selectedVibes,
-                        aiPersona,
-                        panVatNumber,
-                        businessRegNo,
-                        shopTheme: selectedShopTheme
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to save onboarding data:', error);
-            } finally {
-                setLoading(false);
-                // Always navigate to success page
+        setLoading(true);
+        try {
+            if (step === 1) {
+                // Step 1: Save profile data
+                await vendorApi.saveOnboardingProfile({
+                    bio,
+                    category,
+                    brand_vibes: selectedVibes,
+                    ai_persona: aiPersona
+                }, logo);
+                setStep(2);
+            } else if (step === 2) {
+                // Step 2: Submit KYC documents
+                await vendorApi.submitKYC({
+                    pan_vat_number: panVatNumber,
+                    business_reg_no: businessRegNo
+                }, kycDocument);
+                setStep(3);
+            } else if (step === 3) {
+                // Step 3: Social connections (skip for now)
+                await vendorApi.skipSocials();
+                setStep(4);
+            } else if (step === 4) {
+                // Step 4: Complete onboarding with theme
+                await vendorApi.completeOnboarding(selectedShopTheme);
                 navigate('/vendor/onboarding/success');
             }
+        } catch (error) {
+            console.error('Failed to save onboarding data:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Suppress unused variable warnings
-    void logo;
-    void kycDocument;
-
-    const themeOptions: { key: ShopTheme; badge?: string }[] = [
-        { key: 'neon-vibe', badge: 'AI PICK' },
-        { key: 'minimal' },
-        { key: 'warm-cozy' }
+    const themeOptions: { key: ShopTheme; badge?: string; isAiGenerated?: boolean }[] = [
+        { key: 'ai-generated', badge: 'AI GENERATED', isAiGenerated: true },
+        { key: 'neon-vibe', badge: aiRecommendedTheme === 'neon-vibe' ? 'AI PICK' : undefined },
+        { key: 'minimal', badge: aiRecommendedTheme === 'minimal' ? 'AI PICK' : undefined },
+        { key: 'warm-cozy', badge: aiRecommendedTheme === 'warm-cozy' ? 'AI PICK' : undefined }
     ];
+
 
     // Dynamic styles based on theme
     const primaryColor = themeConfig.primary;
@@ -350,6 +459,17 @@ const VendorOnboardingPage: React.FC = () => {
                                         {logoPreview ? 'Change' : 'Upload'}
                                         <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
                                     </label>
+                                    {analyzingLogo && (
+                                        <p className="text-xs mt-2 flex items-center gap-1" style={{ color: primaryColor }}>
+                                            <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                            Analyzing logo for theme...
+                                        </p>
+                                    )}
+                                    {aiAnalysis && !analyzingLogo && (
+                                        <p className="text-xs mt-2" style={{ color: themeConfig.textSecondary }}>
+                                            AI suggests: <span className="font-bold" style={{ color: primaryColor }}>{aiAnalysis.recommended_theme}</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -648,14 +768,93 @@ const VendorOnboardingPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                        {themeOptions.map(({ key, badge }) => {
-                                            const config = allThemes[key];
+                                    <h4 className="text-lg font-bold mb-4">
+                                        Choose Your Theme
+                                    </h4>
+                                    <p className="text-sm mb-6" style={{ color: themeConfig.textSecondary }}>
+                                        {aiAnalysis ? 'AI has analyzed your logo and created a custom theme. You can also choose from our presets.' : 'Upload a logo in Step 1 to unlock your custom AI-generated theme!'}
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {themeOptions.map(({ key, badge, isAiGenerated }) => {
+                                            if (isAiGenerated && key === 'ai-generated') {
+                                                const config = allThemes['ai-generated'];
+                                                const isSelected = selectedShopTheme === 'ai-generated';
+                                                const hasAiAnalysis = aiAnalysis !== null;
+
+                                                console.log('Rendering AI theme card with config:', config);
+                                                console.log('Has AI analysis:', hasAiAnalysis);
+                                                console.log('AI analysis data:', aiAnalysis);
+
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        onClick={() => setShopTheme('ai-generated')}
+                                                        className={`group/card relative rounded-3xl overflow-hidden border-2 cursor-pointer transition-all duration-500 ${isSelected
+                                                            ? 'shadow-[0_10px_40px_-10px_rgba(138,43,226,0.3)] -translate-y-1'
+                                                            : 'hover:shadow-xl hover:-translate-y-2'
+                                                            } ${!hasAiAnalysis ? 'opacity-75' : ''}`}
+                                                        style={{
+                                                            backgroundColor: themeConfig.cardBg,
+                                                            borderColor: isSelected ? config.primary : themeConfig.border
+                                                        }}
+                                                    >
+                                                        <div className="aspect-[9/16] relative overflow-hidden" style={{ backgroundColor: config.background }}>
+                                                            <div className="absolute inset-0 p-4 flex flex-col">
+                                                                <div className="h-12 flex items-center justify-between mb-4">
+                                                                    <div className="w-8 h-8 rounded-full" style={{ background: config.primary }}></div>
+                                                                    <div className="w-4 h-4 rounded-full" style={{ background: config.accent }}></div>
+                                                                </div>
+                                                                <div className="rounded-2xl p-4 mb-4" style={{ background: config.primary }}>
+                                                                    <div className="text-white text-[10px] font-bold opacity-80">FEATURED</div>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="aspect-square rounded-xl" style={{ background: config.surface, border: `1px solid ${config.border}` }}></div>
+                                                                    <div className="aspect-square rounded-xl" style={{ background: config.surface, border: `1px solid ${config.border}` }}></div>
+                                                                </div>
+                                                            </div>
+                                                            {badge && (
+                                                                <div
+                                                                    className="absolute top-4 right-4 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 z-20"
+                                                                    style={{ background: `linear-gradient(135deg, ${config.primary}, ${config.accent})` }}
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span> {badge}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="p-5 border-t" style={{ backgroundColor: themeConfig.cardBg, borderColor: themeConfig.border }}>
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <h4 className="font-bold">{config.name}</h4>
+                                                                <div
+                                                                    className="size-6 rounded-full border flex items-center justify-center transition-colors duration-300"
+                                                                    style={{
+                                                                        borderColor: isSelected ? config.primary : themeConfig.border,
+                                                                        backgroundColor: isSelected ? `${config.primary}10` : 'transparent',
+                                                                        color: config.primary
+                                                                    }}
+                                                                >
+                                                                    {isSelected && <span className="material-symbols-outlined text-sm">check</span>}
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-xs mb-3" style={{ color: themeConfig.textSecondary }}>
+                                                                {hasAiAnalysis ? config.description : 'Upload a logo to generate your custom theme'}
+                                                            </p>
+                                                            {!hasAiAnalysis && (
+                                                                <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: themeConfig.textSecondary }}>
+                                                                    <span className="material-symbols-outlined text-xs">lock</span>
+                                                                    <span>Locked - Upload logo first</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            const config = allThemes[key as ShopTheme];
                                             const isSelected = selectedShopTheme === key;
                                             return (
                                                 <div
                                                     key={key}
-                                                    onClick={() => setShopTheme(key)}
+                                                    onClick={() => setShopTheme(key as ShopTheme)}
                                                     className={`group/card relative rounded-3xl overflow-hidden border-2 cursor-pointer transition-all duration-500 ${isSelected
                                                         ? 'shadow-[0_10px_40px_-10px_rgba(138,43,226,0.3)] -translate-y-1'
                                                         : 'hover:shadow-xl hover:-translate-y-2'
@@ -708,6 +907,7 @@ const VendorOnboardingPage: React.FC = () => {
                                             );
                                         })}
                                     </div>
+
                                 </div>
                             </div>
 

@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Tenant, VendorProfile, Product, ProductImage,
     Wallet, WalletTransaction, Order, OrderItem,
-    EscrowLedger, ProductEvent, SocialMediaPost
+    EscrowLedger, ProductEvent, SocialMediaPost, AITokenUsage
 )
 
 # Register your models here.
@@ -126,3 +126,34 @@ class SocialMediaPostAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         })
     )
+
+@admin.register(AITokenUsage)
+class AITokenUsageAdmin(admin.ModelAdmin):
+    list_display = ['tenant', 'ai_provider', 'operation_type', 'total_tokens', 'estimated_cost', 'success', 'created_at']
+    list_filter = ['ai_provider', 'operation_type', 'success', 'created_at', 'tenant']
+    search_fields = ['tenant__name', 'user__username', 'product__name', 'error_message']
+    readonly_fields = ['created_at', 'updated_at', 'total_tokens', 'estimated_cost']
+    date_hierarchy = 'created_at'
+    fieldsets = (
+        ('Usage Info', {
+            'fields': ('tenant', 'user', 'product', 'ai_provider', 'operation_type')
+        }),
+        ('Token Metrics', {
+            'fields': ('input_tokens', 'output_tokens', 'total_tokens', 'estimated_cost')
+        }),
+        ('Status', {
+            'fields': ('success', 'error_message')
+        }),
+        ('Metadata', {
+            'fields': ('metadata',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('tenant', 'user', 'product')

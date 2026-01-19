@@ -1,0 +1,40 @@
+from rest_framework import serializers
+
+
+class OnboardingProfileSerializer(serializers.Serializer):
+    """
+    Serializer for Step 1: Profile data.
+    """
+    shop_name = serializers.CharField(max_length=255, required=False)
+    bio = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    category = serializers.CharField(max_length=100, required=False)
+    brand_vibes = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        default=list
+    )
+    ai_persona = serializers.IntegerField(min_value=0, max_value=100, required=False, default=65)
+    logo = serializers.ImageField(required=False)
+
+
+class KYCSubmissionSerializer(serializers.Serializer):
+    """
+    Serializer for Step 2: KYC documents.
+    """
+    pan_vat_number = serializers.CharField(max_length=50, required=True)
+    business_reg_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    kyc_document = serializers.FileField(required=False)
+
+
+class OnboardingStatusSerializer(serializers.Serializer):
+    """
+    Serializer for returning onboarding progress.
+    """
+    current_step = serializers.IntegerField()
+    profile_complete = serializers.BooleanField()
+    kyc_status = serializers.ChoiceField(
+        choices=['pending', 'submitted', 'approved', 'rejected']
+    )
+    socials_connected = serializers.BooleanField()
+    theme_selected = serializers.BooleanField()
+    is_complete = serializers.BooleanField()

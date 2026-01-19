@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../api/auth';
+import { vendorApi } from '../api/vendor';
 import type { LoginResponse } from '../api/auth';
 
 const VendorLoginPage: React.FC = () => {
@@ -12,6 +13,20 @@ const VendorLoginPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { isAuthenticated, isOnboardingComplete } = await vendorApi.checkAuthStatus();
+            if (isAuthenticated) {
+                if (isOnboardingComplete) {
+                    navigate('/vendor');
+                } else {
+                    navigate('/vendor/onboarding');
+                }
+            }
+        };
+        checkAuth();
+    }, [navigate]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -28,7 +43,12 @@ const VendorLoginPage: React.FC = () => {
         try {
             const response: LoginResponse = await authApi.login(formData.username, formData.password);
             authApi.setToken(response.token);
-            navigate('/vendor');
+
+            if (response.is_onboarding_complete) {
+                navigate('/vendor');
+            } else {
+                navigate('/vendor/onboarding');
+            }
         } catch (err: any) {
             console.error(err);
             setError(err.response?.data?.non_field_errors?.[0] || err.response?.data?.error || 'Login failed. Please check your credentials.');

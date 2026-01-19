@@ -1,5 +1,10 @@
 import apiClient from './client';
 
+export interface WeatherTag {
+    tag: string;
+    fit: string;
+}
+
 export interface PublishProductData {
     name: string;
     description: string;
@@ -9,6 +14,7 @@ export interface PublishProductData {
     ai_generated_description?: string;
     tags?: string[];
     vibe_tags?: string[];
+    weather_tags?: WeatherTag[];
     category?: string;
     subcategory?: string;
     metadata?: Record<string, any>;
@@ -27,6 +33,7 @@ export interface VendorSignupResponse {
     message: string;
     tenant_id: number;
     user_id: number;
+    token: string;  // Auth token for auto-login
 }
 
 export interface Product {
@@ -41,6 +48,7 @@ export interface Product {
     ai_generated_title?: string;
     tags?: string[];
     vibe_tags?: string[];
+    weather_tags?: WeatherTag[];
     category?: string;
     subcategory?: string;
     metadata?: Record<string, any>;
@@ -73,6 +81,9 @@ export const vendorApi = {
         }
         if (productData.vibe_tags) {
             formData.append('vibe_tags', JSON.stringify(productData.vibe_tags));
+        }
+        if (productData.weather_tags) {
+            formData.append('weather_tags', JSON.stringify(productData.weather_tags));
         }
         if (productData.category) {
             formData.append('category', productData.category);
@@ -139,6 +150,7 @@ export const vendorApi = {
         if (productData.ai_generated_description) formData.append('ai_generated_description', productData.ai_generated_description);
         if (productData.tags) formData.append('tags', JSON.stringify(productData.tags));
         if (productData.vibe_tags) formData.append('vibe_tags', JSON.stringify(productData.vibe_tags));
+        if (productData.weather_tags) formData.append('weather_tags', JSON.stringify(productData.weather_tags));
         if (productData.category) formData.append('category', productData.category);
         if (productData.subcategory) formData.append('subcategory', productData.subcategory);
         if (productData.metadata) formData.append('metadata', JSON.stringify(productData.metadata));
@@ -181,5 +193,95 @@ export const vendorApi = {
     }) => {
         const response = await apiClient.post('/vendor/orders/pos/', orderData);
         return response.data;
+    },
+
+    // Onboarding Methods
+    getOnboardingStatus: async () => {
+        const response = await apiClient.get('/vendor/onboarding/status/');
+        return response.data;
+    },
+
+    getVendorProfile: async () => {
+        const response = await apiClient.get('/vendor/onboarding/status/');
+        return response.data;
+    },
+
+    saveOnboardingProfile: async (data: {
+        bio?: string;
+        category?: string;
+        brand_vibes?: string[];
+        ai_persona?: number;
+    }, logo?: File | null) => {
+        const formData = new FormData();
+
+        if (data.bio) formData.append('bio', data.bio);
+        if (data.category) formData.append('category', data.category);
+        if (data.brand_vibes) formData.append('brand_vibes', JSON.stringify(data.brand_vibes));
+        if (data.ai_persona !== undefined) formData.append('ai_persona', data.ai_persona.toString());
+        if (logo) formData.append('logo', logo);
+
+        const response = await apiClient.post('/vendor/onboarding/profile/', formData);
+        return response.data;
+    },
+
+    submitKYC: async (data: {
+        pan_vat_number: string;
+        business_reg_no?: string;
+    }, document?: File | null) => {
+        const formData = new FormData();
+
+        formData.append('pan_vat_number', data.pan_vat_number);
+        if (data.business_reg_no) formData.append('business_reg_no', data.business_reg_no);
+        if (document) formData.append('kyc_document', document);
+
+        const response = await apiClient.post('/vendor/onboarding/kyc/', formData);
+        return response.data;
+    },
+
+    skipSocials: async () => {
+        const response = await apiClient.post('/vendor/onboarding/skip-socials/');
+        return response.data;
+    },
+
+    completeOnboarding: async (theme?: string) => {
+        const response = await apiClient.post('/vendor/onboarding/complete/', { theme });
+        return response.data;
+    },
+
+    // Theme Methods
+    getThemes: async () => {
+        const response = await apiClient.get('/vendor/themes/');
+        return response.data;
+    },
+
+    getTheme: async (themeId: string) => {
+        const response = await apiClient.get(`/vendor/themes/${themeId}/`);
+        return response.data;
+    },
+
+    analyzeLogoForTheme: async (logo: File) => {
+        const formData = new FormData();
+        formData.append('logo', logo);
+
+        const response = await apiClient.post('/vendor/onboarding/analyze-logo/', formData);
+        return response.data;
+    },
+
+    checkAuthStatus: async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                return { isAuthenticated: false, isOnboardingComplete: false };
+            }
+
+            const response = await apiClient.get('/vendor/onboarding/status/');
+            return {
+                isAuthenticated: true,
+                isOnboardingComplete: response.data.is_complete || false
+            };
+        } catch (error) {
+            localStorage.removeItem('token');
+            return { isAuthenticated: false, isOnboardingComplete: false };
+        }
     }
 };

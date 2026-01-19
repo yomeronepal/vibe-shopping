@@ -24,9 +24,9 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tenant', 'name', 'description', 'price', 
             'stock', 'is_active', 'status', 'image', 'processed_image', 'images',
-            'product_code', 'qr_code',  # POS fields
-            'ai_generated_title', 'ai_generated_description', 
-            'tags', 'vibe_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',
+            'product_code', 'qr_code',
+            'ai_generated_title', 'ai_generated_description',
+            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['tenant', 'product_code', 'qr_code', 'created_at', 'updated_at']
@@ -44,9 +44,8 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'price', 
             'stock', 'image', 'gallery_images', 
             'status',
-            # AI Fields
             'ai_generated_title', 'ai_generated_description',
-            'tags', 'vibe_tags', 'category', 'subcategory', 'metadata', 'stock_by_size'
+            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size'
         ]
         read_only_fields = ['status'] 
     

@@ -39,6 +39,90 @@ class VendorProfile(TimeStampedModel):
     def __str__(self):
         return f"{self.user.username} - {self.tenant.name}"
 
+
+class Theme(TimeStampedModel):
+    """
+    Represents a shop theme with color configuration.
+    Default themes (is_default=True) are shared templates.
+    Vendor-specific themes have a tenant FK.
+    AI-generated themes have is_ai_generated=True.
+    """
+    # Identification
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=100)
+    description = models.CharField(max_length=255, blank=True)
+    
+    # Ownership
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, 
+        related_name='themes', 
+        null=True, blank=True,
+        help_text="Null for default themes, set for vendor-specific themes"
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text="True for system-wide template themes"
+    )
+    is_ai_generated = models.BooleanField(
+        default=False,
+        help_text="True for AI-generated themes from logo analysis"
+    )
+    
+    # Color Configuration - 12 theme colors
+    primary = models.CharField(max_length=50, default='#8A2BE2')
+    accent = models.CharField(max_length=50, default='#a855f7')
+    background = models.CharField(max_length=50, default='#f5f3f8')
+    surface = models.CharField(max_length=50, default='#ffffff')
+    text = models.CharField(max_length=50, default='#1a1a2e')
+    text_secondary = models.CharField(max_length=50, default='#6b7280')
+    border = models.CharField(max_length=50, default='#e5e7eb')
+    card_bg = models.CharField(max_length=50, default='#ffffff')
+    button_bg = models.CharField(max_length=50, default='#8A2BE2')
+    button_text = models.CharField(max_length=50, default='#ffffff')
+    gradient = models.CharField(max_length=255, default='linear-gradient(135deg, #8A2BE2 0%, #a855f7 100%)')
+    text_gradient = models.CharField(max_length=255, default='linear-gradient(135deg, #8A2BE2, #E040FB)')
+    
+    # AI Analysis metadata
+    brand_style = models.CharField(max_length=100, blank=True)
+    brand_keywords = models.JSONField(default=list, blank=True)
+    recommendation_reason = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = [['tenant', 'slug']]  # Unique slug per tenant
+        ordering = ['-is_default', '-is_ai_generated', 'created_at']
+
+    def __str__(self):
+        prefix = "[DEFAULT]" if self.is_default else f"[{self.tenant.name}]" if self.tenant else "[ORPHAN]"
+        return f"{prefix} {self.name}"
+
+    def to_dict(self):
+        """Return theme as dictionary for API response."""
+        return {
+            'id': self.id,
+            'slug': self.slug,
+            'name': self.name,
+            'description': self.description,
+            'is_default': self.is_default,
+            'is_ai_generated': self.is_ai_generated,
+            'colors': {
+                'primary': self.primary,
+                'accent': self.accent,
+                'background': self.background,
+                'surface': self.surface,
+                'text': self.text,
+                'textSecondary': self.text_secondary,
+                'border': self.border,
+                'cardBg': self.card_bg,
+                'buttonBg': self.button_bg,
+                'buttonText': self.button_text,
+                'gradient': self.gradient,
+                'textGradient': self.text_gradient,
+            },
+            'brand_style': self.brand_style,
+            'brand_keywords': self.brand_keywords,
+            'recommendation_reason': self.recommendation_reason,
+        }
+
 class Product(TimeStampedModel):
     """
     Product model for e-commerce items with AI-generated metadata
@@ -53,11 +137,12 @@ class Product(TimeStampedModel):
     # AI Generated Fields
     ai_generated_title = models.CharField(max_length=500, blank=True)
     ai_generated_description = models.TextField(blank=True)
-    tags = models.JSONField(default=list, blank=True)  # ['fashion', 'premium', ...]
+    tags = models.JSONField(default=list, blank=True)
     category = models.CharField(max_length=100, blank=True)
     subcategory = models.CharField(max_length=100, blank=True)
-    vibe_tags = models.JSONField(default=list, blank=True) # [Traditional, Party, ...]
-    metadata = models.JSONField(default=dict, blank=True)  # attributes, occasions, etc.
+    vibe_tags = models.JSONField(default=list, blank=True)
+    weather_tags = models.JSONField(default=list, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
     stock_by_size = models.JSONField(default=dict, blank=True) # {"S": 10, "M": 5}
     
     STATUS_CHOICES = [
@@ -255,3 +340,77 @@ class SocialMediaPost(TimeStampedModel):
     
     def __str__(self):
         return f"{self.platform} - {self.product.name} ({self.status})"
+
+class AITokenUsage(TimeStampedModel):
+    """
+    Track AI token usage for cost monitoring and analytics.
+    """
+    AI_PROVIDER_CHOICES = [
+        ('gemini', 'Google Gemini'),
+        ('openai', 'OpenAI'),
+    ]
+
+    OPERATION_TYPE_CHOICES = [
+        ('product_analysis', 'Product Image Analysis'),
+        ('logo_analysis', 'Logo Analysis'),
+        ('description_generation', 'Description Generation'),
+        ('tag_generation', 'Tag Generation'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ai_usage')
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_usage')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_usage')
+
+    ai_provider = models.CharField(max_length=20, choices=AI_PROVIDER_CHOICES)
+    operation_type = models.CharField(max_length=50, choices=OPERATION_TYPE_CHOICES)
+
+    input_tokens = models.IntegerField(default=0)
+    output_tokens = models.IntegerField(default=0)
+    total_tokens = models.IntegerField(default=0)
+
+    estimated_cost = models.DecimalField(max_digits=10, decimal_places=6, default=0.000000)
+
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True)
+
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['product']),
+            models.Index(fields=['ai_provider']),
+            models.Index(fields=['operation_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.ai_provider} - {self.operation_type} ({self.total_tokens} tokens)"
+
+    def save(self, *args, **kwargs):
+        if not self.total_tokens:
+            self.total_tokens = self.input_tokens + self.output_tokens
+
+        if not self.estimated_cost:
+            self.estimated_cost = self.calculate_cost()
+
+        super().save(*args, **kwargs)
+
+    def calculate_cost(self):
+        """
+        Calculate estimated cost based on provider and token usage.
+        Prices as of 2025 (per 1M tokens):
+        - Gemini 2.0 Flash: Input $0.075, Output $0.30
+        - OpenAI GPT-4o-mini: Input $0.15, Output $0.60
+        """
+        if self.ai_provider == 'gemini':
+            input_cost = (self.input_tokens / 1_000_000) * 0.075
+            output_cost = (self.output_tokens / 1_000_000) * 0.30
+        elif self.ai_provider == 'openai':
+            input_cost = (self.input_tokens / 1_000_000) * 0.15
+            output_cost = (self.output_tokens / 1_000_000) * 0.60
+        else:
+            return 0.0
+
+        return input_cost + output_cost

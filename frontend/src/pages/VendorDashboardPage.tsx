@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../contexts/ShopThemeContext';
+import { authApi } from '../api/auth';
+import { vendorApi } from '../api/vendor';
 
-// Dashboard sections
 type DashboardSection = 'dashboard' | 'orders' | 'products' | 'analytics' | 'settings';
+
+interface VendorProfile {
+    store_name?: string;
+    logo?: string;
+}
 
 const VendorDashboardPage: React.FC = () => {
     const navigate = useNavigate();
     const { config: themeConfig } = useShopTheme();
     const [activeSection, setActiveSection] = useState<DashboardSection>('dashboard');
+    const [vendorProfile, setVendorProfile] = useState<VendorProfile>({});
 
     const primaryColor = themeConfig.primary;
     const accentColor = themeConfig.accent;
@@ -26,6 +33,26 @@ const VendorDashboardPage: React.FC = () => {
         if (hour < 12) return 'Good Morning';
         if (hour < 18) return 'Good Afternoon';
         return 'Good Evening';
+    };
+
+    useEffect(() => {
+        const loadVendorProfile = async () => {
+            try {
+                const profile = await vendorApi.getVendorProfile();
+                setVendorProfile({
+                    store_name: profile.store_name || 'Vibe Shop',
+                    logo: profile.logo || null
+                });
+            } catch (error) {
+                console.error('Failed to load vendor profile:', error);
+            }
+        };
+        loadVendorProfile();
+    }, []);
+
+    const handleLogout = async () => {
+        await authApi.logout();
+        navigate('/vendor/login');
     };
 
     const navItems = [
@@ -58,17 +85,26 @@ const VendorDashboardPage: React.FC = () => {
                         borderColor: `${themeConfig.border}60`
                     }}
                 >
-                    {/* Header */}
                     <div className="flex flex-col gap-6">
                         <Link to="/" className="flex items-center gap-3 px-2">
                             <div
                                 className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/50 shadow-sm flex items-center justify-center"
-                                style={{ backgroundColor: primaryColor }}
+                                style={{ backgroundColor: vendorProfile.logo ? 'white' : primaryColor }}
                             >
-                                <span className="material-symbols-outlined text-white text-xl">auto_awesome</span>
+                                {vendorProfile.logo ? (
+                                    <img
+                                        src={`http://localhost:8000${vendorProfile.logo}`}
+                                        alt="Store Logo"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="material-symbols-outlined text-white text-xl">storefront</span>
+                                )}
                             </div>
                             <div>
-                                <h1 className="text-base font-bold leading-tight" style={{ color: themeConfig.text }}>Vibe Shop</h1>
+                                <h1 className="text-base font-bold leading-tight" style={{ color: themeConfig.text }}>
+                                    {vendorProfile.store_name || 'Vibe Shop'}
+                                </h1>
                                 <p className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>Vendor Portal</p>
                             </div>
                         </Link>
@@ -121,21 +157,36 @@ const VendorDashboardPage: React.FC = () => {
                         <div className="h-px" style={{ background: `linear-gradient(to right, transparent, ${themeConfig.border}, transparent)` }}></div>
 
                         {/* Profile */}
-                        <button
-                            className="flex items-center gap-3 px-2 py-2 rounded-xl transition-colors"
-                            style={{ backgroundColor: 'transparent' }}
-                        >
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
-                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                        <div className="flex flex-col gap-2">
+                            <button
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl transition-colors"
+                                style={{ backgroundColor: 'transparent' }}
                             >
-                                <span className="material-symbols-outlined text-[18px]">person</span>
-                            </div>
-                            <div className="text-left">
-                                <p className="text-sm font-bold" style={{ color: themeConfig.text }}>Nepal Crafts</p>
-                                <p className="text-[10px]" style={{ color: themeConfig.textSecondary }}>Vendor ID: #8821</p>
-                            </div>
-                        </button>
+                                <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
+                                    style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">person</span>
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold" style={{ color: themeConfig.text }}>Nepal Crafts</p>
+                                    <p className="text-[10px]" style={{ color: themeConfig.textSecondary }}>Vendor ID: #8821</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl transition-all hover:scale-[0.98]"
+                                style={{
+                                    backgroundColor: `${primaryColor}10`,
+                                    color: primaryColor,
+                                    border: `1px solid ${primaryColor}20`
+                                }}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">logout</span>
+                                <span className="text-sm font-semibold">Logout</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -160,7 +211,7 @@ const VendorDashboardPage: React.FC = () => {
                                         backgroundClip: 'text',
                                         color: 'transparent'
                                     }}
-                                >Nepal Crafts</span>
+                                >{vendorProfile.store_name || 'Shop'}</span>
                             </h2>
                             <p className="text-base md:text-lg max-w-xl" style={{ color: themeConfig.textSecondary }}>
                                 Here is what is happening with your store today. You have pending actions.
@@ -383,12 +434,13 @@ const VendorDashboardPage: React.FC = () => {
                     onClick={() => navigate('/vendor/products/new')}
                     className="relative -top-8 rounded-full p-4 shadow-lg border-4 cursor-pointer transition-transform hover:scale-105"
                     style={{
-                        backgroundColor: primaryColor,
+                        backgroundColor: themeConfig.buttonBg,
                         borderColor: themeConfig.surface,
-                        boxShadow: `0 10px 30px -10px ${primaryColor}60`
+                        boxShadow: `0 10px 30px -10px ${primaryColor}60`,
+                        color: themeConfig.buttonText
                     }}
                 >
-                    <span className="material-symbols-outlined text-white">add</span>
+                    <span className="material-symbols-outlined">add</span>
                 </button>
 
                 {[

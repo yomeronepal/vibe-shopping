@@ -15,6 +15,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@reduxjs/toolkit": "^2.11.2",
     "axios": "^1.13.2",
+    "browser-image-compression": "^2.0.2",
     "classnames": "^2.5.1",
     "framer-motion": "^12.26.2",
     "html5-qrcode": "^2.3.8",
