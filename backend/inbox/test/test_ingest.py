@@ -108,3 +108,31 @@ class IngestTests(TestCase):
         Conversation.objects.update(status='resolved')
         self.ingest(messaging_payload('p1', 'psid1', 'p1', 'm8', 'again'))
         self.assertEqual(Conversation.objects.get().status, 'waiting_business')
+
+    def test_malformed_payload_list_returns_zero(self, mock_profile, mock_push):
+        event = WebhookEvent.objects.create(
+            object_type='page', payload=['garbage'], signature_valid=True
+        )
+        created = ingest_webhook_event(event)
+        self.assertEqual(created, 0)
+        self.assertEqual(Conversation.objects.count(), 0)
+
+    def test_malformed_entry_non_dict_skipped(self, mock_profile, mock_push):
+        payload = {
+            'object': 'page',
+            'entry': ['garbage'],
+        }
+        event = WebhookEvent.objects.create(
+            object_type='page', payload=payload, signature_valid=True
+        )
+        created = ingest_webhook_event(event)
+        self.assertEqual(created, 0)
+        self.assertEqual(Conversation.objects.count(), 0)
+
+    @patch('inbox.services.ingest.push_inbox_event', side_effect=Exception('redis down'))
+    def test_push_failure_message_still_counts(self, mock_push_fail, mock_profile, mock_push):
+        created = self.ingest(messaging_payload('p1', 'psid1', 'p1', 'm9', 'hello'))
+        self.assertEqual(created, 1)
+        message = Message.objects.get()
+        self.assertEqual(message.text, 'hello')
+        self.assertEqual(Conversation.objects.count(), 1)

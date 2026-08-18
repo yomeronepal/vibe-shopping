@@ -114,26 +114,38 @@ def store_message(page, platform, messaging_event):
     conversation.last_message_at = sent_at
     conversation.last_message_preview = build_preview(record.text, attachments)
     conversation.save()
-    push_inbox_event(page.tenant_id, 'inbox.message', {
-        'conversation': ConversationSerializer(conversation).data,
-        'message': MessageSerializer(record).data,
-    })
+    try:
+        push_inbox_event(page.tenant_id, 'inbox.message', {
+            'conversation': ConversationSerializer(conversation).data,
+            'message': MessageSerializer(record).data,
+        })
+    except Exception:
+        logger.warning('Inbox push failed for message %s', record.id)
     return record
 
 
 def ingest_webhook_event(event):
     """Parse a stored webhook event into inbox rows; returns messages created."""
     payload = event.payload or {}
+    if not isinstance(payload, dict):
+        logger.warning('Invalid payload type: %s', type(payload).__name__)
+        return 0
     object_type = payload.get('object', '')
     if object_type not in ('page', 'instagram'):
         return 0
     platform = 'instagram' if object_type == 'instagram' else 'facebook'
     created_count = 0
     for entry in payload.get('entry', []) or []:
+        if not isinstance(entry, dict):
+            logger.warning('Invalid entry type: %s', type(entry).__name__)
+            continue
         page = resolve_page(object_type, str(entry.get('id', '')))
         if not page:
             continue
         for messaging_event in entry.get('messaging', []) or []:
+            if not isinstance(messaging_event, dict):
+                logger.warning('Invalid messaging_event type: %s', type(messaging_event).__name__)
+                continue
             try:
                 record = store_message(page, platform, messaging_event)
             except Exception:
