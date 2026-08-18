@@ -132,7 +132,9 @@ const VendorProductCreatePage: React.FC = () => {
 
         for (const file of newFiles) {
             try {
-                const compressedFile = await imageCompression(file, compressionOptions);
+                const compressedBlob = await imageCompression(file, compressionOptions);
+                const baseName = file.name.replace(/\.[^.]+$/, '') || 'product-image';
+                const compressedFile = new File([compressedBlob], `${baseName}.jpg`, { type: 'image/jpeg' });
                 compressedFiles.push(compressedFile);
 
                 const reader = new FileReader();
