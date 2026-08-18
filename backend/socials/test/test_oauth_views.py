@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from core.models import Tenant, VendorProfile
 from socials.models import MetaConnection
+from socials.services.meta_graph import MetaGraphError
 from socials.views import OAUTH_STATE_SALT
 
 TEST_KEY = Fernet.generate_key().decode()
@@ -82,3 +83,16 @@ class OAuthViewTests(APITestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 400)
+
+    @patch('socials.views.MetaGraphClient')
+    def test_callback_returns_502_on_graph_error(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.exchange_code.side_effect = MetaGraphError('Invalid OAuth access token', code=190)
+        state = signing.dumps({'tenant_id': self.tenant.id}, salt=OAUTH_STATE_SALT)
+        response = self.client.post(
+            '/api/socials/oauth/callback/',
+            {'code': 'the-code', 'state': state},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn('Invalid OAuth access token', str(response.data))

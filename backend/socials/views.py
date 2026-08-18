@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -11,6 +12,8 @@ from rest_framework.views import APIView
 
 from socials.models import MetaConnection
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+
+logger = logging.getLogger(__name__)
 
 OAUTH_STATE_SALT = 'meta-oauth-state'
 OAUTH_STATE_MAX_AGE = 600
@@ -85,8 +88,9 @@ class OAuthCallbackView(APIView):
             profile = client.get_user_profile(long_lived['access_token'])
             pages = client.list_pages(long_lived['access_token'])
         except MetaGraphError as exc:
+            logger.warning('Meta OAuth callback failed: %s', exc)
             return Response(
-                {'error': 'Could not connect to Facebook. Please try again.', 'detail': str(exc)},
+                {'error': 'Could not connect to Facebook. Please try again.'},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         expires_at = None

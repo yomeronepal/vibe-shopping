@@ -33,7 +33,10 @@ class MetaGraphClient:
         self.app_secret = app_secret or settings.META_APP_SECRET
 
     def get(self, path, params):
-        response = requests.get(f'{GRAPH_BASE_URL}{path}', params=params, timeout=15)
+        try:
+            response = requests.get(f'{GRAPH_BASE_URL}{path}', params=params, timeout=15)
+        except requests.exceptions.RequestException:
+            raise MetaGraphError('Could not reach Facebook')
         return parse_graph_response(response)
 
     def exchange_code(self, code, redirect_uri):
@@ -73,23 +76,29 @@ class MetaGraphClient:
 
     def subscribe_page(self, page_id, page_token):
         """Subscribe the app to the Page's webhook fields."""
-        response = requests.post(
-            f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
-            params={
-                'access_token': page_token,
-                'subscribed_fields': 'messages,messaging_postbacks,feed',
-            },
-            timeout=15,
-        )
+        try:
+            response = requests.post(
+                f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
+                params={
+                    'access_token': page_token,
+                    'subscribed_fields': 'messages,messaging_postbacks,feed',
+                },
+                timeout=15,
+            )
+        except requests.exceptions.RequestException:
+            raise MetaGraphError('Could not reach Facebook')
         return bool(parse_graph_response(response).get('success'))
 
     def unsubscribe_page(self, page_id, page_token):
         """Remove the app's webhook subscription from the Page."""
-        response = requests.delete(
-            f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
-            params={'access_token': page_token},
-            timeout=15,
-        )
+        try:
+            response = requests.delete(
+                f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
+                params={'access_token': page_token},
+                timeout=15,
+            )
+        except requests.exceptions.RequestException:
+            raise MetaGraphError('Could not reach Facebook')
         return bool(parse_graph_response(response).get('success'))
 
     def get_instagram_account(self, page_id, page_token):

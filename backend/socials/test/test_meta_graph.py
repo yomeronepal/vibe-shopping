@@ -1,4 +1,5 @@
 from unittest.mock import Mock, patch
+import requests
 
 from django.test import TestCase, override_settings
 
@@ -77,3 +78,10 @@ class MetaGraphClientTests(TestCase):
     def test_get_instagram_account_absent(self, mock_get):
         mock_get.return_value = graph_response({'id': 'p1'})
         self.assertIsNone(self.client_service.get_instagram_account('p1', 'pt1'))
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_exchange_code_raises_graph_error_on_connection_error(self, mock_get):
+        mock_get.side_effect = requests.exceptions.ConnectionError('Connection refused')
+        with self.assertRaises(MetaGraphError) as ctx:
+            self.client_service.exchange_code('the-code', 'http://cb')
+        self.assertEqual(str(ctx.exception), 'Could not reach Facebook')
