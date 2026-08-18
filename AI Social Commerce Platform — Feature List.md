@@ -6,7 +6,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 
 ---
 
-> **Build status (2026-08-18):** Foundation cycle complete — business auth and profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram professional account connection (Connected Accounts dashboard at /vendor/settings/accounts), signature-validated webhook receiver with Celery dispatch, and product publishing to connected Facebook/Instagram from the product create page with per-platform result tracking. Backend covered by 49 socials tests plus business-profile tests. Extras added along the way: granular-scope fallbacks for New Pages Experience assets, configurable API throttle rates (THROTTLE_USER_RATE / THROTTLE_ANON_RATE), and preserved filenames for compressed product image uploads.
+> **Build status (2026-08-19):** Two cycles complete. **Foundation + publishing** (PR #1): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection, signature-validated webhook receiver, product publishing to Facebook/Instagram with per-platform result tracking. **Unified inbox + dashboard sweep** (PR #2, stacked): Messenger and Instagram DMs ingested into conversations (idempotent, echo-aware), real-time WebSocket inbox at /vendor/inbox with replies via Meta's Send API, conversation statuses/unread/read-state, a shared themed VendorShell across Inbox/Orders/Products/Settings with mobile navigation, and a new vendor Orders page with live status management (GET/PATCH /api/vendor/orders/). 120+ backend tests green; verified end-to-end in a real browser including live no-reload message arrival. Remaining to go live: ngrok tunnel + Meta webhook dashboard config (also unlocks Instagram publishing via PUBLIC_MEDIA_BASE_URL).
 
 ## 🚀 Core Features
 
@@ -33,7 +33,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 - [x] Page access token management
 - [x] Page connection status
 - [x] Disconnect/reconnect Page
-- [ ] Facebook Page messaging
+- [x] Facebook Page messaging
 - [ ] Facebook comments
 - [x] Facebook post publishing
 - [x] Facebook webhooks (receiver with signature validation; live delivery needs a public URL/tunnel)
@@ -45,10 +45,10 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 - [x] Instagram OAuth
 - [x] Account connection status
 - [x] Disconnect/reconnect account
-- [ ] Instagram DMs
+- [x] Instagram DMs
 - [ ] Instagram comments
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
-- [ ] Instagram webhooks
+- [x] Instagram webhooks (DM ingestion live; live delivery needs a public URL/tunnel)
 
 ---
 
@@ -56,31 +56,33 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 
 Manage customer conversations from one dashboard.
 
-- [ ] Instagram DMs
-- [ ] Facebook messages
+- [x] Instagram DMs
+- [x] Facebook messages
 - [ ] Instagram comments
 - [ ] Facebook comments
-- [ ] Conversation list
-- [ ] Unread message count
+- [x] Conversation list
+- [x] Unread message count
 - [ ] Search conversations
-- [ ] Conversation history
-- [ ] Customer profile
+- [x] Conversation history
+- [x] Customer profile
 - [ ] Conversation tags
 - [ ] Internal notes
 - [ ] Assign conversation to team member
-- [ ] Mark conversation as resolved
-- [ ] Conversation status
-- [ ] Message attachments
+- [x] Mark conversation as resolved
+- [x] Real-time inbox updates over WebSocket
+- [x] Reply to DMs from the dashboard (24-hour window enforced)
+- [x] Conversation status
+- [x] Message attachments (receiving and display; sending later)
 - [ ] Human takeover
 - [ ] AI takeover
 
 ### Conversation statuses
 
-- [ ] New
-- [ ] Open
-- [ ] Waiting for customer
-- [ ] Waiting for business
-- [ ] Resolved
+- [x] New
+- [x] Open
+- [x] Waiting for customer
+- [x] Waiting for business
+- [x] Resolved
 
 ---
 
@@ -170,17 +172,18 @@ Convert social conversations into structured orders.
 - [ ] Pending confirmation
 - [ ] Confirmed
 - [ ] Preparing
-- [ ] Shipped
-- [ ] Delivered
-- [ ] Cancelled
+- [x] Shipped
+- [x] Delivered
+- [x] Cancelled
 - [ ] Returned
 
 ### Order Management
 
-- [ ] Order dashboard
+- [x] Order dashboard
+- [x] Order status updates from the dashboard
 - [ ] Order search
 - [ ] Order filtering
-- [ ] Order history
+- [x] Order history
 - [ ] Customer order history
 - [ ] Order notifications
 
@@ -288,8 +291,8 @@ Automatically maintain customer profiles.
 
 ### Customer History
 
-- [ ] Conversation history
-- [ ] Order history
+- [x] Conversation history
+- [x] Order history
 - [ ] Total spending
 - [ ] Last purchase
 - [ ] Product interests
@@ -543,11 +546,11 @@ Businesses should always be able to control the AI.
 - [x] Facebook Page connection
 - [x] Instagram connection
 - [x] Webhooks (receiver built; live delivery needs a public URL)
-- [ ] Unified inbox
+- [x] Unified inbox
 - [x] Product catalog
 - [ ] AI customer replies
 - [ ] AI order extraction
-- [ ] Basic order management
+- [x] Basic order management
 
 ## Phase 2 — Social Commerce
 

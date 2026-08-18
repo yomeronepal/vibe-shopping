@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { Upload, X, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -50,7 +51,7 @@ export default function WardrobePage() {
         toast.success('Item removed from wardrobe');
     };
 
-    const container = {
+    const container: Variants = {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
@@ -60,7 +61,7 @@ export default function WardrobePage() {
         }
     };
 
-    const item = {
+    const item: Variants = {
         hidden: { scale: 0, opacity: 0, rotate: -10 },
         show: {
             scale: 1,
@@ -90,7 +91,7 @@ export default function WardrobePage() {
 
             {/* Upload Area */}
             <motion.div
-                {...getRootProps()}
+                {...(getRootProps() as object)}
                 whileHover={{ scale: 1.02 }}
                 className="mb-12 p-12 border-2 border-dashed cursor-pointer transition-all"
                 style={{

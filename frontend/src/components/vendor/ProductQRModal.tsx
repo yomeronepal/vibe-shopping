@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Printer, Download, Copy } from 'lucide-react';
 import Button from '../common/Button';
 import toast from 'react-hot-toast';

@@ -90,7 +90,7 @@ export default function CartPage() {
 
                                         <div className="flex items-center gap-4">
                                             <p className="text-xl font-bold text-gradient">
-                                                ${(item.price * item.quantity).toFixed(2)}
+                                                ${(Number(item.price) * item.quantity).toFixed(2)}
                                             </p>
                                             <button
                                                 onClick={() => handleRemoveItem(item.id, item.name)}
