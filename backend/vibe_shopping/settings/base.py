@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'vendor',         # Added by user instruction
     'core.apps.CoreConfig',
     'socials.apps.SocialsConfig',
+    'inbox.apps.InboxConfig',
 ]
 
 MIDDLEWARE = [

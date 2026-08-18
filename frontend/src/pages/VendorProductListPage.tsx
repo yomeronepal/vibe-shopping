@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import { vendorApi, type Product } from '../api/vendor';
 import toast from 'react-hot-toast';
 import ThemePickerButton from '../components/theme/ThemePickerButton';
+import VendorShell from '../components/vendor/VendorShell';
 
 type ProductFilter = 'all' | 'low-stock' | 'archived' | 'out-of-stock';
 
@@ -20,7 +21,7 @@ const VendorProductListPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
-    const [vendorProfile, setVendorProfile] = useState<VendorProfile>({});
+    const [, setVendorProfile] = useState<VendorProfile>({});
 
     const primaryColor = themeConfig.primary;
 
@@ -118,95 +119,10 @@ const VendorProductListPage: React.FC = () => {
     };
 
     return (
+        <VendorShell>
         <div
-            className="flex flex-col min-h-screen w-full overflow-x-hidden font-display"
-            style={{ backgroundColor: themeConfig.background }}
+            className="flex flex-col h-full w-full overflow-y-auto overflow-x-hidden font-display"
         >
-            <header
-                className="flex items-center justify-between whitespace-nowrap border-b px-10 py-4 backdrop-blur-md sticky top-0 z-50"
-                style={{
-                    backgroundColor: `${themeConfig.surface}cc`,
-                    borderColor: themeConfig.border
-                }}
-            >
-                <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-4" style={{ color: primaryColor }}>
-                        <div
-                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center"
-                            style={{
-                                backgroundColor: vendorProfile.logo ? 'white' : primaryColor,
-                                boxShadow: `0 0 0 2px ${primaryColor}30`
-                            }}
-                        >
-                            {vendorProfile.logo ? (
-                                <img
-                                    src={`http://localhost:8000${vendorProfile.logo}`}
-                                    alt="Store Logo"
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <span className="material-symbols-outlined text-white text-xl">storefront</span>
-                            )}
-                        </div>
-                        <h2 className="text-xl font-black leading-tight tracking-tight" style={{ color: themeConfig.text }}>
-                            {vendorProfile.store_name || 'Vibe Shop'}
-                        </h2>
-                    </div>
-                    <div className="hidden lg:flex items-center gap-6">
-                        <Link to="/vendor" className="text-sm font-medium transition-colors hover:opacity-80" style={{ color: themeConfig.textSecondary }}>
-                            Insights
-                        </Link>
-                        <Link to="/vendor/products" className="text-sm font-bold border-b-2 pb-1" style={{ color: primaryColor, borderColor: primaryColor }}>
-                            Inventory
-                        </Link>
-                        <Link to="/vendor/orders" className="text-sm font-medium transition-colors hover:opacity-80" style={{ color: themeConfig.textSecondary }}>
-                            Orders
-                        </Link>
-                        <Link to="/vendor/ai-lab" className="text-sm font-medium transition-colors hover:opacity-80" style={{ color: themeConfig.textSecondary }}>
-                            AI Lab
-                        </Link>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4">
-                    <label className="flex flex-col min-w-40 h-10 max-w-64">
-                        <div className="flex w-full flex-1 items-stretch rounded-xl h-full" style={{ backgroundColor: `${themeConfig.border}40` }}>
-                            <div className="flex items-center justify-center pl-4" style={{ color: themeConfig.textSecondary }}>
-                                <span className="material-symbols-outlined text-lg">search</span>
-                            </div>
-                            <input
-                                className="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:ring-0 px-2 text-sm font-normal outline-none"
-                                style={{ color: themeConfig.text }}
-                                placeholder="Search inventory..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </label>
-                    <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
-                        style={{ backgroundColor: `${primaryColor}10`, color: primaryColor }}
-                    >
-                        <span className="material-symbols-outlined">notifications</span>
-                    </div>
-                    <div
-                        className="w-10 h-10 rounded-full border-2 bg-center bg-no-repeat bg-cover cursor-pointer"
-                        style={{ borderColor: `${primaryColor}20` }}
-                        onClick={() => navigate('/vendor')}
-                    >
-                        {vendorProfile.logo ? (
-                            <img
-                                src={`http://localhost:8000${vendorProfile.logo}`}
-                                alt="Profile"
-                                className="w-full h-full object-cover rounded-full"
-                            />
-                        ) : (
-                            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor }}>
-                                <span className="material-symbols-outlined text-white text-sm">person</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </header>
 
             <main className="flex-1 px-10 py-8 max-w-[1440px] mx-auto w-full">
                 <div className="flex flex-wrap justify-between items-end gap-6 mb-8">
@@ -218,7 +134,21 @@ const VendorProductListPage: React.FC = () => {
                             Real-time inventory orchestration for your products.
                         </p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-center">
+                        <label className="flex flex-col min-w-40 h-12 max-w-64">
+                            <div className="flex w-full flex-1 items-stretch rounded-xl h-full border" style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border }}>
+                                <div className="flex items-center justify-center pl-4" style={{ color: themeConfig.textSecondary }}>
+                                    <span className="material-symbols-outlined text-lg">search</span>
+                                </div>
+                                <input
+                                    className="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:ring-0 px-2 text-sm font-normal outline-none"
+                                    style={{ color: themeConfig.text }}
+                                    placeholder="Search inventory..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </label>
                         <button
                             className="flex items-center gap-2 px-6 h-12 border rounded-xl font-bold text-sm transition-all hover:shadow-lg"
                             style={{
@@ -507,6 +437,7 @@ const VendorProductListPage: React.FC = () => {
 
             <ThemePickerButton />
         </div>
+        </VendorShell>
     );
 };
 

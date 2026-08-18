@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/vendor/', include('vendor.urls')),
     path('api/', include('core.urls')),
     path('api/socials/', include('socials.urls')),
+    path('api/inbox/', include('inbox.urls')),
     path('api/webhooks/meta/', MetaWebhookView.as_view(), name='meta_webhook'),
 ]
 

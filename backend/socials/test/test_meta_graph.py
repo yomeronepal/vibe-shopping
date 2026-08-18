@@ -169,3 +169,30 @@ class GranularScopeFallbackTests(TestCase):
         self.assertEqual(first_call.kwargs['params']['image_url'], 'https://pub/img.jpg')
         second_call = mock_post.call_args_list[1]
         self.assertEqual(second_call.kwargs['params']['creation_id'], 'creation1')
+
+
+@override_settings(META_APP_ID='app123', META_APP_SECRET='secret123')
+class SendMessageTests(TestCase):
+    @patch('socials.services.meta_graph.requests.post')
+    def test_send_message_returns_message_id(self, mock_post):
+        mock_post.return_value = graph_response(
+            {'recipient_id': 'psid1', 'message_id': 'mid-42'}
+        )
+        result = MetaGraphClient().send_message('p1', 'pt1', 'psid1', 'hello there')
+        self.assertEqual(result, 'mid-42')
+        url = mock_post.call_args.args[0]
+        self.assertIn('/p1/messages', url)
+        params = mock_post.call_args.kwargs['params']
+        self.assertEqual(params['messaging_type'], 'RESPONSE')
+        self.assertIn('psid1', params['recipient'])
+        self.assertIn('hello there', params['message'])
+
+    @patch('socials.services.meta_graph.requests.post')
+    def test_send_message_window_error_carries_code(self, mock_post):
+        mock_post.return_value = graph_response(
+            {'error': {'message': 'This message is sent outside of allowed window.', 'code': 10}},
+            status_code=400,
+        )
+        with self.assertRaises(MetaGraphError) as ctx:
+            MetaGraphClient().send_message('p1', 'pt1', 'psid1', 'late reply')
+        self.assertEqual(ctx.exception.code, 10)
