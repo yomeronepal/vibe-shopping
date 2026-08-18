@@ -1,0 +1,357 @@
+import { useEffect, useRef, useState } from 'react';
+import { useShopTheme } from '../contexts/ShopThemeContext';
+import VendorShell from '../components/vendor/VendorShell';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+    fetchConversations,
+    fetchMessages,
+    markConversationRead,
+    sendReply,
+    setActiveConversation,
+    setConversationStatus,
+    setStatusFilter,
+} from '@/features/inbox/inboxSlice';
+import { useInboxSocket } from '@/features/inbox/useInboxSocket';
+import type { InboxConversation, InboxMessage } from '@/api/inbox';
+
+const FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'waiting_business', label: 'Needs reply' },
+    { key: 'open', label: 'Open' },
+    { key: 'waiting_customer', label: 'Waiting' },
+    { key: 'resolved', label: 'Resolved' },
+];
+
+function relativeTime(iso: string | null): string {
+    if (!iso) return '';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'now';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    return `${Math.floor(hours / 24)}d`;
+}
+
+function displayName(conversation: InboxConversation): string {
+    return conversation.customer.name || conversation.customer.platform_user_id;
+}
+
+function PlatformBadge({ platform }: { platform: InboxConversation['platform'] }) {
+    const isInstagram = platform === 'instagram';
+    return (
+        <span
+            className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
+            style={{ background: isInstagram ? 'linear-gradient(135deg, #f09433, #dc2743)' : '#1877F2' }}
+        >
+            {isInstagram ? 'IG' : 'FB'}
+        </span>
+    );
+}
+
+function CustomerAvatar({ conversation, size }: { conversation: InboxConversation; size: number }) {
+    const { config: themeConfig } = useShopTheme();
+    const name = displayName(conversation);
+    if (conversation.customer.profile_pic_url) {
+        return (
+            <img
+                src={conversation.customer.profile_pic_url}
+                alt=""
+                className="rounded-full object-cover shrink-0"
+                style={{ width: size, height: size }}
+            />
+        );
+    }
+    return (
+        <div
+            className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
+            style={{ width: size, height: size, backgroundColor: themeConfig.primary, fontSize: size / 2.4 }}
+        >
+            {name.charAt(0).toUpperCase()}
+        </div>
+    );
+}
+
+function ConversationRow({
+    conversation,
+    active,
+    onSelect,
+}: {
+    conversation: InboxConversation;
+    active: boolean;
+    onSelect: () => void;
+}) {
+    const { config: themeConfig } = useShopTheme();
+    return (
+        <button
+            onClick={onSelect}
+            className="w-full text-left px-4 py-3 transition-colors"
+            style={{
+                backgroundColor: active ? `${themeConfig.primary}12` : 'transparent',
+                borderBottom: `1px solid ${themeConfig.border}50`,
+            }}
+        >
+            <div className="flex items-center gap-3">
+                <CustomerAvatar conversation={conversation} size={40} />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <PlatformBadge platform={conversation.platform} />
+                            <span className="font-semibold truncate text-sm" style={{ color: themeConfig.text }}>
+                                {displayName(conversation)}
+                            </span>
+                        </div>
+                        <span className="text-[11px] shrink-0" style={{ color: themeConfig.textSecondary }}>
+                            {relativeTime(conversation.last_message_at)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className="text-sm truncate" style={{ color: themeConfig.textSecondary }}>
+                            {conversation.last_message_preview || 'No messages yet'}
+                        </p>
+                        {conversation.unread_count > 0 && (
+                            <span
+                                className="min-w-5 h-5 px-1.5 rounded-full text-white text-xs flex items-center justify-center shrink-0 font-bold"
+                                style={{ backgroundColor: themeConfig.accent }}
+                            >
+                                {conversation.unread_count}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </button>
+    );
+}
+
+function MessageBubble({ message, primaryColor }: { message: InboxMessage; primaryColor: string }) {
+    const { config: themeConfig } = useShopTheme();
+    const mine = message.direction === 'out';
+    return (
+        <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+            <div
+                className="max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-sm"
+                style={
+                    mine
+                        ? { backgroundColor: primaryColor, color: '#ffffff' }
+                        : { backgroundColor: themeConfig.surface, color: themeConfig.text, border: `1px solid ${themeConfig.border}60` }
+                }
+            >
+                {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
+                {message.attachments.map((attachment, index) => (
+                    <a
+                        key={`${attachment.url}-${index}`}
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block underline"
+                        style={{ color: mine ? '#e0e7ff' : primaryColor }}
+                    >
+                        {attachment.type === 'image' ? (
+                            <img src={attachment.url} alt="Shared image" className="mt-1 max-h-48 rounded-lg" />
+                        ) : (
+                            attachment.type
+                        )}
+                    </a>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+export default function InboxPage() {
+    const dispatch = useAppDispatch();
+    const { config: themeConfig } = useShopTheme();
+    const { conversations, messages, activeConversationId, statusFilter, loading, sendError } =
+        useAppSelector((state) => state.inbox);
+    const [draft, setDraft] = useState('');
+    const [sending, setSending] = useState(false);
+    const threadEndRef = useRef<HTMLDivElement | null>(null);
+    useInboxSocket();
+
+    const primaryColor = themeConfig.primary;
+
+    useEffect(() => {
+        dispatch(fetchConversations(statusFilter));
+    }, [dispatch, statusFilter]);
+
+    useEffect(() => {
+        threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages.length]);
+
+    const active = conversations.find((c) => c.id === activeConversationId) ?? null;
+
+    const openConversation = (conversation: InboxConversation) => {
+        dispatch(setActiveConversation(conversation.id));
+        dispatch(fetchMessages(conversation.id));
+        if (conversation.unread_count > 0) {
+            dispatch(markConversationRead(conversation.id));
+        }
+    };
+
+    const handleSend = async () => {
+        if (!active || !draft.trim() || sending) return;
+        const text = draft.trim();
+        setSending(true);
+        const result = await dispatch(sendReply({ conversationId: active.id, text }));
+        setSending(false);
+        if (sendReply.fulfilled.match(result)) {
+            setDraft('');
+        }
+    };
+
+    const toggleResolve = () => {
+        if (!active) return;
+        const next = active.status === 'resolved' ? 'open' : 'resolved';
+        dispatch(setConversationStatus({ conversationId: active.id, status: next }));
+    };
+
+    return (
+        <VendorShell>
+            <div className="flex flex-col h-full px-4 md:px-6 py-4 gap-4">
+                <div
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl px-5 py-4 backdrop-blur-xl border shadow-sm"
+                    style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+                >
+                    <h1 className="text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                        Inbox
+                    </h1>
+                    <div className="flex gap-2 flex-wrap">
+                        {FILTERS.map((filter) => {
+                            const selected = statusFilter === filter.key;
+                            return (
+                                <button
+                                    key={filter.key}
+                                    onClick={() => dispatch(setStatusFilter(filter.key))}
+                                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+                                    style={
+                                        selected
+                                            ? { backgroundColor: primaryColor, color: '#ffffff' }
+                                            : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }
+                                    }
+                                >
+                                    {filter.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div
+                    className="flex flex-1 min-h-0 rounded-2xl overflow-hidden backdrop-blur-xl border shadow-lg"
+                    style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+                >
+                    <div
+                        className={`${active ? 'hidden md:block' : 'block'} w-full md:w-96 overflow-y-auto border-r`}
+                        style={{ borderColor: `${themeConfig.border}50` }}
+                    >
+                        {conversations.map((conversation) => (
+                            <ConversationRow
+                                key={conversation.id}
+                                conversation={conversation}
+                                active={conversation.id === activeConversationId}
+                                onSelect={() => openConversation(conversation)}
+                            />
+                        ))}
+                        {!loading && conversations.length === 0 && (
+                            <div className="p-8 text-center">
+                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>forum</span>
+                                <p className="text-sm font-medium" style={{ color: themeConfig.text }}>No conversations yet</p>
+                                <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
+                                    Messages from your connected Facebook Page and Instagram will appear here.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    <div className={`${active ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
+                        {active ? (
+                            <>
+                                <div
+                                    className="flex items-center justify-between px-5 py-3 border-b"
+                                    style={{ borderColor: `${themeConfig.border}50` }}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <button
+                                            onClick={() => dispatch(setActiveConversation(null))}
+                                            className="md:hidden material-symbols-outlined"
+                                            style={{ color: themeConfig.textSecondary }}
+                                        >
+                                            arrow_back
+                                        </button>
+                                        <CustomerAvatar conversation={active} size={36} />
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold truncate" style={{ color: themeConfig.text }}>
+                                                    {displayName(active)}
+                                                </span>
+                                                <PlatformBadge platform={active.platform} />
+                                            </div>
+                                            <span className="text-xs" style={{ color: themeConfig.textSecondary }}>
+                                                {active.status.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={toggleResolve}
+                                        className="text-sm font-semibold px-3 py-1.5 rounded-full"
+                                        style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                    >
+                                        {active.status === 'resolved' ? 'Reopen' : 'Mark resolved'}
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                                    {messages.map((message) => (
+                                        <MessageBubble
+                                            key={message.platform_message_id}
+                                            message={message}
+                                            primaryColor={primaryColor}
+                                        />
+                                    ))}
+                                    <div ref={threadEndRef} />
+                                </div>
+                                <div className="px-5 py-4 border-t" style={{ borderColor: `${themeConfig.border}50` }}>
+                                    {sendError && (
+                                        <p className="mb-2 text-sm font-medium text-red-600">{sendError}</p>
+                                    )}
+                                    <div className="flex gap-3">
+                                        <input
+                                            value={draft}
+                                            onChange={(e) => setDraft(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleSend();
+                                                }
+                                            }}
+                                            placeholder="Type a reply…"
+                                            className="flex-1 rounded-xl px-4 py-2 focus:outline-none focus:ring-2"
+                                            style={{
+                                                backgroundColor: themeConfig.surface,
+                                                border: `1px solid ${themeConfig.border}`,
+                                                color: themeConfig.text,
+                                            }}
+                                        />
+                                        <button
+                                            onClick={handleSend}
+                                            disabled={sending || !draft.trim()}
+                                            className="rounded-xl px-5 py-2 text-white font-semibold transition-opacity disabled:opacity-50"
+                                            style={{ backgroundColor: primaryColor }}
+                                        >
+                                            {sending ? 'Sending…' : 'Send'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                                <span className="material-symbols-outlined text-5xl" style={{ color: `${themeConfig.textSecondary}80` }}>chat</span>
+                                <p className="text-sm" style={{ color: themeConfig.textSecondary }}>
+                                    Select a conversation to read and reply
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </VendorShell>
+    );
+}

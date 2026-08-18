@@ -1,0 +1,154 @@
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useShopTheme } from '../contexts/ShopThemeContext';
+import VendorShell from '../components/vendor/VendorShell';
+import {
+    listVendorOrders,
+    updateVendorOrderStatus,
+    ORDER_STATUSES,
+    type VendorOrder,
+} from '../api/orders';
+
+const STATUS_LABELS: Record<string, string> = {
+    pending_payment: 'Pending payment',
+    pending_delivery: 'Pending delivery',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    disputed: 'Disputed',
+};
+
+const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+    pending_payment: { bg: '#fef3c7', fg: '#b45309' },
+    pending_delivery: { bg: '#dbeafe', fg: '#1d4ed8' },
+    shipped: { bg: '#e0e7ff', fg: '#4338ca' },
+    delivered: { bg: '#dcfce7', fg: '#15803d' },
+    completed: { bg: '#dcfce7', fg: '#166534' },
+    cancelled: { bg: '#f3f4f6', fg: '#4b5563' },
+    disputed: { bg: '#fee2e2', fg: '#b91c1c' },
+};
+
+function StatusPill({ status }: { status: string }) {
+    const palette = STATUS_COLORS[status] ?? STATUS_COLORS.pending_payment;
+    return (
+        <span
+            className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+            style={{ backgroundColor: palette.bg, color: palette.fg }}
+        >
+            {STATUS_LABELS[status] ?? status}
+        </span>
+    );
+}
+
+function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChange: (status: string) => void }) {
+    const { config: themeConfig } = useShopTheme();
+    return (
+        <div
+            className="rounded-2xl border p-5 backdrop-blur-xl shadow-sm"
+            style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+        >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <span className="font-bold" style={{ color: themeConfig.text }}>Order #{order.id}</span>
+                        <StatusPill status={order.status} />
+                    </div>
+                    <p className="text-sm mt-1" style={{ color: themeConfig.textSecondary }}>
+                        {order.customer_name || 'Online customer'}
+                        {order.customer_phone ? ` · ${order.customer_phone}` : ''}
+                        {' · '}
+                        {new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="font-extrabold text-lg" style={{ color: themeConfig.text }}>
+                        Rs. {order.total_amount}
+                    </span>
+                    <select
+                        value={order.status}
+                        onChange={(e) => onStatusChange(e.target.value)}
+                        className="rounded-lg px-2 py-1.5 text-sm focus:outline-none"
+                        style={{
+                            backgroundColor: themeConfig.surface,
+                            border: `1px solid ${themeConfig.border}`,
+                            color: themeConfig.text,
+                        }}
+                    >
+                        {ORDER_STATUSES.map((value) => (
+                            <option key={value} value={value}>{STATUS_LABELS[value]}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+            {order.items.length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-1" style={{ borderColor: `${themeConfig.border}50` }}>
+                    {order.items.map((item, index) => (
+                        <p key={index} className="text-sm" style={{ color: themeConfig.textSecondary }}>
+                            {item.quantity} × {item.product_name} — Rs. {item.price}
+                        </p>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default function VendorOrdersPage() {
+    const { config: themeConfig } = useShopTheme();
+    const [orders, setOrders] = useState<VendorOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        listVendorOrders()
+            .then(setOrders)
+            .catch(() => toast.error('Could not load orders. Refresh to retry.'))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const handleStatusChange = async (order: VendorOrder, status: string) => {
+        try {
+            const updated = await updateVendorOrderStatus(order.id, status);
+            setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+            toast.success(`Order #${order.id} marked ${STATUS_LABELS[status] ?? status}`);
+        } catch {
+            toast.error('Could not update the order status');
+        }
+    };
+
+    return (
+        <VendorShell>
+            <div className="overflow-y-auto h-full">
+                <div className="mx-auto max-w-4xl px-4 md:px-6 py-8">
+                    <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                        Orders
+                    </h1>
+                    <p className="mt-1" style={{ color: themeConfig.textSecondary }}>
+                        Track and update every order placed with your store.
+                    </p>
+                    <div className="mt-8 space-y-4">
+                        {orders.map((order) => (
+                            <OrderCard
+                                key={order.id}
+                                order={order}
+                                onStatusChange={(status) => handleStatusChange(order, status)}
+                            />
+                        ))}
+                        {!loading && orders.length === 0 && (
+                            <div
+                                className="rounded-2xl border border-dashed p-10 text-center"
+                                style={{ borderColor: themeConfig.border }}
+                            >
+                                <span className="material-symbols-outlined text-4xl" style={{ color: themeConfig.textSecondary }}>shopping_bag</span>
+                                <p className="mt-2 font-semibold" style={{ color: themeConfig.text }}>No orders yet</p>
+                                <p className="text-sm mt-1" style={{ color: themeConfig.textSecondary }}>
+                                    Orders from your store and social channels will appear here.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </VendorShell>
+    );
+}

@@ -1,3 +1,4 @@
+import json
 import requests
 from django.conf import settings
 
@@ -212,3 +213,13 @@ class MetaGraphClient:
             'post_id': media_id,
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
+
+    def send_message(self, page_id, page_token, recipient_id, text):
+        """Send a DM reply via the Page; returns the platform message id."""
+        payload = self.post(f'/{page_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'id': recipient_id}),
+            'message': json.dumps({'text': text}),
+            'messaging_type': 'RESPONSE',
+        })
+        return payload.get('message_id', '')
