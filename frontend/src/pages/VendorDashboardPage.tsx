@@ -5,7 +5,7 @@ import { authApi } from '../api/auth';
 import { vendorApi } from '../api/vendor';
 import ThemePickerButton from '../components/theme/ThemePickerButton';
 
-type DashboardSection = 'dashboard' | 'orders' | 'products' | 'analytics' | 'settings';
+type DashboardSection = 'dashboard' | 'orders' | 'products' | 'analytics' | 'settings' | 'inbox';
 
 interface VendorProfile {
     store_name?: string;
@@ -58,6 +58,7 @@ const VendorDashboardPage: React.FC = () => {
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: 'grid_view' },
+        { id: 'inbox', label: 'Inbox', icon: 'chat' },
         { id: 'orders', label: 'Orders', icon: 'shopping_bag' },
         { id: 'products', label: 'Products', icon: 'sell' },
         { id: 'analytics', label: 'Analytics', icon: 'bar_chart' },
@@ -117,6 +118,7 @@ const VendorDashboardPage: React.FC = () => {
                                 const linkTargets: Partial<Record<DashboardSection, string>> = {
                                     products: '/vendor/products',
                                     settings: '/vendor/settings/accounts',
+                                    inbox: '/vendor/inbox',
                                 };
                                 const linkTarget = linkTargets[item.id];
                                 const NavComponent = linkTarget ? Link : 'button';
