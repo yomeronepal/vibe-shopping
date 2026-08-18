@@ -2,13 +2,15 @@ import hashlib
 import hmac
 import json
 import logging
+from datetime import date, timedelta
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
-from datetime import timedelta
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -16,7 +18,7 @@ from rest_framework.views import APIView
 
 from core.models import Product, SocialMediaPost
 from socials.models import MetaConnection, ConnectedPage, WebhookEvent
-from socials.serializers import ConnectedPageSerializer
+from socials.serializers import ConnectedPageSerializer, SocialMediaPostSerializer
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
 from socials.services.publisher import (
     PLATFORM_PUBLISHERS,
@@ -24,7 +26,7 @@ from socials.services.publisher import (
     publish_post_record,
     resolve_image_source,
 )
-from socials.tasks import process_webhook_event
+from socials.tasks import process_webhook_event, publish_scheduled_post
 
 logger = logging.getLogger(__name__)
 
@@ -262,24 +264,129 @@ class PageDisconnectView(APIView):
         return Response(ConnectedPageSerializer(page).data)
 
 
+EDIT_GUARD_ERROR = 'Only drafts and scheduled posts can be edited'
+POST_STATUSES = {'draft', 'scheduled', 'pending', 'posted', 'failed'}
+
+
+def parse_platforms(data):
+    """Return the platforms list from JSON or multipart payloads."""
+    if hasattr(data, 'getlist'):
+        values = data.getlist('platforms')
+        if values:
+            return values
+    value = data.get('platforms')
+    return value if isinstance(value, list) else ([value] if value else [])
+
+
+def parse_schedule_datetime(raw):
+    """Parse an ISO datetime; returns (datetime|None, error|None)."""
+    if not raw:
+        return None, None
+    try:
+        parsed = drf_serializers.DateTimeField().to_internal_value(raw)
+    except drf_serializers.ValidationError:
+        return None, 'Invalid scheduled_for datetime'
+    if parsed <= timezone.now():
+        return None, 'scheduled_for must be in the future'
+    return parsed, None
+
+
+def get_tenant_post(request, post_id):
+    """Return (tenant, post) tenant-scoped; Nones on miss."""
+    tenant = get_request_tenant(request)
+    if not tenant:
+        return None, None
+    post = SocialMediaPost.objects.filter(tenant=tenant, id=post_id).first()
+    return tenant, post
+
+
 class PublishPostView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        """Publish a product to the selected connected platforms."""
+    def get(self, request):
+        """List posts for the calendar within a date range."""
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
-        platforms = request.data.get('platforms') or []
+        queryset = SocialMediaPost.objects.filter(tenant=tenant).annotate(
+            display_date=Coalesce('scheduled_for', 'created_at')
+        )
+        try:
+            start = request.query_params.get('from')
+            end = request.query_params.get('to')
+            if start:
+                queryset = queryset.filter(display_date__date__gte=date.fromisoformat(start))
+            if end:
+                queryset = queryset.filter(display_date__date__lte=date.fromisoformat(end))
+        except ValueError:
+            return Response({'error': 'Invalid date range'}, status=status.HTTP_400_BAD_REQUEST)
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            if status_filter not in POST_STATUSES:
+                return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(status=status_filter)
+        queryset = queryset.select_related('product').order_by('-display_date')
+        return Response(SocialMediaPostSerializer(queryset, many=True).data)
+
+    def post(self, request):
+        """Publish, schedule, or draft a post to the selected platforms."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        platforms = parse_platforms(request.data)
         if not platforms or any(p not in PLATFORM_PUBLISHERS for p in platforms):
             return Response(
                 {'error': 'platforms must contain facebook and/or instagram'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        product = Product.objects.filter(
-            tenant=tenant, id=request.data.get('product_id')
-        ).first()
-        if not product:
+        product = None
+        product_id = request.data.get('product_id')
+        if product_id:
+            product = Product.objects.filter(tenant=tenant, id=product_id).first()
+            if not product:
+                return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        image_file = request.FILES.get('image')
+        caption = (
+            request.data.get('caption')
+            or (product.description if product else '')
+            or (product.name if product else '')
+        )
+        save_as_draft = request.data.get('save_as') == 'draft'
+        scheduled_for, schedule_error = parse_schedule_datetime(request.data.get('scheduled_for'))
+        if schedule_error:
+            return Response({'error': schedule_error}, status=status.HTTP_400_BAD_REQUEST)
+        is_create_mode = save_as_draft or bool(scheduled_for)
+        if is_create_mode:
+            return self.create_posts(
+                tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for
+            )
+        return self.publish_immediately(tenant, platforms, product, caption, image_file)
+
+    def create_posts(self, tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for):
+        """Persist draft or scheduled records without publishing them."""
+        if not product and not image_file:
+            return Response(
+                {'error': 'Provide a product or an image'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        records = []
+        for platform in platforms:
+            if image_file:
+                image_file.seek(0)
+            records.append(SocialMediaPost.objects.create(
+                tenant=tenant, product=product, platform=platform,
+                caption=caption, image=image_file,
+                status='draft' if save_as_draft else 'scheduled',
+                scheduled_for=scheduled_for,
+            ))
+        return Response(
+            SocialMediaPostSerializer(records, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def publish_immediately(self, tenant, platforms, product, caption, image_file):
+        """Publish now, preserving the original immediate-publish behavior."""
+        if not product and not image_file:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         page = ConnectedPage.objects.filter(tenant=tenant, status='connected').first()
         if not page:
@@ -287,22 +394,23 @@ class PublishPostView(APIView):
                 {'error': 'Connect a Facebook Page first'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not resolve_image_source(None, product):
+        if not resolve_image_source(image_file, product):
             return Response(
                 {'error': 'Product has no image to post'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        caption = request.data.get('caption') or product.description or product.name
         results = [
-            self.publish_one(platform, product, tenant, caption)
+            self.publish_one(platform, product, tenant, caption, image_file)
             for platform in platforms
         ]
         return Response({'results': results})
 
-    def publish_one(self, platform, product, tenant, caption):
+    def publish_one(self, platform, product, tenant, caption, image_file):
         """Create and publish one record, tolerating transient failures."""
+        if image_file:
+            image_file.seek(0)
         record = SocialMediaPost.objects.create(
-            product=product, tenant=tenant, platform=platform, caption=caption
+            product=product, tenant=tenant, platform=platform, caption=caption, image=image_file
         )
         try:
             publish_post_record(record)
@@ -316,3 +424,60 @@ class PublishPostView(APIView):
             'post_url': record.post_url,
             'error': record.error_message or None,
         }
+
+
+class PostDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, post_id):
+        """Edit a draft or scheduled post."""
+        tenant, post = get_tenant_post(request, post_id)
+        if not post:
+            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+        if post.status not in ('draft', 'scheduled'):
+            return Response({'error': EDIT_GUARD_ERROR}, status=status.HTTP_400_BAD_REQUEST)
+        scheduled_for, schedule_error = parse_schedule_datetime(request.data.get('scheduled_for'))
+        if schedule_error:
+            return Response({'error': schedule_error}, status=status.HTTP_400_BAD_REQUEST)
+        if 'caption' in request.data:
+            post.caption = request.data.get('caption') or ''
+        if request.FILES.get('image'):
+            post.image = request.FILES['image']
+        if scheduled_for:
+            post.scheduled_for = scheduled_for
+            post.status = 'scheduled'
+        post.save()
+        return Response(SocialMediaPostSerializer(post).data)
+
+    def delete(self, request, post_id):
+        """Delete a draft or scheduled post."""
+        tenant, post = get_tenant_post(request, post_id)
+        if not post:
+            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+        if post.status not in ('draft', 'scheduled'):
+            return Response(
+                {'error': 'Only drafts and scheduled posts can be deleted'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        post.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PostRetryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        """Re-queue a failed post."""
+        tenant, post = get_tenant_post(request, post_id)
+        if not post:
+            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+        if post.status != 'failed':
+            return Response(
+                {'error': 'Only failed posts can be retried'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        post.status = 'pending'
+        post.error_message = ''
+        post.save()
+        publish_scheduled_post.delay(post.id)
+        return Response(SocialMediaPostSerializer(post).data)
