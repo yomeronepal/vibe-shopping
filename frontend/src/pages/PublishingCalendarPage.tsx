@@ -53,6 +53,18 @@ function toTimeValue(d: Date): string {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function suggestSchedule(cellDate: Date): { date: string; time: string } {
+    const now = new Date();
+    if (toDateKey(cellDate) !== toDateKey(now)) {
+        return { date: toDateKey(cellDate), time: '12:00' };
+    }
+    const rounded = new Date(now);
+    rounded.setSeconds(0, 0);
+    rounded.setMinutes(0);
+    rounded.setHours(rounded.getHours() + 1);
+    return { date: toDateKey(rounded), time: toTimeValue(rounded) };
+}
+
 function extractErrorMessage(error: unknown, fallback: string): string {
     const data = (error as { response?: { data?: unknown } })?.response?.data;
     if (data && typeof data === 'object') {
@@ -155,8 +167,9 @@ export default function PublishingCalendarPage() {
             facebook: Boolean(connectedPage),
             instagram: Boolean(connectedPage?.instagram_account_id),
         });
-        setScheduleDate(toDateKey(date));
-        setScheduleTime('12:00');
+        const suggestion = suggestSchedule(date);
+        setScheduleDate(suggestion.date);
+        setScheduleTime(suggestion.time);
         setModal({ mode: 'create', date });
     };
 
@@ -188,7 +201,7 @@ export default function PublishingCalendarPage() {
         [products, productSearch],
     );
 
-    const buildFormData = (): FormData => {
+    const buildCreateFormData = (): FormData => {
         const form = new FormData();
         form.append('caption', caption);
         if (platforms.facebook) form.append('platforms', 'facebook');
@@ -196,6 +209,15 @@ export default function PublishingCalendarPage() {
         if (imageTab === 'product' && productId) {
             form.append('product_id', String(productId));
         } else if (imageTab === 'upload' && uploadFile) {
+            form.append('image', uploadFile);
+        }
+        return form;
+    };
+
+    const buildUpdateFormData = (): FormData => {
+        const form = new FormData();
+        form.append('caption', caption);
+        if (uploadFile) {
             form.append('image', uploadFile);
         }
         return form;
@@ -212,15 +234,22 @@ export default function PublishingCalendarPage() {
             setFormError('Pick a date and time to schedule.');
             return;
         }
+        const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`);
+        if (scheduledAt.getTime() <= Date.now()) {
+            setFormError('Pick a time in the future');
+            return;
+        }
         setFormError('');
         setSaving(true);
         try {
-            const form = buildFormData();
-            form.append('scheduled_for', new Date(`${scheduleDate}T${scheduleTime}`).toISOString());
             if (modal?.mode === 'edit') {
+                const form = buildUpdateFormData();
+                form.append('scheduled_for', scheduledAt.toISOString());
                 await updatePost(modal.post.id, form);
                 toast.success('Post updated');
             } else {
+                const form = buildCreateFormData();
+                form.append('scheduled_for', scheduledAt.toISOString());
                 await createPost(form);
                 toast.success('Post scheduled');
             }
@@ -238,10 +267,10 @@ export default function PublishingCalendarPage() {
         setSaving(true);
         try {
             if (modal?.mode === 'edit') {
-                await updatePost(modal.post.id, buildFormData());
+                await updatePost(modal.post.id, buildUpdateFormData());
                 toast.success('Draft updated');
             } else {
-                const form = buildFormData();
+                const form = buildCreateFormData();
                 form.append('save_as', 'draft');
                 await createPost(form);
                 toast.success('Draft saved');
@@ -263,7 +292,7 @@ export default function PublishingCalendarPage() {
         setFormError('');
         setSaving(true);
         try {
-            const result = await createPost(buildFormData());
+            const result = await createPost(buildCreateFormData());
             if (!Array.isArray(result) && 'results' in result) {
                 result.results.forEach((item: PublishResult) => {
                     if (item.status === 'posted') {
@@ -300,8 +329,8 @@ export default function PublishingCalendarPage() {
             toast.success('Post deleted');
             closeModal();
             refetchPosts();
-        } catch {
-            toast.error('Could not delete the post.');
+        } catch (error) {
+            toast.error(extractErrorMessage(error, 'Could not delete the post.'));
         } finally {
             setSaving(false);
         }
@@ -315,8 +344,8 @@ export default function PublishingCalendarPage() {
             toast.success('Retrying post');
             closeModal();
             refetchPosts();
-        } catch {
-            toast.error('Could not retry the post.');
+        } catch (error) {
+            toast.error(extractErrorMessage(error, 'Could not retry the post.'));
         } finally {
             setSaving(false);
         }
@@ -325,8 +354,12 @@ export default function PublishingCalendarPage() {
     const isEdit = modal?.mode === 'edit';
     const editPost = isEdit ? modal.post : null;
     const isPosted = editPost?.status === 'posted';
+    const isPending = editPost?.status === 'pending';
     const isFailed = editPost?.status === 'failed';
+    const isReadOnly = isPosted || isPending;
+    const canMutateSchedule = !isEdit || editPost?.status === 'draft' || editPost?.status === 'scheduled';
     const canSaveDraft = !isEdit || editPost?.status === 'draft';
+    const canDelete = isEdit && (editPost?.status === 'draft' || editPost?.status === 'scheduled');
 
     return (
         <VendorShell>
@@ -478,7 +511,7 @@ export default function PublishingCalendarPage() {
                                 <textarea
                                     value={caption}
                                     onChange={(event) => setCaption(event.target.value.slice(0, 280))}
-                                    readOnly={isPosted}
+                                    readOnly={isReadOnly}
                                     placeholder="Write a caption…"
                                     className="w-full min-h-[100px] rounded-xl p-3 text-sm resize-none focus:outline-none"
                                     style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
@@ -489,102 +522,137 @@ export default function PublishingCalendarPage() {
                             </div>
 
                             <div className="flex gap-2">
-                                {(['facebook', 'instagram'] as PlatformKey[]).map((key) => {
-                                    const enabled = key === 'facebook' ? Boolean(connectedPage) : Boolean(connectedPage?.instagram_account_id);
-                                    const active = platforms[key];
-                                    return (
-                                        <button
-                                            key={key}
-                                            disabled={!enabled || isPosted}
-                                            onClick={() => setPlatforms((prev) => ({ ...prev, [key]: !prev[key] }))}
-                                            className="px-3 py-1.5 rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-                                            style={active
-                                                ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
-                                                : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
-                                        >
-                                            {key === 'facebook' ? 'Facebook' : 'Instagram'}
-                                        </button>
-                                    );
-                                })}
+                                {isEdit ? (
+                                    <span
+                                        className="px-3 py-1.5 rounded-full text-sm font-semibold"
+                                        style={{ backgroundColor: themeConfig.primary, color: '#ffffff' }}
+                                    >
+                                        {editPost?.platform === 'facebook' ? 'Facebook' : 'Instagram'}
+                                    </span>
+                                ) : (
+                                    (['facebook', 'instagram'] as PlatformKey[]).map((key) => {
+                                        const enabled = key === 'facebook' ? Boolean(connectedPage) : Boolean(connectedPage?.instagram_account_id);
+                                        const active = platforms[key];
+                                        return (
+                                            <button
+                                                key={key}
+                                                disabled={!enabled}
+                                                onClick={() => setPlatforms((prev) => ({ ...prev, [key]: !prev[key] }))}
+                                                className="px-3 py-1.5 rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                                                style={active
+                                                    ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
+                                                    : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                            >
+                                                {key === 'facebook' ? 'Facebook' : 'Instagram'}
+                                            </button>
+                                        );
+                                    })
+                                )}
                             </div>
 
                             <div>
-                                <div className="flex gap-2 mb-2">
-                                    <button
-                                        onClick={() => setImageTab('product')}
-                                        disabled={isPosted}
-                                        className="px-3 py-1.5 rounded-full text-sm font-semibold disabled:opacity-40"
-                                        style={imageTab === 'product'
-                                            ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
-                                            : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
-                                    >
-                                        Product
-                                    </button>
-                                    <button
-                                        onClick={() => setImageTab('upload')}
-                                        disabled={isPosted}
-                                        className="px-3 py-1.5 rounded-full text-sm font-semibold disabled:opacity-40"
-                                        style={imageTab === 'upload'
-                                            ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
-                                            : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
-                                    >
-                                        Upload
-                                    </button>
-                                </div>
-
-                                {imageTab === 'product' ? (
-                                    <div>
-                                        <input
-                                            value={productSearch}
-                                            onChange={(event) => setProductSearch(event.target.value)}
-                                            placeholder="Search products…"
-                                            disabled={isPosted}
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
-                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
-                                        />
-                                        <div className="mt-2 grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
-                                            {filteredProducts.map((product) => {
-                                                const thumbnail = productThumbnail(product);
-                                                const selected = productId === product.id;
-                                                return (
-                                                    <button
-                                                        key={product.id}
-                                                        disabled={isPosted}
-                                                        onClick={() => setProductId(product.id)}
-                                                        className="rounded-lg overflow-hidden aspect-square disabled:opacity-40"
-                                                        style={{ boxShadow: selected ? `0 0 0 2px ${themeConfig.primary}` : `0 0 0 1px ${themeConfig.border}` }}
-                                                        title={product.name}
-                                                    >
-                                                        {thumbnail ? (
-                                                            <img src={thumbnail} alt={product.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: `${themeConfig.border}40` }}>
-                                                                <span className="material-symbols-outlined text-[16px]" style={{ color: themeConfig.textSecondary }}>image</span>
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            disabled={isPosted}
-                                            onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-                                            className="text-sm"
-                                            style={{ color: themeConfig.text }}
-                                        />
-                                        {(uploadPreviewUrl || (editPost?.image_url && !uploadFile)) && (
+                                {isEdit ? (
+                                    <div className="flex items-center gap-3">
+                                        {(uploadPreviewUrl || editPost?.image_url) ? (
                                             <img
                                                 src={uploadPreviewUrl ?? `${API_ORIGIN}${editPost?.image_url}`}
-                                                alt="Preview"
-                                                className="mt-2 h-24 rounded-lg object-cover"
+                                                alt="Current"
+                                                className="h-20 w-20 rounded-lg object-cover"
+                                            />
+                                        ) : (
+                                            <div className="h-20 w-20 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${themeConfig.border}40` }}>
+                                                <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>image</span>
+                                            </div>
+                                        )}
+                                        {!isReadOnly && (
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0] ?? null;
+                                                    setUploadFile(file);
+                                                    if (file) setImageTab('upload');
+                                                }}
+                                                className="text-sm"
+                                                style={{ color: themeConfig.text }}
                                             />
                                         )}
                                     </div>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-2 mb-2">
+                                            <button
+                                                onClick={() => setImageTab('product')}
+                                                className="px-3 py-1.5 rounded-full text-sm font-semibold"
+                                                style={imageTab === 'product'
+                                                    ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
+                                                    : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                            >
+                                                Product
+                                            </button>
+                                            <button
+                                                onClick={() => setImageTab('upload')}
+                                                className="px-3 py-1.5 rounded-full text-sm font-semibold"
+                                                style={imageTab === 'upload'
+                                                    ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
+                                                    : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                            >
+                                                Upload
+                                            </button>
+                                        </div>
+
+                                        {imageTab === 'product' ? (
+                                            <div>
+                                                <input
+                                                    value={productSearch}
+                                                    onChange={(event) => setProductSearch(event.target.value)}
+                                                    placeholder="Search products…"
+                                                    className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
+                                                    style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                                />
+                                                <div className="mt-2 grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
+                                                    {filteredProducts.map((product) => {
+                                                        const thumbnail = productThumbnail(product);
+                                                        const selected = productId === product.id;
+                                                        return (
+                                                            <button
+                                                                key={product.id}
+                                                                onClick={() => setProductId(product.id)}
+                                                                className="rounded-lg overflow-hidden aspect-square"
+                                                                style={{ boxShadow: selected ? `0 0 0 2px ${themeConfig.primary}` : `0 0 0 1px ${themeConfig.border}` }}
+                                                                title={product.name}
+                                                            >
+                                                                {thumbnail ? (
+                                                                    <img src={thumbnail} alt={product.name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: `${themeConfig.border}40` }}>
+                                                                        <span className="material-symbols-outlined text-[16px]" style={{ color: themeConfig.textSecondary }}>image</span>
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                                                    className="text-sm"
+                                                    style={{ color: themeConfig.text }}
+                                                />
+                                                {uploadPreviewUrl && (
+                                                    <img
+                                                        src={uploadPreviewUrl}
+                                                        alt="Preview"
+                                                        className="mt-2 h-24 rounded-lg object-cover"
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
@@ -593,7 +661,7 @@ export default function PublishingCalendarPage() {
                                     type="date"
                                     value={scheduleDate}
                                     onChange={(event) => setScheduleDate(event.target.value)}
-                                    disabled={isPosted}
+                                    disabled={isReadOnly}
                                     className="flex-1 rounded-xl px-3 py-2 text-sm focus:outline-none"
                                     style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
                                 />
@@ -601,7 +669,7 @@ export default function PublishingCalendarPage() {
                                     type="time"
                                     value={scheduleTime}
                                     onChange={(event) => setScheduleTime(event.target.value)}
-                                    disabled={isPosted}
+                                    disabled={isReadOnly}
                                     className="flex-1 rounded-xl px-3 py-2 text-sm focus:outline-none"
                                     style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
                                 />
@@ -624,9 +692,14 @@ export default function PublishingCalendarPage() {
                                     View post
                                 </a>
                             )}
+                            {isPending && (
+                                <p className="text-sm font-medium" style={{ color: themeConfig.textSecondary }}>
+                                    Publishing…
+                                </p>
+                            )}
 
                             <div className="flex flex-wrap items-center gap-2 pt-2">
-                                {!isPosted && (
+                                {canMutateSchedule && (
                                     <>
                                         <button
                                             onClick={handleSchedule}
@@ -666,7 +739,7 @@ export default function PublishingCalendarPage() {
                                         Retry
                                     </button>
                                 )}
-                                {isEdit && (
+                                {canDelete && (
                                     <button
                                         onClick={handleDelete}
                                         disabled={saving}
