@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 
 from core.models import Tenant, VendorProfile
 from socials.models import ConnectedPage, MetaConnection
+from socials.services.meta_graph import MetaGraphError
 
 TEST_KEY = Fernet.generate_key().decode()
 
@@ -83,3 +84,15 @@ class PageViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         page.refresh_from_db()
         self.assertEqual(page.status, 'disconnected')
+
+    @patch('socials.views.MetaGraphClient')
+    def test_connect_page_returns_502_on_graph_error(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.list_pages.return_value = [
+            {'id': 'p1', 'name': 'Acme Store', 'access_token': 'pt1'}
+        ]
+        mock_client.subscribe_page.side_effect = MetaGraphError('boom', code=1)
+        response = self.client.post('/api/socials/pages/p1/connect/')
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn('detail', response.data)
+        self.assertNotIn('boom', str(response.data))
