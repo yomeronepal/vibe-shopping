@@ -95,3 +95,32 @@ class MetaGraphClientTests(TestCase):
         with self.assertRaises(MetaGraphError) as ctx:
             self.client_service.exchange_code('the-code', 'http://cb')
         self.assertEqual(str(ctx.exception), 'Invalid response from Facebook')
+
+
+@override_settings(META_APP_ID='app123', META_APP_SECRET='secret123')
+class GranularScopeFallbackTests(TestCase):
+    @patch('socials.services.meta_graph.requests.get')
+    def test_list_pages_falls_back_to_granular_scopes(self, mock_get):
+        def side_effect(url, **kwargs):
+            if url.endswith('/me/accounts'):
+                return graph_response({'data': []})
+            if url.endswith('/debug_token'):
+                return graph_response({'data': {'granular_scopes': [
+                    {'scope': 'pages_show_list', 'target_ids': ['p42']},
+                    {'scope': 'pages_messaging', 'target_ids': ['p42']},
+                ]}})
+            return graph_response({'id': 'p42', 'name': 'Granted Page', 'access_token': 'pt42'})
+
+        mock_get.side_effect = side_effect
+        pages = MetaGraphClient().list_pages('user-token')
+        self.assertEqual(pages, [{'id': 'p42', 'name': 'Granted Page', 'access_token': 'pt42'}])
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_list_pages_empty_when_no_granular_pages(self, mock_get):
+        def side_effect(url, **kwargs):
+            if url.endswith('/me/accounts'):
+                return graph_response({'data': []})
+            return graph_response({'data': {'granular_scopes': []}})
+
+        mock_get.side_effect = side_effect
+        self.assertEqual(MetaGraphClient().list_pages('user-token'), [])

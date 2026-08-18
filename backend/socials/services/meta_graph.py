@@ -70,12 +70,45 @@ class MetaGraphClient:
         return self.get('/me', {'access_token': user_token, 'fields': 'id,name'})
 
     def list_pages(self, user_token):
-        """Return the user's Pages with their page access tokens."""
+        """Return the user's Pages with their page access tokens.
+
+        Falls back to the token's granular scopes when /me/accounts
+        omits granted Pages, as happens for New Pages Experience and
+        business-portfolio Pages.
+        """
         payload = self.get('/me/accounts', {
             'access_token': user_token,
             'fields': 'id,name,access_token',
         })
-        return payload.get('data', [])
+        pages = payload.get('data', [])
+        if pages:
+            return pages
+        return self.list_granted_pages(user_token)
+
+    def list_granted_pages(self, user_token):
+        """Resolve granted Pages from the token's granular scopes."""
+        info = self.get('/debug_token', {
+            'input_token': user_token,
+            'access_token': f'{self.app_id}|{self.app_secret}',
+        })
+        granular = info.get('data', {}).get('granular_scopes', [])
+        page_ids = []
+        for entry in granular:
+            if entry.get('scope') == 'pages_show_list':
+                page_ids = entry.get('target_ids', [])
+        pages = []
+        for page_id in page_ids:
+            detail = self.get(f'/{page_id}', {
+                'access_token': user_token,
+                'fields': 'id,name,access_token',
+            })
+            if detail.get('access_token'):
+                pages.append({
+                    'id': detail['id'],
+                    'name': detail.get('name', ''),
+                    'access_token': detail['access_token'],
+                })
+        return pages
 
     def subscribe_page(self, page_id, page_token):
         """Subscribe the app to the Page's webhook fields."""
