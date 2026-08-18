@@ -18,6 +18,12 @@ from core.models import Product, SocialMediaPost
 from socials.models import MetaConnection, ConnectedPage, WebhookEvent
 from socials.serializers import ConnectedPageSerializer
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+from socials.services.publisher import (
+    PLATFORM_PUBLISHERS,
+    TransientPublishError,
+    publish_post_record,
+    resolve_image_source,
+)
 from socials.tasks import process_webhook_event
 
 logger = logging.getLogger(__name__)
@@ -256,53 +262,6 @@ class PageDisconnectView(APIView):
         return Response(ConnectedPageSerializer(page).data)
 
 
-def build_public_image_url(image_field):
-    """Return a publicly reachable URL for the image or None."""
-    base = settings.PUBLIC_MEDIA_BASE_URL.rstrip('/')
-    if not base:
-        return None
-    return f'{base}{image_field.url}'
-
-
-def get_product_image(product):
-    """Return the product's best available image field or None."""
-    if product.processed_image:
-        return product.processed_image
-    if product.image:
-        return product.image
-    first_gallery = product.images.first()
-    return first_gallery.image if first_gallery else None
-
-
-def publish_to_facebook(client, page, image_field, caption):
-    """Post the image to the Page feed as a photo post."""
-    with image_field.open('rb') as handle:
-        return client.publish_page_photo(
-            page.page_id, page.get_access_token(), handle, caption
-        )
-
-
-def publish_to_instagram(client, page, image_field, caption):
-    """Post the image to the Page's linked IG professional account."""
-    if not page.instagram_account_id:
-        raise MetaGraphError('No Instagram account is linked to the connected Page')
-    image_url = build_public_image_url(image_field)
-    if not image_url:
-        raise MetaGraphError(
-            'Instagram needs a publicly reachable image URL. '
-            'Set PUBLIC_MEDIA_BASE_URL (e.g. an ngrok URL) and restart the backend.'
-        )
-    return client.publish_instagram_photo(
-        page.instagram_account_id, page.get_access_token(), image_url, caption
-    )
-
-
-PLATFORM_PUBLISHERS = {
-    'facebook': publish_to_facebook,
-    'instagram': publish_to_instagram,
-}
-
-
 class PublishPostView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -328,35 +287,29 @@ class PublishPostView(APIView):
                 {'error': 'Connect a Facebook Page first'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        image_field = get_product_image(product)
-        if not image_field:
+        if not resolve_image_source(None, product):
             return Response(
                 {'error': 'Product has no image to post'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         caption = request.data.get('caption') or product.description or product.name
         results = [
-            self.publish_one(platform, product, tenant, page, image_field, caption)
+            self.publish_one(platform, product, tenant, caption)
             for platform in platforms
         ]
         return Response({'results': results})
 
-    def publish_one(self, platform, product, tenant, page, image_field, caption):
-        """Publish to one platform and record the outcome."""
+    def publish_one(self, platform, product, tenant, caption):
+        """Create and publish one record, tolerating transient failures."""
         record = SocialMediaPost.objects.create(
             product=product, tenant=tenant, platform=platform, caption=caption
         )
-        client = MetaGraphClient()
         try:
-            outcome = PLATFORM_PUBLISHERS[platform](client, page, image_field, caption)
-            record.status = 'posted'
-            record.platform_post_id = outcome.get('post_id', '')
-            record.post_url = outcome.get('post_url') or None
-        except MetaGraphError as exc:
+            publish_post_record(record)
+        except TransientPublishError:
             record.status = 'failed'
-            record.error_message = str(exc)
-            logger.warning('Social publish to %s failed: %s', platform, exc)
-        record.save()
+            record.error_message = 'Could not reach Facebook. Please try again.'
+            record.save()
         return {
             'platform': platform,
             'status': record.status,
