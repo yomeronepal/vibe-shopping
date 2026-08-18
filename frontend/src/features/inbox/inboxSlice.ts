@@ -30,10 +30,10 @@ const initialState: InboxState = {
 };
 
 const upsertConversation = (state: InboxState, conversation: InboxConversation) => {
-    state.conversations = [
-        conversation,
-        ...state.conversations.filter((c) => c.id !== conversation.id),
-    ];
+    const rest = state.conversations.filter((c) => c.id !== conversation.id);
+    rest.push(conversation);
+    rest.sort((a, b) => (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''));
+    state.conversations = rest;
 };
 
 export const fetchConversations = createAsyncThunk(
