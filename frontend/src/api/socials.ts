@@ -59,3 +59,47 @@ export const publishProductPost = async (
     });
     return response.data.results;
 };
+
+export interface PostProductRef {
+    id: number;
+    name: string;
+}
+
+export interface ScheduledPost {
+    id: number;
+    platform: 'facebook' | 'instagram';
+    status: 'draft' | 'scheduled' | 'pending' | 'posted' | 'failed';
+    caption: string;
+    image_url: string | null;
+    product: PostProductRef | null;
+    scheduled_for: string | null;
+    post_url: string | null;
+    error_message: string;
+    created_at: string;
+}
+
+export const listPosts = async (fromDate: string, toDate: string): Promise<ScheduledPost[]> => {
+    const response = await apiClient.get('/socials/posts/', {
+        params: { from: fromDate, to: toDate },
+    });
+    return response.data;
+};
+
+export const createPost = async (form: FormData): Promise<ScheduledPost[] | { results: PublishResult[] }> => {
+    const response = await apiClient.post('/socials/posts/', form);
+    return response.data;
+};
+
+export const updatePost = async (postId: number, form: FormData): Promise<ScheduledPost> => {
+    const response = await apiClient.patch(`/socials/posts/${postId}/`, form);
+    return response.data;
+};
+
+export const deletePost = async (postId: number): Promise<void> => {
+    await apiClient.delete(`/socials/posts/${postId}/`);
+};
+
+export const retryPost = async (postId: number): Promise<ScheduledPost> => {
+    const response = await apiClient.post(`/socials/posts/${postId}/retry/`);
+    return response.data;
+};
