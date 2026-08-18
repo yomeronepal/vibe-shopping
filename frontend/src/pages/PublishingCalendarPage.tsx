@@ -275,6 +275,13 @@ export default function PublishingCalendarPage() {
             } else {
                 toast.success('Post published');
             }
+            if (modal?.mode === 'edit') {
+                try {
+                    await deletePost(modal.post.id);
+                } catch {
+                    toast.error('Posted, but the original draft could not be removed');
+                }
+            }
             closeModal();
             refetchPosts();
         } catch (error) {
