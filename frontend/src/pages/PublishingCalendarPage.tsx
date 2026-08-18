@@ -360,6 +360,7 @@ export default function PublishingCalendarPage() {
     const canMutateSchedule = !isEdit || editPost?.status === 'draft' || editPost?.status === 'scheduled';
     const canSaveDraft = !isEdit || editPost?.status === 'draft';
     const canDelete = isEdit && (editPost?.status === 'draft' || editPost?.status === 'scheduled');
+    const postNowNeedsImage = isEdit && !editPost?.product && !uploadFile;
 
     return (
         <VendorShell>
@@ -721,12 +722,17 @@ export default function PublishingCalendarPage() {
                                         )}
                                         <button
                                             onClick={handlePostNow}
-                                            disabled={saving}
+                                            disabled={saving || postNowNeedsImage}
                                             className="px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50"
                                             style={{ backgroundColor: `${themeConfig.primary}15`, color: themeConfig.primary }}
                                         >
                                             Post now
                                         </button>
+                                        {postNowNeedsImage && (
+                                            <span className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>
+                                                Choose an image to post now
+                                            </span>
+                                        )}
                                     </>
                                 )}
                                 {isFailed && (
