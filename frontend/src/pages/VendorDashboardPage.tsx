@@ -114,9 +114,14 @@ const VendorDashboardPage: React.FC = () => {
                         <nav className="flex flex-col gap-2 mt-4">
                             {navItems.map((item) => {
                                 const isActive = activeSection === item.id;
-                                const NavComponent = item.id === 'products' ? Link : 'button';
-                                const navProps = item.id === 'products'
-                                    ? { to: '/vendor/products' }
+                                const linkTargets: Partial<Record<DashboardSection, string>> = {
+                                    products: '/vendor/products',
+                                    settings: '/vendor/settings/accounts',
+                                };
+                                const linkTarget = linkTargets[item.id];
+                                const NavComponent = linkTarget ? Link : 'button';
+                                const navProps = linkTarget
+                                    ? { to: linkTarget }
                                     : { onClick: () => setActiveSection(item.id) };
 
                                 return (
@@ -349,7 +354,7 @@ const VendorDashboardPage: React.FC = () => {
                                 ))}
                             </div>
                             <button
-                                onClick={() => navigate('/vendor/onboarding?step=3')}
+                                onClick={() => navigate('/vendor/settings/accounts')}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border font-bold text-sm transition-all"
                                 style={{
                                     borderColor: `${primaryColor}50`,
