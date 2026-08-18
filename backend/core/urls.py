@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import health_check, generate_product_details, list_gemini_models, PublicProductViewSet, OrderViewSet, vendor_login, vendor_logout
+from .views import health_check, generate_product_details, list_gemini_models, PublicProductViewSet, OrderViewSet, vendor_login, vendor_logout, BusinessProfileView
 
 router = DefaultRouter()
 router.register(r'public/products', PublicProductViewSet, basename='public-product')
@@ -12,5 +12,6 @@ urlpatterns = [
     path('products/generate-details/', generate_product_details, name='generate_product_details'),
     path('auth/login/', vendor_login, name='vendor_login'),
     path('auth/logout/', vendor_logout, name='vendor_logout'),
+    path('business/', BusinessProfileView.as_view(), name='business_profile'),
     path('', include(router.urls)),
 ]

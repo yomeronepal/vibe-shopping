@@ -2,12 +2,13 @@ from rest_framework import viewsets, status, generics
 from rest_framework.decorators import api_view, permission_classes, action, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
 from django.db import transaction
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from .models import Product, Tenant, VendorProfile, Order, OrderItem, EscrowLedger, Wallet, ProductEvent
-from .serializers import ProductSerializer, ProductCreateSerializer, VendorSignupSerializer
+from .serializers import ProductSerializer, ProductCreateSerializer, VendorSignupSerializer, BusinessProfileSerializer
 from .throttles import AIAnalysisThrottle
 
 # Create your views here.
@@ -84,6 +85,33 @@ def vendor_logout(request):
         return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def get_request_tenant(request):
+    """Return the tenant for the authenticated user or None."""
+    profile = getattr(request.user, 'vendor_profile', None)
+    return profile.tenant if profile else None
+
+
+class BusinessProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Return the authenticated user's business profile."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(BusinessProfileSerializer(tenant).data)
+
+    def patch(self, request):
+        """Update editable business profile fields."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = BusinessProfileSerializer(tenant, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 @api_view(['GET'])
 def list_gemini_models(request):
