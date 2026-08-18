@@ -171,8 +171,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': '100/hour',
-        'anon': '50/hour',
+        'user': config('THROTTLE_USER_RATE', default='2000/hour'),
+        'anon': config('THROTTLE_ANON_RATE', default='200/hour'),
         'ai_analysis': '10/minute',
         'logo_analysis': '5/minute',
     },
