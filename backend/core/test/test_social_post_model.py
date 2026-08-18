@@ -16,6 +16,14 @@ class SocialMediaPostModelTests(TestCase):
         self.assertIsNone(post.product)
         self.assertEqual(post.status, 'draft')
 
+    def test_str_on_free_form_post_does_not_raise(self):
+        post = SocialMediaPost.objects.create(
+            tenant=self.tenant, platform='facebook', caption='Announcement',
+            status='draft',
+        )
+        text = str(post)
+        self.assertIn('free-form', text)
+
     def test_scheduled_post_fields(self):
         when = timezone.now() + timezone.timedelta(hours=2)
         post = SocialMediaPost.objects.create(

@@ -376,7 +376,8 @@ class SocialMediaPost(TimeStampedModel):
         ]
     
     def __str__(self):
-        return f"{self.platform} - {self.product.name} ({self.status})"
+        product_label = self.product.name if self.product else 'free-form'
+        return f"{self.platform} - {product_label} ({self.status})"
 
 class AITokenUsage(TimeStampedModel):
     """

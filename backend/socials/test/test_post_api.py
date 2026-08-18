@@ -3,6 +3,7 @@ from unittest.mock import patch
 from cryptography.fernet import Fernet
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models.query import QuerySet
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -162,6 +163,45 @@ class PostApiTests(APITestCase):
         )
         response = self.client.patch(f'/api/socials/posts/{post.id}/', {'caption': 'x'}, format='json')
         self.assertEqual(response.status_code, 400)
+
+    def test_patch_pending_rejected(self):
+        post = SocialMediaPost.objects.create(
+            tenant=self.tenant, product=self.product, platform='facebook',
+            caption='claimed', status='pending',
+        )
+        response = self.client.patch(f'/api/socials/posts/{post.id}/', {'caption': 'x'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        post.refresh_from_db()
+        self.assertEqual(post.status, 'pending')
+        self.assertEqual(post.caption, 'claimed')
+
+    def test_patch_success_persists_scheduled_status_and_id(self):
+        post = SocialMediaPost.objects.create(
+            tenant=self.tenant, product=self.product, platform='facebook',
+            caption='draft', status='draft',
+        )
+        response = self.client.patch(f'/api/socials/posts/{post.id}/', {
+            'caption': 'updated', 'scheduled_for': self.future,
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        row = SocialMediaPost.objects.get(id=post.id)
+        self.assertEqual(row.id, post.id)
+        self.assertEqual(row.status, 'scheduled')
+
+    def test_patch_locks_row_with_select_for_update(self):
+        post = SocialMediaPost.objects.create(
+            tenant=self.tenant, product=self.product, platform='facebook',
+            caption='draft', status='draft',
+        )
+        original_select_for_update = QuerySet.select_for_update
+        with patch.object(
+            QuerySet, 'select_for_update', autospec=True, side_effect=original_select_for_update
+        ) as mock_lock:
+            response = self.client.patch(f'/api/socials/posts/{post.id}/', {
+                'caption': 'updated',
+            }, format='json')
+        self.assertEqual(response.status_code, 200)
+        mock_lock.assert_called_once()
 
     def test_delete_scheduled(self):
         post = SocialMediaPost.objects.create(

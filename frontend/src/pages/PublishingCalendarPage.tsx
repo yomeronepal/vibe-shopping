@@ -42,6 +42,12 @@ function monthGrid(cursor: Date): Date[] {
     });
 }
 
+function addDays(d: Date, amount: number): Date {
+    const result = new Date(d);
+    result.setDate(result.getDate() + amount);
+    return result;
+}
+
 function toDateKey(d: Date): string {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -123,7 +129,7 @@ export default function PublishingCalendarPage() {
 
     const refetchPosts = useCallback(() => {
         setLoadingPosts(true);
-        listPosts(toDateKey(grid[0]), toDateKey(grid[grid.length - 1]))
+        listPosts(toDateKey(addDays(grid[0], -1)), toDateKey(addDays(grid[grid.length - 1], 1)))
             .then(setPosts)
             .catch(() => toast.error('Could not load posts. Refresh to retry.'))
             .finally(() => setLoadingPosts(false));

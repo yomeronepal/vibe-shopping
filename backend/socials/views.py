@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.db import transaction
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
@@ -415,6 +416,7 @@ class PublishPostView(APIView):
         try:
             publish_post_record(record)
         except TransientPublishError:
+            logger.warning('Immediate publish %s failed on network error', record.id, exc_info=True)
             record.status = 'failed'
             record.error_message = 'Could not reach Facebook. Please try again.'
             record.save()
@@ -431,22 +433,28 @@ class PostDetailView(APIView):
 
     def patch(self, request, post_id):
         """Edit a draft or scheduled post."""
-        tenant, post = get_tenant_post(request, post_id)
-        if not post:
-            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
-        if post.status not in ('draft', 'scheduled'):
-            return Response({'error': EDIT_GUARD_ERROR}, status=status.HTTP_400_BAD_REQUEST)
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
         scheduled_for, schedule_error = parse_schedule_datetime(request.data.get('scheduled_for'))
         if schedule_error:
             return Response({'error': schedule_error}, status=status.HTTP_400_BAD_REQUEST)
-        if 'caption' in request.data:
-            post.caption = request.data.get('caption') or ''
-        if request.FILES.get('image'):
-            post.image = request.FILES['image']
-        if scheduled_for:
-            post.scheduled_for = scheduled_for
-            post.status = 'scheduled'
-        post.save()
+        with transaction.atomic():
+            post = SocialMediaPost.objects.select_for_update().filter(
+                tenant=tenant, id=post_id
+            ).first()
+            if not post:
+                return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+            if post.status not in ('draft', 'scheduled'):
+                return Response({'error': EDIT_GUARD_ERROR}, status=status.HTTP_400_BAD_REQUEST)
+            if 'caption' in request.data:
+                post.caption = request.data.get('caption') or ''
+            if request.FILES.get('image'):
+                post.image = request.FILES['image']
+            if scheduled_for:
+                post.scheduled_for = scheduled_for
+                post.status = 'scheduled'
+            post.save()
         return Response(SocialMediaPostSerializer(post).data)
 
     def delete(self, request, post_id):
