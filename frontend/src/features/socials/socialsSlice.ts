@@ -63,6 +63,9 @@ const socialsSlice = createSlice({
                 state.pages = action.payload;
                 state.loading = false;
             })
+            .addCase(startConnect.fulfilled, (state) => {
+                state.loading = false;
+            })
             .addCase(finishOAuth.fulfilled, (state, action) => {
                 state.availablePages = action.payload;
                 state.loading = false;
