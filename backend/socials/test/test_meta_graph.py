@@ -124,3 +124,21 @@ class GranularScopeFallbackTests(TestCase):
 
         mock_get.side_effect = side_effect
         self.assertEqual(MetaGraphClient().list_pages('user-token'), [])
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_get_granted_instagram_account(self, mock_get):
+        def side_effect(url, **kwargs):
+            if url.endswith('/debug_token'):
+                return graph_response({'data': {'granular_scopes': [
+                    {'scope': 'instagram_basic', 'target_ids': ['ig42']},
+                ]}})
+            return graph_response({'id': 'ig42', 'username': 'granted_shop'})
+
+        mock_get.side_effect = side_effect
+        account = MetaGraphClient().get_granted_instagram_account('user-token')
+        self.assertEqual(account, {'id': 'ig42', 'username': 'granted_shop'})
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_get_granted_instagram_account_absent(self, mock_get):
+        mock_get.return_value = graph_response({'data': {'granular_scopes': []}})
+        self.assertIsNone(MetaGraphClient().get_granted_instagram_account('user-token'))

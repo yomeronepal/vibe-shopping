@@ -201,6 +201,8 @@ class PageConnectView(APIView):
                 return Response({'error': 'Page not found'}, status=status.HTTP_404_NOT_FOUND)
             client.subscribe_page(page_id, target['access_token'])
             instagram = client.get_instagram_account(page_id, target['access_token'])
+            if not instagram:
+                instagram = client.get_granted_instagram_account(connection.get_access_token())
         except MetaGraphError as exc:
             if exc.code == 190:
                 connection.status = 'expired'

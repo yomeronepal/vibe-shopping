@@ -110,3 +110,35 @@ class PageViewTests(APITestCase):
         self.assertEqual(response.status_code, 502)
         self.assertNotIn('detail', response.data)
         self.assertNotIn('boom', str(response.data))
+
+
+@override_settings(FERNET_KEY=TEST_KEY, META_APP_ID='app123', META_APP_SECRET='s')
+class InstagramFallbackTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        self.user = User.objects.create_user(username='owner', password='pass12345')
+        VendorProfile.objects.create(user=self.user, tenant=self.tenant, role='owner')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        self.connection = MetaConnection.objects.create(
+            tenant=self.tenant, fb_user_id='fb123', status='connected'
+        )
+        self.connection.set_access_token('long-token')
+        self.connection.save()
+
+    @patch('socials.views.MetaGraphClient')
+    def test_connect_uses_granular_instagram_fallback(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.list_pages.return_value = [
+            {'id': 'p1', 'name': 'Acme Store', 'access_token': 'pt1'}
+        ]
+        mock_client.subscribe_page.return_value = True
+        mock_client.get_instagram_account.return_value = None
+        mock_client.get_granted_instagram_account.return_value = {
+            'id': 'ig42', 'username': 'granted_shop'
+        }
+        response = self.client.post('/api/socials/pages/p1/connect/')
+        self.assertEqual(response.status_code, 201)
+        page = ConnectedPage.objects.get(page_id='p1')
+        self.assertEqual(page.instagram_account_id, 'ig42')
+        self.assertEqual(page.instagram_username, 'granted_shop')

@@ -85,17 +85,31 @@ class MetaGraphClient:
             return pages
         return self.list_granted_pages(user_token)
 
-    def list_granted_pages(self, user_token):
-        """Resolve granted Pages from the token's granular scopes."""
+    def get_granular_target_ids(self, user_token, scope):
+        """Return the asset ids the token grants for one scope."""
         info = self.get('/debug_token', {
             'input_token': user_token,
             'access_token': f'{self.app_id}|{self.app_secret}',
         })
-        granular = info.get('data', {}).get('granular_scopes', [])
-        page_ids = []
-        for entry in granular:
-            if entry.get('scope') == 'pages_show_list':
-                page_ids = entry.get('target_ids', [])
+        for entry in info.get('data', {}).get('granular_scopes', []):
+            if entry.get('scope') == scope:
+                return entry.get('target_ids', [])
+        return []
+
+    def get_granted_instagram_account(self, user_token):
+        """Resolve the granted IG professional account from granular scopes."""
+        ids = self.get_granular_target_ids(user_token, 'instagram_basic')
+        if not ids:
+            return None
+        detail = self.get(f'/{ids[0]}', {
+            'access_token': user_token,
+            'fields': 'id,username',
+        })
+        return {'id': detail['id'], 'username': detail.get('username', '')}
+
+    def list_granted_pages(self, user_token):
+        """Resolve granted Pages from the token's granular scopes."""
+        page_ids = self.get_granular_target_ids(user_token, 'pages_show_list')
         pages = []
         for page_id in page_ids:
             detail = self.get(f'/{page_id}', {
