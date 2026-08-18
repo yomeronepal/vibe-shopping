@@ -86,6 +86,20 @@ class PageViewTests(APITestCase):
         self.assertEqual(page.status, 'disconnected')
 
     @patch('socials.views.MetaGraphClient')
+    def test_connect_page_already_connected_to_another_tenant_returns_409(self, mock_client_cls):
+        other_tenant = Tenant.objects.create(name='Other', subdomain='other')
+        other_conn = MetaConnection.objects.create(tenant=other_tenant, fb_user_id='x')
+        other_page = ConnectedPage.objects.create(
+            tenant=other_tenant, connection=other_conn,
+            page_id='p1', name='Other Store'
+        )
+        response = self.client.post('/api/socials/pages/p1/connect/')
+        self.assertEqual(response.status_code, 409)
+        mock_client_cls.return_value.list_pages.assert_not_called()
+        other_page.refresh_from_db()
+        self.assertEqual(other_page.tenant, other_tenant)
+
+    @patch('socials.views.MetaGraphClient')
     def test_connect_page_returns_502_on_graph_error(self, mock_client_cls):
         mock_client = mock_client_cls.return_value
         mock_client.list_pages.return_value = [

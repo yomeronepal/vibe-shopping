@@ -26,6 +26,8 @@ OAUTH_STATE_SALT = 'meta-oauth-state'
 
 def signature_is_valid(raw_body, header_value):
     """Check the X-Hub-Signature-256 HMAC against the app secret."""
+    if not settings.META_APP_SECRET:
+        return False
     if not header_value or not header_value.startswith('sha256='):
         return False
     expected = hmac.new(
@@ -43,7 +45,11 @@ class MetaWebhookView(APIView):
         mode = request.query_params.get('hub.mode')
         verify_token = request.query_params.get('hub.verify_token')
         challenge = request.query_params.get('hub.challenge', '')
-        if mode == 'subscribe' and verify_token == settings.META_WEBHOOK_VERIFY_TOKEN:
+        if (
+            mode == 'subscribe'
+            and settings.META_WEBHOOK_VERIFY_TOKEN
+            and verify_token == settings.META_WEBHOOK_VERIFY_TOKEN
+        ):
             return HttpResponse(challenge, content_type='text/plain')
         return Response({'error': 'Verification failed'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -181,6 +187,11 @@ class PageConnectView(APIView):
             return Response(
                 {'error': 'Connect your Facebook account first'},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        if ConnectedPage.objects.filter(page_id=page_id).exclude(tenant=tenant).exists():
+            return Response(
+                {'error': 'This Page is already connected to another business'},
+                status=status.HTTP_409_CONFLICT,
             )
         client = MetaGraphClient()
         try:

@@ -76,3 +76,27 @@ class WebhookTests(APITestCase):
             '/api/webhooks/meta/', data=body, content_type='application/json'
         )
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(META_APP_SECRET='')
+    def test_empty_app_secret_rejects_signature_signed_with_empty_key(self):
+        body = json.dumps({'object': 'page', 'entry': []}).encode()
+        response = self.client.post(
+            '/api/webhooks/meta/',
+            data=body,
+            content_type='application/json',
+            HTTP_X_HUB_SIGNATURE_256=sign(body, ''),
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(WebhookEvent.objects.count(), 0)
+
+    @override_settings(META_WEBHOOK_VERIFY_TOKEN='')
+    def test_empty_verify_token_rejects_verification(self):
+        response = self.client.get(
+            '/api/webhooks/meta/',
+            {
+                'hub.mode': 'subscribe',
+                'hub.verify_token': '',
+                'hub.challenge': '12345',
+            },
+        )
+        self.assertEqual(response.status_code, 403)

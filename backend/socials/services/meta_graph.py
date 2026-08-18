@@ -14,7 +14,10 @@ class MetaGraphError(Exception):
 
 def parse_graph_response(response):
     """Return the JSON body or raise MetaGraphError on Graph errors."""
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError:
+        raise MetaGraphError('Invalid response from Facebook')
     error = payload.get('error')
     if error or response.status_code >= 400:
         error = error or {}

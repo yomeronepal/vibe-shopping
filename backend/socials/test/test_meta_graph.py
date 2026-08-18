@@ -85,3 +85,13 @@ class MetaGraphClientTests(TestCase):
         with self.assertRaises(MetaGraphError) as ctx:
             self.client_service.exchange_code('the-code', 'http://cb')
         self.assertEqual(str(ctx.exception), 'Could not reach Facebook')
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_exchange_code_raises_graph_error_on_non_json_response(self, mock_get):
+        response = Mock()
+        response.status_code = 500
+        response.json.side_effect = ValueError('Expecting value')
+        mock_get.return_value = response
+        with self.assertRaises(MetaGraphError) as ctx:
+            self.client_service.exchange_code('the-code', 'http://cb')
+        self.assertEqual(str(ctx.exception), 'Invalid response from Facebook')
