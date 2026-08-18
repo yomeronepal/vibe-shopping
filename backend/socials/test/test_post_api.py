@@ -92,6 +92,37 @@ class PostApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['results'][0]['status'], 'posted')
 
+    @patch('socials.views.publish_post_record')
+    def test_immediate_publish_free_form_with_upload(self, mock_publish):
+        def fake_publish(record):
+            record.status = 'posted'
+            record.post_url = 'https://facebook.com/x'
+            record.save()
+            return record
+
+        mock_publish.side_effect = fake_publish
+        response = self.client.post('/api/socials/posts/', {
+            'caption': 'now', 'platforms': ['facebook'],
+            'image': SimpleUploadedFile('promo.png', PNG_BYTES, 'image/png'),
+        }, format='multipart')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['results'][0]['status'], 'posted')
+        post = SocialMediaPost.objects.get()
+        self.assertIsNone(post.product)
+        self.assertTrue(post.image)
+
+    def test_create_draft_two_platforms_reuses_uploaded_image(self):
+        response = self.client.post('/api/socials/posts/', {
+            'caption': 'Weekend drop',
+            'platforms': ['facebook', 'instagram'],
+            'save_as': 'draft',
+            'image': SimpleUploadedFile('promo.png', PNG_BYTES, 'image/png'),
+        }, format='multipart')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(SocialMediaPost.objects.count(), 2)
+        for post in SocialMediaPost.objects.all():
+            self.assertEqual(post.image.size, len(PNG_BYTES))
+
     def test_list_filters_by_range_and_status(self):
         inside = SocialMediaPost.objects.create(
             tenant=self.tenant, product=self.product, platform='facebook',
