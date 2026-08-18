@@ -121,27 +121,28 @@ const VendorDashboardPage: React.FC = () => {
                                     inbox: '/vendor/inbox',
                                 };
                                 const linkTarget = linkTargets[item.id];
-                                const NavComponent = linkTarget ? Link : 'button';
-                                const navProps = linkTarget
-                                    ? { to: linkTarget }
-                                    : { onClick: () => setActiveSection(item.id) };
-
-                                return (
-                                    <NavComponent
-                                        key={item.id}
-                                        {...navProps}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                            ? 'font-bold'
-                                            : 'font-medium hover:opacity-80'
-                                            }`}
-                                        style={{
-                                            backgroundColor: isActive ? `${primaryColor}15` : 'transparent',
-                                            color: isActive ? primaryColor : themeConfig.textSecondary
-                                        }}
-                                    >
+                                const navClassName = `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                                    ? 'font-bold'
+                                    : 'font-medium hover:opacity-80'
+                                    }`;
+                                const navStyle = {
+                                    backgroundColor: isActive ? `${primaryColor}15` : 'transparent',
+                                    color: isActive ? primaryColor : themeConfig.textSecondary
+                                };
+                                const navContent = (
+                                    <>
                                         <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                                         <span className="text-sm">{item.label}</span>
-                                    </NavComponent>
+                                    </>
+                                );
+                                return linkTarget ? (
+                                    <Link key={item.id} to={linkTarget} className={navClassName} style={navStyle}>
+                                        {navContent}
+                                    </Link>
+                                ) : (
+                                    <button key={item.id} onClick={() => setActiveSection(item.id)} className={navClassName} style={navStyle}>
+                                        {navContent}
+                                    </button>
                                 );
                             })}
                         </nav>

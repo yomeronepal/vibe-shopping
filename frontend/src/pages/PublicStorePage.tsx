@@ -3,15 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import ProductCard from '../components/products/ProductCard';
-
-interface Product {
-    id: number;
-    name: string;
-    description: string;
-    price: string;
-    image: string;
-    tenant: number;
-}
+import type { Product } from '../api/products';
 
 const PublicStorePage: React.FC = () => {
     const { subdomain } = useParams<{ subdomain: string }>();
@@ -33,25 +25,6 @@ const PublicStorePage: React.FC = () => {
 
             try {
                 // In production, we'd rely on Host header.
-                // For dev/testing, we might need a trick.
-                // We will try sending a custom header if we are not actually ON the subdomain.
-                const isLocal = window.location.hostname.includes('localhost');
-
-                const config = isLocal ? {
-                    headers: {
-                        'Host': `${activeSubdomain}.vibe-shopping.com` // Spoof Host header? Browsers might block this.
-                        // Better: Rely on middleware checking X-Forwarded-Host or similar if allowed?
-                        // actually, let's just assume the user sets up /etc/hosts or we use a query param on backend if needed.
-                        // Update: Middleware checks Host. Browsers set Host. 
-                        // Check if we can send a custom header that middleware also respects?
-                    }
-                } : {};
-
-                // If we can't spoof Host, we might fail locally unless we use real subdomains.
-                // But for now, let's try calling the public endpoint.
-                // NOTE: Browser prevents setting Host header.
-                // We will update Middleware to look for X-Tenant-Subdomain for easier dev?
-
                 const response = await apiClient.get('/public/products/', {
                     headers: {
                         'X-Tenant-Subdomain': activeSubdomain // We need to update middleware to support this for dev!

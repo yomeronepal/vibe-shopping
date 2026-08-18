@@ -545,7 +545,7 @@ const VendorProductCreatePage: React.FC = () => {
                                                     : 'border hover:border-opacity-80 opacity-70 hover:opacity-100'
                                                 }`}
                                             style={{
-                                                ringColor: selectedImageIndex === idx ? primaryColor : undefined,
+                                                ...(selectedImageIndex === idx ? { '--tw-ring-color': primaryColor } as React.CSSProperties : {}),
                                                 borderColor: themeConfig.border
                                             }}
                                         >
@@ -658,7 +658,6 @@ const VendorProductCreatePage: React.FC = () => {
                                                     onClick={() => {
                                                         setAiError(null);
                                                         if (imageFiles.length > 0) {
-                                                            const event = { target: { files: imageFiles } };
                                                             onDrop(imageFiles);
                                                         }
                                                     }}

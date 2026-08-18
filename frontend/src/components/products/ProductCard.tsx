@@ -44,7 +44,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-2xl font-bold text-gradient">
-                        ${product.price.toFixed(2)}
+                        ${Number(product.price).toFixed(2)}
                     </p>
                     <p className="text-sm text-slate-500">
                         {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}

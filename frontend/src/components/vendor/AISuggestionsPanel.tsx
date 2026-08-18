@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Tag, DollarSign, Type, Check, X } from 'lucide-react';
 import type { AIProductDetails } from '../../api/ai';
