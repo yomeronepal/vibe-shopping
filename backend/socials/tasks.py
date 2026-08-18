@@ -59,5 +59,6 @@ def publish_scheduled_post(self, post_id):
             record.error_message = str(exc)
             record.save()
             return post_id
+        logger.warning('Retrying publish %s after transient error: %s', post_id, exc)
         raise self.retry()
     return post_id
