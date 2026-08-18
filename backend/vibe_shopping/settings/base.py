@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     # Local apps
     'vendor',         # Added by user instruction
     'core.apps.CoreConfig',
+    'socials.apps.SocialsConfig',
 ]
 
 MIDDLEWARE = [
@@ -170,8 +171,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': '100/hour',
-        'anon': '50/hour',
+        'user': config('THROTTLE_USER_RATE', default='2000/hour'),
+        'anon': config('THROTTLE_ANON_RATE', default='200/hour'),
         'ai_analysis': '10/minute',
         'logo_analysis': '5/minute',
     },
@@ -194,3 +195,13 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 # Multi-Tenancy Configuration
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='vibe-shopping.com')
 
+FERNET_KEY = config('FERNET_KEY', default='')
+
+META_APP_ID = config('META_APP_ID', default='')
+META_APP_SECRET = config('META_APP_SECRET', default='')
+META_WEBHOOK_VERIFY_TOKEN = config('META_WEBHOOK_VERIFY_TOKEN', default='')
+PUBLIC_MEDIA_BASE_URL = config('PUBLIC_MEDIA_BASE_URL', default='')
+META_OAUTH_REDIRECT_URI = config(
+    'META_OAUTH_REDIRECT_URI',
+    default='http://localhost:5173/vendor/settings/meta-callback',
+)

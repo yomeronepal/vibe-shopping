@@ -6,10 +6,14 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from socials.views import MetaWebhookView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/vendor/', include('vendor.urls')),
     path('api/', include('core.urls')),
+    path('api/socials/', include('socials.urls')),
+    path('api/webhooks/meta/', MetaWebhookView.as_view(), name='meta_webhook'),
 ]
 
 # Serve media files in development

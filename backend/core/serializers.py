@@ -105,22 +105,27 @@ class VendorSignupSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     store_name = serializers.CharField(max_length=255)
-    
+
     def validate_store_name(self, value):
         from django.utils.text import slugify
         if Tenant.objects.filter(name=value).exists():
             raise serializers.ValidationError("Store name already exists.")
-        
+
         subdomain = slugify(value)
         if not subdomain:
             raise serializers.ValidationError("Store name must contain valid characters.")
         if Tenant.objects.filter(subdomain=subdomain).exists():
             raise serializers.ValidationError("Store name generates a subdomain that already exists. Please choose a different name.")
-            
+
         return value
-        
+
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Username already exists.")
         return value
 
+class BusinessProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tenant
+        fields = ['id', 'name', 'subdomain', 'metadata', 'is_active', 'created_at']
+        read_only_fields = ['id', 'subdomain', 'is_active', 'created_at']
