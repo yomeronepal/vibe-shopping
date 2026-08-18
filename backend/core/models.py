@@ -343,20 +343,24 @@ class SocialMediaPost(TimeStampedModel):
         ('facebook', 'Facebook'),
         ('tiktok', 'TikTok'),
     ]
-    
+
     STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('scheduled', 'Scheduled'),
         ('pending', 'Pending'),
         ('posted', 'Posted'),
         ('failed', 'Failed'),
     ]
-    
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='social_posts')
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='social_posts', null=True, blank=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='social_posts')
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
+
     # Post details
     caption = models.TextField(blank=True)
+    image = models.ImageField(upload_to='uploads/social_posts/', null=True, blank=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
     post_url = models.URLField(blank=True, null=True)
     platform_post_id = models.CharField(max_length=255, blank=True)
     
