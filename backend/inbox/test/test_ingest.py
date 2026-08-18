@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from cryptography.fernet import Fernet
+from django.db import OperationalError
 from django.test import TestCase, override_settings
 
 from core.models import Tenant
@@ -136,3 +137,13 @@ class IngestTests(TestCase):
         message = Message.objects.get()
         self.assertEqual(message.text, 'hello')
         self.assertEqual(Conversation.objects.count(), 1)
+
+    @patch('inbox.services.ingest.store_message', side_effect=OperationalError('db gone'))
+    def test_database_error_propagates(self, mock_store, mock_profile, mock_push):
+        event = WebhookEvent.objects.create(
+            object_type='page',
+            payload=messaging_payload('p1', 'psid1', 'p1', 'm10', 'hello'),
+            signature_valid=True,
+        )
+        with self.assertRaises(OperationalError):
+            ingest_webhook_event(event)

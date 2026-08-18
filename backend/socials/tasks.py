@@ -1,13 +1,14 @@
 import logging
 
 from celery import shared_task
+from django.db import Error as DatabaseError
 
 from socials.models import WebhookEvent
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, autoretry_for=(DatabaseError,))
 def process_webhook_event(self, event_id):
     """Parse an inbound Meta event into inbox conversations and messages."""
     try:

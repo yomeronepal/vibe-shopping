@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useAppDispatch } from '@/store/hooks';
-import { socketConversationUpdated, socketMessageReceived } from './inboxSlice';
+import { store } from '@/store';
+import {
+    fetchConversations,
+    fetchMessages,
+    socketConversationUpdated,
+    socketMessageReceived,
+} from './inboxSlice';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
 
@@ -18,6 +24,13 @@ export function useInboxSocket() {
             if (!token) return;
             socket = new WebSocket(`${WS_BASE}/ws/inbox/?token=${token}`);
             socket.onopen = () => {
+                if (retryRef.current > 0) {
+                    const { statusFilter, activeConversationId } = store.getState().inbox;
+                    dispatch(fetchConversations(statusFilter));
+                    if (activeConversationId) {
+                        dispatch(fetchMessages(activeConversationId));
+                    }
+                }
                 retryRef.current = 0;
             };
             socket.onmessage = (event) => {

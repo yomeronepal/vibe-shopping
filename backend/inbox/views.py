@@ -19,6 +19,14 @@ WINDOW_CLOSED_ERROR = 'The 24-hour reply window for this conversation has closed
 THREAD_PAGE_SIZE = 50
 
 
+def push_safely(tenant_id, event_type, payload):
+    """Push a realtime event; log and continue on infrastructure failure."""
+    try:
+        push_inbox_event(tenant_id, event_type, payload)
+    except Exception:
+        logger.warning('Inbox push failed for tenant %s', tenant_id, exc_info=True)
+
+
 def get_request_tenant(request):
     """Return the tenant for the authenticated user or None."""
     profile = getattr(request.user, 'vendor_profile', None)
@@ -65,10 +73,10 @@ class ConversationDetailView(APIView):
         new_status = request.data.get('status')
         if new_status not in VALID_STATUSES:
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
-        conversation.status = new_status
-        conversation.save()
+        Conversation.objects.filter(pk=conversation.pk).update(status=new_status)
+        conversation.refresh_from_db()
         data = ConversationSerializer(conversation).data
-        push_inbox_event(tenant.id, 'inbox.conversation_update', {'conversation': data})
+        push_safely(tenant.id, 'inbox.conversation_update', {'conversation': data})
         return Response(data)
 
 
@@ -80,10 +88,10 @@ class ConversationReadView(APIView):
         tenant, conversation = get_tenant_conversation(request, conversation_id)
         if not conversation:
             return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
-        conversation.unread_count = 0
-        conversation.save()
+        Conversation.objects.filter(pk=conversation.pk).update(unread_count=0)
+        conversation.refresh_from_db()
         data = ConversationSerializer(conversation).data
-        push_inbox_event(tenant.id, 'inbox.conversation_update', {'conversation': data})
+        push_safely(tenant.id, 'inbox.conversation_update', {'conversation': data})
         return Response(data)
 
 
@@ -98,6 +106,8 @@ class MessageListView(APIView):
         queryset = conversation.messages.all()
         before = request.query_params.get('before')
         if before:
+            if not before.isdigit():
+                return Response({'error': 'Invalid before cursor'}, status=status.HTTP_400_BAD_REQUEST)
             queryset = queryset.filter(id__lt=before)
         window = list(queryset.order_by('-sent_at')[:THREAD_PAGE_SIZE])
         window.reverse()
@@ -134,12 +144,14 @@ class MessageListView(APIView):
             platform_message_id=message_id or f'local-{uuid.uuid4().hex}',
             sent_at=timezone.now(),
         )
-        conversation.status = 'waiting_customer'
-        conversation.unread_count = 0
-        conversation.last_message_at = record.sent_at
-        conversation.last_message_preview = text[:120]
-        conversation.save()
-        push_inbox_event(tenant.id, 'inbox.message', {
+        Conversation.objects.filter(pk=conversation.pk).update(
+            status='waiting_customer',
+            unread_count=0,
+            last_message_at=record.sent_at,
+            last_message_preview=text[:120],
+        )
+        conversation.refresh_from_db()
+        push_safely(tenant.id, 'inbox.message', {
             'conversation': ConversationSerializer(conversation).data,
             'message': MessageSerializer(record).data,
         })

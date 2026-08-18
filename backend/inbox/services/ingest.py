@@ -1,6 +1,9 @@
 import logging
 from datetime import datetime, timezone as dt_timezone
 
+from django.db.models import F
+from django.utils import timezone
+
 from inbox.models import Conversation, Customer, Message
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
@@ -31,6 +34,8 @@ def fetch_customer_profile(page, user_id):
 
 def resolve_page(object_type, entry_id):
     """Map a webhook entry id to a connected page, or None."""
+    if not entry_id:
+        return None
     if object_type == 'instagram':
         return ConnectedPage.objects.filter(
             instagram_account_id=entry_id, status='connected'
@@ -56,13 +61,12 @@ def build_preview(text, attachments):
     return ''
 
 
-def apply_inbound(conversation):
-    conversation.unread_count += 1
-    conversation.status = 'waiting_business'
-
-
-def apply_outbound(conversation):
-    conversation.status = 'waiting_customer'
+def resolve_sent_at(messaging_event):
+    """Return the message timestamp, falling back to now when missing."""
+    raw_timestamp = messaging_event.get('timestamp')
+    if not raw_timestamp:
+        return timezone.now()
+    return datetime.fromtimestamp(raw_timestamp / 1000, tz=dt_timezone.utc)
 
 
 def store_message(page, platform, messaging_event):
@@ -92,9 +96,7 @@ def store_message(page, platform, messaging_event):
         defaults={'tenant': page.tenant, 'platform': platform},
     )
     attachments = normalize_attachments(message)
-    sent_at = datetime.fromtimestamp(
-        messaging_event.get('timestamp', 0) / 1000, tz=dt_timezone.utc
-    )
+    sent_at = resolve_sent_at(messaging_event)
     record, created = Message.objects.get_or_create(
         platform_message_id=mid,
         defaults={
@@ -107,20 +109,28 @@ def store_message(page, platform, messaging_event):
     )
     if not created:
         return None
+    preview = build_preview(record.text, attachments)
     if direction == 'in':
-        apply_inbound(conversation)
+        Conversation.objects.filter(pk=conversation.pk).update(
+            unread_count=F('unread_count') + 1,
+            status='waiting_business',
+            last_message_at=sent_at,
+            last_message_preview=preview,
+        )
     else:
-        apply_outbound(conversation)
-    conversation.last_message_at = sent_at
-    conversation.last_message_preview = build_preview(record.text, attachments)
-    conversation.save()
+        Conversation.objects.filter(pk=conversation.pk).update(
+            status='waiting_customer',
+            last_message_at=sent_at,
+            last_message_preview=preview,
+        )
+    conversation.refresh_from_db()
     try:
         push_inbox_event(page.tenant_id, 'inbox.message', {
             'conversation': ConversationSerializer(conversation).data,
             'message': MessageSerializer(record).data,
         })
     except Exception:
-        logger.warning('Inbox push failed for message %s', record.id)
+        logger.warning('Inbox push failed for message %s', record.id, exc_info=True)
     return record
 
 
@@ -148,7 +158,7 @@ def ingest_webhook_event(event):
                 continue
             try:
                 record = store_message(page, platform, messaging_event)
-            except Exception:
+            except (KeyError, TypeError, ValueError, AttributeError):
                 logger.exception('Failed to ingest messaging event %s', event.id)
                 continue
             if record:
