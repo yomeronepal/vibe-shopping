@@ -1,22 +1,66 @@
+import hashlib
+import hmac
+import json
 import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.http import HttpResponse
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from socials.models import MetaConnection, ConnectedPage
+from socials.models import MetaConnection, ConnectedPage, WebhookEvent
 from socials.serializers import ConnectedPageSerializer
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+from socials.tasks import process_webhook_event
 
 logger = logging.getLogger(__name__)
 
 OAUTH_STATE_SALT = 'meta-oauth-state'
+
+
+def signature_is_valid(raw_body, header_value):
+    """Check the X-Hub-Signature-256 HMAC against the app secret."""
+    if not header_value or not header_value.startswith('sha256='):
+        return False
+    expected = hmac.new(
+        settings.META_APP_SECRET.encode(), raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header_value.split('=', 1)[1])
+
+
+class MetaWebhookView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        """Answer Meta's webhook verification handshake."""
+        mode = request.query_params.get('hub.mode')
+        verify_token = request.query_params.get('hub.verify_token')
+        challenge = request.query_params.get('hub.challenge', '')
+        if mode == 'subscribe' and verify_token == settings.META_WEBHOOK_VERIFY_TOKEN:
+            return HttpResponse(challenge, content_type='text/plain')
+        return Response({'error': 'Verification failed'}, status=status.HTTP_403_FORBIDDEN)
+
+    def post(self, request):
+        """Validate signature, persist the event, dispatch to Celery."""
+        header_value = request.headers.get('X-Hub-Signature-256', '')
+        if not signature_is_valid(request.body, header_value):
+            logger.warning('Rejected Meta webhook with invalid signature')
+            return Response({'error': 'Invalid signature'}, status=status.HTTP_403_FORBIDDEN)
+        payload = json.loads(request.body.decode() or '{}')
+        event = WebhookEvent.objects.create(
+            object_type=payload.get('object', 'unknown'),
+            payload=payload,
+            signature_valid=True,
+        )
+        process_webhook_event.delay(event.id)
+        return Response({'status': 'received'})
 OAUTH_STATE_MAX_AGE = 600
 OAUTH_SCOPES = ','.join([
     'pages_show_list',
