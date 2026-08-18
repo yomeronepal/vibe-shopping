@@ -13,6 +13,8 @@ import WardrobePage from './pages/WardrobePage';
 import VendorDashboardPage from './pages/VendorDashboardPage';
 import VendorProductCreatePage from './pages/VendorProductCreatePage';
 import VendorProductListPage from './pages/VendorProductListPage';
+import ConnectedAccountsPage from './pages/ConnectedAccountsPage';
+import MetaCallbackPage from './pages/MetaCallbackPage';
 import VendorSignupPage from './pages/VendorSignupPage';
 import VendorOnboardingPage from './pages/VendorOnboardingPage';
 import VendorOnboardingSuccessPage from './pages/VendorOnboardingSuccessPage';
@@ -42,6 +44,8 @@ function App() {
               <Route path="/vendor" element={<VendorDashboardPage />} />
               <Route path="/vendor/products" element={<VendorProductListPage />} />
               <Route path="/vendor/products/new" element={<VendorProductCreatePage />} />
+              <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
+              <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
 
               {/* Main App Layout (with Header/Footer) */}
               <Route element={<Layout><Outlet /></Layout>}>
