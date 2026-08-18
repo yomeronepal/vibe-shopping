@@ -10,7 +10,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from socials.models import MetaConnection
+from socials.models import MetaConnection, ConnectedPage
+from socials.serializers import ConnectedPageSerializer
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
 
 logger = logging.getLogger(__name__)
@@ -109,3 +110,87 @@ class OAuthCallbackView(APIView):
         return Response({
             'pages': [{'id': p['id'], 'name': p['name']} for p in pages],
         })
+
+
+class PageListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """List the tenant's connected Pages."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        pages = ConnectedPage.objects.filter(tenant=tenant)
+        return Response(ConnectedPageSerializer(pages, many=True).data)
+
+
+class PageConnectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, page_id):
+        """Connect a Page: store its token, subscribe webhooks, link IG."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        connection = MetaConnection.objects.filter(tenant=tenant, status='connected').first()
+        if not connection:
+            return Response(
+                {'error': 'Connect your Facebook account first'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        client = MetaGraphClient()
+        try:
+            pages = client.list_pages(connection.get_access_token())
+            target = next((p for p in pages if p['id'] == page_id), None)
+            if not target:
+                return Response({'error': 'Page not found'}, status=status.HTTP_404_NOT_FOUND)
+            client.subscribe_page(page_id, target['access_token'])
+            instagram = client.get_instagram_account(page_id, target['access_token'])
+        except MetaGraphError as exc:
+            if exc.code == 190:
+                connection.status = 'expired'
+                connection.save()
+                return Response(
+                    {'error': 'Facebook session expired. Please reconnect.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            logger.warning('Meta page connect failed: %s', exc)
+            return Response(
+                {'error': 'Could not connect the Page. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        page, _ = ConnectedPage.objects.update_or_create(
+            page_id=page_id,
+            defaults={
+                'tenant': tenant,
+                'connection': connection,
+                'name': target['name'],
+                'instagram_account_id': instagram['id'] if instagram else '',
+                'instagram_username': instagram['username'] if instagram else '',
+                'status': 'connected',
+            },
+        )
+        page.set_access_token(target['access_token'])
+        page.save()
+        return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
+
+
+class PageDisconnectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, page_id):
+        """Unsubscribe webhooks and mark the Page disconnected."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        page = ConnectedPage.objects.filter(tenant=tenant, page_id=page_id).first()
+        if not page:
+            return Response({'error': 'Page not found'}, status=status.HTTP_404_NOT_FOUND)
+        client = MetaGraphClient()
+        try:
+            client.unsubscribe_page(page_id, page.get_access_token())
+        except MetaGraphError:
+            pass
+        page.status = 'disconnected'
+        page.save()
+        return Response(ConnectedPageSerializer(page).data)
