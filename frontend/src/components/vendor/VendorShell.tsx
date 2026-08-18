@@ -12,6 +12,7 @@ interface VendorProfileInfo {
 const NAV_ITEMS = [
     { to: '/vendor', label: 'Dashboard', icon: 'grid_view', exact: true },
     { to: '/vendor/inbox', label: 'Inbox', icon: 'chat', exact: false },
+    { to: '/vendor/orders', label: 'Orders', icon: 'shopping_bag', exact: false },
     { to: '/vendor/products', label: 'Products', icon: 'sell', exact: false },
     { to: '/vendor/settings/accounts', label: 'Settings', icon: 'tune', exact: false },
 ];
