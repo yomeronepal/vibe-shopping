@@ -6,9 +6,11 @@ from socials.views import (
     PageListView,
     PageConnectView,
     PageDisconnectView,
+    PublishPostView,
 )
 
 urlpatterns = [
+    path('posts/', PublishPostView.as_view(), name='socials_publish_post'),
     path('connect-url/', ConnectUrlView.as_view(), name='socials_connect_url'),
     path('oauth/callback/', OAuthCallbackView.as_view(), name='socials_oauth_callback'),
     path('pages/', PageListView.as_view(), name='socials_pages'),

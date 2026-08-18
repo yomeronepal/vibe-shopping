@@ -39,3 +39,23 @@ export const disconnectPage = async (pageId: string): Promise<ConnectedPage> => 
     const response = await apiClient.post(`/socials/pages/${pageId}/disconnect/`);
     return response.data;
 };
+
+export interface PublishResult {
+    platform: string;
+    status: 'posted' | 'failed';
+    post_url: string | null;
+    error: string | null;
+}
+
+export const publishProductPost = async (
+    productId: number,
+    platforms: string[],
+    caption: string,
+): Promise<PublishResult[]> => {
+    const response = await apiClient.post('/socials/posts/', {
+        product_id: productId,
+        platforms,
+        caption,
+    });
+    return response.data.results;
+};

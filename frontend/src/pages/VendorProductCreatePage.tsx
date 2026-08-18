@@ -4,6 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import imageCompression from 'browser-image-compression';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import { vendorApi, type WeatherTag } from '../api/vendor';
+import { listConnectedPages, publishProductPost, type ConnectedPage } from '../api/socials';
 import toast from 'react-hot-toast';
 import ThemePickerButton from '../components/theme/ThemePickerButton';
 
@@ -52,6 +53,8 @@ const VendorProductCreatePage: React.FC = () => {
     const [newTag, setNewTag] = useState('');
     const [socialCaption, setSocialCaption] = useState('');
     const [postToSocial, setPostToSocial] = useState(false);
+    const [connectedPage, setConnectedPage] = useState<ConnectedPage | null>(null);
+    const [selectedPlatforms, setSelectedPlatforms] = useState<{ facebook: boolean; instagram: boolean }>({ facebook: true, instagram: true });
     const [isAiScanning, setIsAiScanning] = useState(false);
     const [aiProgress, setAiProgress] = useState(0);
     const [aiProgressMessage, setAiProgressMessage] = useState('');
@@ -60,6 +63,33 @@ const VendorProductCreatePage: React.FC = () => {
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState<number | null>(null);
+
+    const publishToSocialPlatforms = async (productId?: number) => {
+        if (!postToSocial || !productId || !connectedPage) return;
+        const platforms = [
+            selectedPlatforms.facebook ? 'facebook' : null,
+            selectedPlatforms.instagram && connectedPage.instagram_account_id ? 'instagram' : null,
+        ].filter((p): p is string => Boolean(p));
+        if (platforms.length === 0) return;
+        try {
+            const results = await publishProductPost(productId, platforms, socialCaption || description || title);
+            results.forEach((result) => {
+                if (result.status === 'posted') {
+                    toast.success(`Posted to ${result.platform}`);
+                } else {
+                    toast.error(`${result.platform}: ${result.error}`);
+                }
+            });
+        } catch {
+            toast.error('Could not post to social media');
+        }
+    };
+
+    useEffect(() => {
+        listConnectedPages()
+            .then((pages) => setConnectedPage(pages.find((p) => p.status === 'connected') ?? null))
+            .catch(() => setConnectedPage(null));
+    }, []);
 
     useEffect(() => {
         const loadVendorProfile = async () => {
@@ -231,7 +261,7 @@ const VendorProductCreatePage: React.FC = () => {
         try {
             const finalPrice = discountEnabled ? discountedPrice : mrp;
 
-            await vendorApi.publishProduct({
+            const created = await vendorApi.publishProduct({
                 name: title,
                 description: description,
                 price: finalPrice,
@@ -255,6 +285,7 @@ const VendorProductCreatePage: React.FC = () => {
             });
 
             toast.success('🎉 Product published successfully!');
+            await publishToSocialPlatforms(created?.id);
             navigate('/vendor');
         } catch (error: any) {
             console.error('Failed to publish product:', error);
@@ -897,13 +928,21 @@ const VendorProductCreatePage: React.FC = () => {
                                     {/* Social Icons */}
                                     <div className="flex flex-wrap items-center gap-4">
                                         {[
-                                            { name: 'Instagram', gradient: 'linear-gradient(135deg, #f09433 0%, #dc2743 50%, #bc1888 100%)', color: '#dc2743', active: true },
-                                            { name: 'TikTok', color: '#000', active: false },
-                                            { name: 'Facebook', color: '#1877F2', active: false },
-                                        ].map((social) => (
+                                            { name: 'Instagram', key: 'instagram' as const, gradient: 'linear-gradient(135deg, #f09433 0%, #dc2743 50%, #bc1888 100%)', color: '#dc2743', available: Boolean(connectedPage?.instagram_account_id) },
+                                            { name: 'TikTok', key: undefined, color: '#000', available: false },
+                                            { name: 'Facebook', key: 'facebook' as const, color: '#1877F2', available: Boolean(connectedPage) },
+                                        ].map((social) => {
+                                            const platformKey = social.key;
+                                            const active = Boolean(social.available && platformKey && selectedPlatforms[platformKey]);
+                                            return (
                                             <div
                                                 key={social.name}
-                                                className={`group relative cursor-pointer transition-opacity ${social.active ? '' : 'opacity-40 hover:opacity-100'}`}
+                                                onClick={() => {
+                                                    if (!social.available || !platformKey) return;
+                                                    setSelectedPlatforms((prev) => ({ ...prev, [platformKey]: !prev[platformKey] }));
+                                                }}
+                                                title={social.available ? `Post to ${social.name}` : `${social.name} is not connected`}
+                                                className={`group relative transition-opacity ${social.available ? 'cursor-pointer' : 'cursor-not-allowed'} ${active ? '' : 'opacity-40 hover:opacity-100'}`}
                                             >
                                                 <div
                                                     className="size-12 rounded-xl p-[2px] shadow-sm transition-all hover:scale-105 hover:shadow-md"
@@ -921,7 +960,7 @@ const VendorProductCreatePage: React.FC = () => {
                                                         </span>
                                                     </div>
                                                 </div>
-                                                {social.active && (
+                                                {active && (
                                                     <div
                                                         className="absolute -top-1 -right-1 size-5 text-white rounded-full flex items-center justify-center border-2 shadow-sm z-10"
                                                         style={{ backgroundColor: primaryColor, borderColor: themeConfig.surface }}
@@ -930,7 +969,8 @@ const VendorProductCreatePage: React.FC = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
 
                                     {/* Social Caption */}

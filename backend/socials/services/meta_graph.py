@@ -165,3 +165,50 @@ class MetaGraphClient:
             'fields': 'id,username',
         })
         return {'id': detail['id'], 'username': detail.get('username', '')}
+
+    def post(self, path, params, files=None):
+        try:
+            response = requests.post(
+                f'{GRAPH_BASE_URL}{path}', params=params, files=files, timeout=60
+            )
+        except requests.exceptions.RequestException:
+            raise MetaGraphError('Could not reach Facebook')
+        return parse_graph_response(response)
+
+    def publish_page_photo(self, page_id, page_token, image_file, caption):
+        """Publish a photo post to a Page; returns post id and URL."""
+        payload = self.post(
+            f'/{page_id}/photos',
+            {'access_token': page_token, 'caption': caption},
+            files={'source': image_file},
+        )
+        post_id = payload.get('post_id') or payload.get('id', '')
+        return {'post_id': post_id, 'post_url': f'https://www.facebook.com/{post_id}'}
+
+    def get_instagram_permalink(self, media_id, page_token):
+        """Best-effort fetch of the published media's permalink."""
+        try:
+            detail = self.get(f'/{media_id}', {
+                'access_token': page_token,
+                'fields': 'permalink',
+            })
+            return detail.get('permalink', '')
+        except MetaGraphError:
+            return ''
+
+    def publish_instagram_photo(self, ig_user_id, page_token, image_url, caption):
+        """Two-step Instagram publish; returns media id and permalink."""
+        creation = self.post(f'/{ig_user_id}/media', {
+            'access_token': page_token,
+            'image_url': image_url,
+            'caption': caption,
+        })
+        published = self.post(f'/{ig_user_id}/media_publish', {
+            'access_token': page_token,
+            'creation_id': creation['id'],
+        })
+        media_id = published.get('id', '')
+        return {
+            'post_id': media_id,
+            'post_url': self.get_instagram_permalink(media_id, page_token),
+        }

@@ -14,6 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.models import Product, SocialMediaPost
 from socials.models import MetaConnection, ConnectedPage, WebhookEvent
 from socials.serializers import ConnectedPageSerializer
 from socials.services.meta_graph import MetaGraphClient, MetaGraphError
@@ -76,6 +77,8 @@ OAUTH_SCOPES = ','.join([
     'instagram_basic',
     'instagram_manage_messages',
     'instagram_manage_comments',
+    'pages_manage_posts',
+    'instagram_content_publish',
 ])
 
 
@@ -251,3 +254,112 @@ class PageDisconnectView(APIView):
         page.status = 'disconnected'
         page.save()
         return Response(ConnectedPageSerializer(page).data)
+
+
+def build_public_image_url(image_field):
+    """Return a publicly reachable URL for the image or None."""
+    base = settings.PUBLIC_MEDIA_BASE_URL.rstrip('/')
+    if not base:
+        return None
+    return f'{base}{image_field.url}'
+
+
+def get_product_image(product):
+    """Return the product's best available image field or None."""
+    if product.processed_image:
+        return product.processed_image
+    if product.image:
+        return product.image
+    first_gallery = product.images.first()
+    return first_gallery.image if first_gallery else None
+
+
+def publish_to_facebook(client, page, image_field, caption):
+    """Post the image to the Page feed as a photo post."""
+    with image_field.open('rb') as handle:
+        return client.publish_page_photo(
+            page.page_id, page.get_access_token(), handle, caption
+        )
+
+
+def publish_to_instagram(client, page, image_field, caption):
+    """Post the image to the Page's linked IG professional account."""
+    if not page.instagram_account_id:
+        raise MetaGraphError('No Instagram account is linked to the connected Page')
+    image_url = build_public_image_url(image_field)
+    if not image_url:
+        raise MetaGraphError(
+            'Instagram needs a publicly reachable image URL. '
+            'Set PUBLIC_MEDIA_BASE_URL (e.g. an ngrok URL) and restart the backend.'
+        )
+    return client.publish_instagram_photo(
+        page.instagram_account_id, page.get_access_token(), image_url, caption
+    )
+
+
+PLATFORM_PUBLISHERS = {
+    'facebook': publish_to_facebook,
+    'instagram': publish_to_instagram,
+}
+
+
+class PublishPostView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Publish a product to the selected connected platforms."""
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        platforms = request.data.get('platforms') or []
+        if not platforms or any(p not in PLATFORM_PUBLISHERS for p in platforms):
+            return Response(
+                {'error': 'platforms must contain facebook and/or instagram'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        product = Product.objects.filter(
+            tenant=tenant, id=request.data.get('product_id')
+        ).first()
+        if not product:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        page = ConnectedPage.objects.filter(tenant=tenant, status='connected').first()
+        if not page:
+            return Response(
+                {'error': 'Connect a Facebook Page first'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        image_field = get_product_image(product)
+        if not image_field:
+            return Response(
+                {'error': 'Product has no image to post'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        caption = request.data.get('caption') or product.description or product.name
+        results = [
+            self.publish_one(platform, product, tenant, page, image_field, caption)
+            for platform in platforms
+        ]
+        return Response({'results': results})
+
+    def publish_one(self, platform, product, tenant, page, image_field, caption):
+        """Publish to one platform and record the outcome."""
+        record = SocialMediaPost.objects.create(
+            product=product, tenant=tenant, platform=platform, caption=caption
+        )
+        client = MetaGraphClient()
+        try:
+            outcome = PLATFORM_PUBLISHERS[platform](client, page, image_field, caption)
+            record.status = 'posted'
+            record.platform_post_id = outcome.get('post_id', '')
+            record.post_url = outcome.get('post_url') or None
+        except MetaGraphError as exc:
+            record.status = 'failed'
+            record.error_message = str(exc)
+            logger.warning('Social publish to %s failed: %s', platform, exc)
+        record.save()
+        return {
+            'platform': platform,
+            'status': record.status,
+            'post_url': record.post_url,
+            'error': record.error_message or None,
+        }

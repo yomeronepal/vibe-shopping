@@ -142,3 +142,30 @@ class GranularScopeFallbackTests(TestCase):
     def test_get_granted_instagram_account_absent(self, mock_get):
         mock_get.return_value = graph_response({'data': {'granular_scopes': []}})
         self.assertIsNone(MetaGraphClient().get_granted_instagram_account('user-token'))
+
+    @patch('socials.services.meta_graph.requests.post')
+    def test_publish_page_photo(self, mock_post):
+        mock_post.return_value = graph_response({'id': 'photo1', 'post_id': 'p1_777'})
+        result = MetaGraphClient().publish_page_photo('p1', 'pt1', b'imgbytes', 'New drop')
+        self.assertEqual(result['post_id'], 'p1_777')
+        url = mock_post.call_args.args[0]
+        self.assertIn('/p1/photos', url)
+        self.assertEqual(mock_post.call_args.kwargs['params']['caption'], 'New drop')
+
+    @patch('socials.services.meta_graph.requests.get')
+    @patch('socials.services.meta_graph.requests.post')
+    def test_publish_instagram_photo(self, mock_post, mock_get):
+        def post_side_effect(url, **kwargs):
+            if url.endswith('/media'):
+                return graph_response({'id': 'creation1'})
+            return graph_response({'id': 'media9'})
+
+        mock_post.side_effect = post_side_effect
+        mock_get.return_value = graph_response({'permalink': 'https://www.instagram.com/p/xyz/'})
+        result = MetaGraphClient().publish_instagram_photo('ig1', 'pt1', 'https://pub/img.jpg', 'New drop')
+        self.assertEqual(result['post_id'], 'media9')
+        self.assertEqual(result['post_url'], 'https://www.instagram.com/p/xyz/')
+        first_call = mock_post.call_args_list[0]
+        self.assertEqual(first_call.kwargs['params']['image_url'], 'https://pub/img.jpg')
+        second_call = mock_post.call_args_list[1]
+        self.assertEqual(second_call.kwargs['params']['creation_id'], 'creation1')
