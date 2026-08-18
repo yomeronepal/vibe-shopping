@@ -196,3 +196,11 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='vibe-shopping.com')
 
 FERNET_KEY = config('FERNET_KEY', default='')
+
+META_APP_ID = config('META_APP_ID', default='')
+META_APP_SECRET = config('META_APP_SECRET', default='')
+META_WEBHOOK_VERIFY_TOKEN = config('META_WEBHOOK_VERIFY_TOKEN', default='')
+META_OAUTH_REDIRECT_URI = config(
+    'META_OAUTH_REDIRECT_URI',
+    default='http://localhost:5173/vendor/settings/meta-callback',
+)
