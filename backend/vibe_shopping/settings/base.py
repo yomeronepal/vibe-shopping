@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     # Local apps
     'vendor',         # Added by user instruction
     'core.apps.CoreConfig',
+    'socials.apps.SocialsConfig',
 ]
 
 MIDDLEWARE = [
@@ -194,3 +195,4 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 # Multi-Tenancy Configuration
 TENANT_BASE_DOMAIN = config('TENANT_BASE_DOMAIN', default='vibe-shopping.com')
 
+FERNET_KEY = config('FERNET_KEY', default='')
