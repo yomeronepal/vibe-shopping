@@ -66,6 +66,7 @@ class ConversationListView(APIView):
             queryset = queryset.filter(
                 Q(customer__name__icontains=search)
                 | Q(messages__text__icontains=search)
+                | Q(tags__icontains=search)
             ).distinct()
         return Response(ConversationSerializer(queryset, many=True).data)
 
@@ -86,6 +87,12 @@ class ConversationDetailView(APIView):
             updates['status'] = new_status
         if 'ai_paused' in request.data:
             updates['ai_paused'] = bool(request.data.get('ai_paused'))
+        if 'tags' in request.data:
+            tags = request.data.get('tags')
+            if not isinstance(tags, list):
+                return Response({'error': 'tags must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+            cleaned = [str(tag).strip()[:30] for tag in tags if str(tag).strip()]
+            updates['tags'] = list(dict.fromkeys(cleaned))[:10]
         if not updates:
             return Response({'error': 'Nothing to update'}, status=status.HTTP_400_BAD_REQUEST)
         Conversation.objects.filter(pk=conversation.pk).update(**updates)

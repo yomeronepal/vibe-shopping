@@ -12,7 +12,7 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import { extractOrder, setConversationAiPaused, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { extractOrder, setConversationAiPaused, setConversationTags, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
 import { getStoreProfile } from '@/api/vendor';
 import NewOrderModal, { type OrderPrefill } from '../components/vendor/NewOrderModal';
 import toast from 'react-hot-toast';
@@ -121,6 +121,19 @@ function ConversationRow({
                             </span>
                         )}
                     </div>
+                    {(conversation.tags ?? []).length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                            {(conversation.tags ?? []).slice(0, 3).map((tag) => (
+                                <span
+                                    key={tag}
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                    style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </button>
@@ -183,6 +196,7 @@ export default function InboxPage() {
         useAppSelector((state) => state.inbox);
     const [draft, setDraft] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [tagDraft, setTagDraft] = useState('');
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
@@ -269,6 +283,22 @@ export default function InboxPage() {
             .then((profile) => setAutoReplyOn(profile.ai_assistant_enabled && profile.ai_auto_reply))
             .catch(() => setAutoReplyOn(false));
     }, []);
+
+    const updateTags = async (tags: string[]) => {
+        if (!active) return;
+        try {
+            await setConversationTags(active.id, tags);
+        } catch {
+            toast.error('Could not update tags');
+        }
+    };
+
+    const addTag = () => {
+        if (!active || !tagDraft.trim()) return;
+        const next = [...(active.tags ?? []), tagDraft.trim()];
+        setTagDraft('');
+        updateTags(next);
+    };
 
     const toggleBotPause = async () => {
         if (!active || botToggling) return;
@@ -442,6 +472,41 @@ export default function InboxPage() {
                                         {active.status === 'resolved' ? 'Reopen' : 'Mark resolved'}
                                     </button>
                                     </div>
+                                </div>
+                                <div
+                                    className="flex items-center gap-1.5 px-5 py-2 border-b flex-wrap"
+                                    style={{ borderColor: `${themeConfig.border}50` }}
+                                >
+                                    <span className="material-symbols-outlined text-[15px]" style={{ color: themeConfig.textSecondary }}>sell</span>
+                                    {(active.tags ?? []).map((tag) => (
+                                        <span
+                                            key={tag}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                            style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                        >
+                                            {tag}
+                                            <button
+                                                onClick={() => updateTags((active.tags ?? []).filter((t) => t !== tag))}
+                                                aria-label={`Remove tag ${tag}`}
+                                                className="material-symbols-outlined text-[12px] hover:opacity-70"
+                                            >
+                                                close
+                                            </button>
+                                        </span>
+                                    ))}
+                                    <input
+                                        value={tagDraft}
+                                        onChange={(e) => setTagDraft(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                addTag();
+                                            }
+                                        }}
+                                        placeholder="Add tag…"
+                                        className="bg-transparent border-none focus:ring-0 focus:outline-none text-xs font-medium min-w-[70px] w-20"
+                                        style={{ color: themeConfig.text }}
+                                    />
                                 </div>
                                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                                     {messages.map((message) => (

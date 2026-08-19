@@ -73,3 +73,40 @@ class ConversationSearchTests(APITestCase):
         response = self.search('kalo')
         ids = [c['id'] for c in response.data]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class ConversationTagTests(ConversationSearchTests):
+    def patch_tags(self, conversation, tags):
+        return self.client.patch(
+            f'/api/inbox/conversations/{conversation.id}/', {'tags': tags}, format='json',
+        )
+
+    def test_set_and_return_tags(self):
+        response = self.patch_tags(self.sita, ['VIP', 'wholesale'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['tags'], ['VIP', 'wholesale'])
+        self.sita.refresh_from_db()
+        self.assertEqual(self.sita.tags, ['VIP', 'wholesale'])
+
+    def test_tags_cleaned_deduped_and_capped(self):
+        response = self.patch_tags(self.sita, ['  VIP  ', 'VIP', '', 'x' * 50] + [f't{i}' for i in range(12)])
+        self.assertEqual(response.status_code, 200)
+        tags = response.data['tags']
+        self.assertEqual(tags[0], 'VIP')
+        self.assertEqual(len(tags), 10)
+        self.assertTrue(all(len(tag) <= 30 for tag in tags))
+
+    def test_rejects_non_list_tags(self):
+        response = self.patch_tags(self.sita, 'VIP')
+        self.assertEqual(response.status_code, 400)
+
+    def test_clearing_tags(self):
+        self.patch_tags(self.sita, ['VIP'])
+        response = self.patch_tags(self.sita, [])
+        self.assertEqual(response.data['tags'], [])
+
+    def test_search_matches_tags(self):
+        self.patch_tags(self.ram, ['wholesale'])
+        response = self.search('wholesale')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['customer']['name'], 'Ram Thapa')

@@ -62,10 +62,10 @@ Manage customer conversations from one dashboard.
 - [x] Facebook comments
 - [x] Conversation list
 - [x] Unread message count
-- [ ] Search conversations
+- [x] Search conversations (by customer name, message text, or tag)
 - [x] Conversation history
 - [x] Customer profile
-- [ ] Conversation tags
+- [x] Conversation tags (add/remove in the thread, shown in the list, searchable)
 - [ ] Internal notes
 - [ ] Assign conversation to team member
 - [x] Mark conversation as resolved

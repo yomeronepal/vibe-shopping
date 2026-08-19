@@ -14,6 +14,7 @@ export interface InboxConversation {
     status: string;
     unread_count: number;
     ai_paused: boolean;
+    tags: string[];
     last_message_at: string | null;
     last_message_preview: string;
     customer: InboxCustomer;
@@ -94,5 +95,10 @@ export const extractOrder = async (conversationId: number): Promise<OrderExtract
 
 export const setConversationAiPaused = async (conversationId: number, paused: boolean): Promise<InboxConversation> => {
     const response = await apiClient.patch(`/inbox/conversations/${conversationId}/`, { ai_paused: paused });
+    return response.data;
+};
+
+export const setConversationTags = async (conversationId: number, tags: string[]): Promise<InboxConversation> => {
+    const response = await apiClient.patch(`/inbox/conversations/${conversationId}/`, { tags });
     return response.data;
 };
