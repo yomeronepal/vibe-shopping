@@ -376,3 +376,45 @@ export const vendorApi = {
         }
     }
 };
+
+export interface StoreProfile {
+    store_name: string;
+    subdomain: string | null;
+    logo: string | null;
+    bio: string;
+    category: string;
+    brand_vibes: string[];
+    phone: string;
+    email: string;
+    address: string;
+}
+
+export interface UpdateStoreProfileData {
+    store_name?: string;
+    bio?: string;
+    category?: string;
+    brand_vibes?: string[];
+    phone?: string;
+    email?: string;
+    address?: string;
+    logo?: File | null;
+}
+
+export const getStoreProfile = async (): Promise<StoreProfile> => {
+    const response = await apiClient.get('/vendor/profile/');
+    return response.data;
+};
+
+export const updateStoreProfile = async (data: UpdateStoreProfileData): Promise<StoreProfile> => {
+    const formData = new FormData();
+    if (data.store_name !== undefined) formData.append('store_name', data.store_name);
+    if (data.bio !== undefined) formData.append('bio', data.bio);
+    if (data.category !== undefined) formData.append('category', data.category);
+    if (data.brand_vibes !== undefined) formData.append('brand_vibes', JSON.stringify(data.brand_vibes));
+    if (data.phone !== undefined) formData.append('phone', data.phone);
+    if (data.email !== undefined) formData.append('email', data.email);
+    if (data.address !== undefined) formData.append('address', data.address);
+    if (data.logo) formData.append('logo', data.logo);
+    const response = await apiClient.patch('/vendor/profile/', formData);
+    return response.data;
+};

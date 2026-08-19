@@ -15,7 +15,7 @@ const NAV_ITEMS = [
     { to: '/vendor/orders', label: 'Orders', icon: 'shopping_bag', exact: false },
     { to: '/vendor/calendar', label: 'Publishing', icon: 'calendar_month', exact: false },
     { to: '/vendor/products', label: 'Products', icon: 'sell', exact: false },
-    { to: '/vendor/settings/accounts', label: 'Settings', icon: 'tune', exact: false },
+    { to: '/vendor/settings/profile', label: 'Settings', icon: 'tune', exact: false, match: '/vendor/settings' },
 ];
 
 export default function VendorShell({ children }: { children: ReactNode }) {
@@ -38,8 +38,8 @@ export default function VendorShell({ children }: { children: ReactNode }) {
         navigate('/vendor/login');
     };
 
-    const isActive = (item: (typeof NAV_ITEMS)[number]) =>
-        item.exact ? location.pathname === item.to : location.pathname.startsWith(item.to);
+    const isActive = (item: (typeof NAV_ITEMS)[number] & { match?: string }) =>
+        item.exact ? location.pathname === item.to : location.pathname.startsWith(item.match ?? item.to);
 
     return (
         <div

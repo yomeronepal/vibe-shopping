@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import SettingsTabs from '../components/vendor/SettingsTabs';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
     disconnectMetaPage,
@@ -105,13 +106,14 @@ export default function ConnectedAccountsPage() {
         <VendorShell>
             <div className="overflow-y-auto h-full">
                 <div className="mx-auto max-w-3xl px-4 md:px-6 py-8">
-                    <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
-                        Connected accounts
+                    <h1 className="text-3xl font-extrabold tracking-tight mb-6" style={{ color: themeConfig.text }}>
+                        Settings
                     </h1>
-                    <p className="mt-1" style={{ color: themeConfig.textSecondary }}>
+                    <SettingsTabs />
+                    <p style={{ color: themeConfig.textSecondary }}>
                         Connect your Facebook Page to manage messages, comments, and posts from this dashboard.
                     </p>
-                    <div className="mt-8 space-y-4">
+                    <div className="mt-6 space-y-4">
                         {pages.map((page) => (
                             <PageCard key={page.id} page={page} />
                         ))}
