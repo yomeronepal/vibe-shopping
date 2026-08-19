@@ -176,6 +176,23 @@ class SuggestReplyView(APIView):
         return Response({'suggestion': suggestion})
 
 
+class SummarizeConversationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        """Return a short AI summary of the conversation."""
+        from inbox.services.assistant import AssistantError, summarize_conversation
+
+        tenant, conversation = get_tenant_conversation(request, conversation_id)
+        if not conversation:
+            return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            summary = summarize_conversation(conversation)
+        except AssistantError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'summary': summary})
+
+
 class ExtractOrderView(APIView):
     permission_classes = [IsAuthenticated]
 

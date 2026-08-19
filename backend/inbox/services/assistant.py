@@ -152,6 +152,7 @@ Write the Business's next reply. Rules:
 3. Reply in the same language the customer used (English, Nepali, or romanized Nepali mix).
 4. Sound like a friendly shop owner on Messenger: warm, natural, at most 2-3 short sentences. No hashtags or signatures.
 5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then collect what is still missing from this list: {order_fields}.
+6. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 
 Return ONLY the reply text, nothing else."""
 
@@ -328,7 +329,7 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"]}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, simple everyday words, plain text, no markdown.
@@ -339,7 +340,10 @@ Rules:
 4. Fill collected only with values the customer actually stated anywhere in the conversation; never invent them.
 5. When ordering and fields are missing, the reply must naturally ask for the missing fields (all of them at once) and order_ready is false.
 6. order_ready is true ONLY when ordering is true, items are known, and every field in the list has been collected. Then the reply confirms the items, total price from the catalog, and tells the customer their order is being placed.
-7. When the customer is not ordering, just answer their question; items and collected may be empty."""
+7. When the customer is not ordering, just answer their question; items and collected may be empty.
+8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
+9. sentiment reflects the customer's mood in their recent messages.
+10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else."""
 
 
 def advance_order_conversation(conversation):
@@ -353,6 +357,9 @@ def advance_order_conversation(conversation):
     cleaned = {str(k)[:60]: str(v)[:200] for k, v in collected.items() if str(v).strip()}
     fields = get_order_fields(conversation.tenant)
     missing = [field for field in fields if not cleaned.get(field)]
+    sentiment = str(data.get('sentiment', '')).lower()
+    if sentiment not in ('positive', 'neutral', 'negative'):
+        sentiment = 'neutral'
     return {
         'reply': str(data['reply']).strip()[:1500],
         'ordering': bool(data.get('ordering')),
@@ -360,4 +367,21 @@ def advance_order_conversation(conversation):
         'items': grounded['items'],
         'collected': cleaned,
         'missing': missing,
+        'sentiment': sentiment,
+        'needs_human': bool(data.get('needs_human')),
     }
+
+
+def build_summary_prompt(conversation):
+    """Assemble the prompt for a short conversation summary."""
+    return f"""Summarize this customer conversation for a busy shop owner.
+
+CONVERSATION (Customer is the buyer; Business is the shop)
+{build_history_block(conversation)}
+
+Write 3-5 short bullet lines covering: who the customer is and what they want, any products/prices/sizes discussed, order or delivery status if any, the customer's mood, and the single next step for the owner. Plain text bullets starting with '-'. No markdown of any kind — no asterisks, no bold markers, no headers."""
+
+
+def summarize_conversation(conversation):
+    """Return a short AI summary of the conversation."""
+    return call_gemini(build_summary_prompt(conversation))

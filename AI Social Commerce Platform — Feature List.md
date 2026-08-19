@@ -108,11 +108,11 @@ AI automatically handles repetitive customer conversations.
 - [x] AI suggested replies (manual button + auto-draft on new messages)
 - [x] Context-aware responses (conversation history + store profile)
 - [x] Customer intent detection (purchase intent for order capture)
-- [ ] Product recommendations
+- [x] Product recommendations (catalog-only suggestions when items are unavailable or asked)
 - [x] FAQ answering
-- [ ] Customer sentiment detection
-- [ ] Conversation summarization
-- [ ] Human handoff
+- [x] Customer sentiment detection (per conversation, upset customers flagged in the list)
+- [x] Conversation summarization (Summary button in the thread)
+- [x] Human handoff (bot pauses itself and promises a team member when the customer is upset or asks for a person)
 - [x] Multi-language support
 - [x] Nepali language support
 - [x] English language support
@@ -366,7 +366,7 @@ Businesses should always be able to control the AI.
 - [x] Pause AI (settings toggle)
 - [x] Resume AI (settings toggle)
 - [ ] Human takeover
-- [ ] Escalate conversation
+- [x] Escalate conversation (automatic on negative sentiment / human request)
 
 ---
 

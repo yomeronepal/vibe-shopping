@@ -266,3 +266,44 @@ class AutoReplyApiTests(AutoReplyTestBase):
         self.assertEqual(response.status_code, 200)
         self.tenant.refresh_from_db()
         self.assertFalse(self.tenant.metadata['aiAutoReply'])
+
+
+class SentimentHandoffTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_negative_sentiment_stored(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Maaf garnuhos!')
+        result_outcome['sentiment'] = 'negative'
+        mock_advance.return_value = result_outcome
+        auto_reply_to_message(self.inbound.id)
+        self.convo.refresh_from_db()
+        self.assertEqual(self.convo.sentiment, 'negative')
+        self.assertFalse(self.convo.ai_paused)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_needs_human_pauses_bot_but_sends_handoff_reply(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Hamro team member chittai reply garnu hunecha.')
+        result_outcome['sentiment'] = 'negative'
+        result_outcome['needs_human'] = True
+        mock_advance.return_value = result_outcome
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertEqual(result, 'sent')
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        self.assertEqual(self.convo.sentiment, 'negative')
+        sent = Message.objects.get(direction='out')
+        self.assertIn('team member', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-3')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_paused_conversation_stays_silent_afterwards(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Team member aaudai cha.')
+        result_outcome['needs_human'] = True
+        mock_advance.return_value = result_outcome
+        auto_reply_to_message(self.inbound.id)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='I said NOW',
+            platform_message_id='m-angry-2', sent_at=timezone.now(),
+        )
+        self.assertEqual(auto_reply_to_message(newer.id), 'skipped')

@@ -12,7 +12,7 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import { extractOrder, setConversationAiPaused, setConversationTags, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { extractOrder, setConversationAiPaused, setConversationTags, suggestReply, summarizeConversation, type InboxConversation, type InboxMessage } from '@/api/inbox';
 import { getStoreProfile } from '@/api/vendor';
 import NewOrderModal, { type OrderPrefill } from '../components/vendor/NewOrderModal';
 import toast from 'react-hot-toast';
@@ -103,6 +103,15 @@ function ConversationRow({
                             <span className="font-semibold truncate text-sm" style={{ color: themeConfig.text }}>
                                 {displayName(conversation)}
                             </span>
+                            {conversation.sentiment === 'negative' && (
+                                <span
+                                    title="Customer seems upset"
+                                    className="material-symbols-outlined text-[15px] shrink-0"
+                                    style={{ color: '#dc2626' }}
+                                >
+                                    sentiment_dissatisfied
+                                </span>
+                            )}
                         </div>
                         <span className="text-[11px] shrink-0" style={{ color: themeConfig.textSecondary }}>
                             {relativeTime(conversation.last_message_at)}
@@ -197,6 +206,8 @@ export default function InboxPage() {
     const [draft, setDraft] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [tagDraft, setTagDraft] = useState('');
+    const [summary, setSummary] = useState('');
+    const [summarizing, setSummarizing] = useState(false);
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
@@ -224,6 +235,7 @@ export default function InboxPage() {
     const active = conversations.find((c) => c.id === activeConversationId) ?? null;
 
     const openConversation = (conversation: InboxConversation) => {
+        setSummary('');
         dispatch(setActiveConversation(conversation.id));
         dispatch(fetchMessages(conversation.id));
         if (conversation.unread_count > 0) {
@@ -283,6 +295,18 @@ export default function InboxPage() {
             .then((profile) => setAutoReplyOn(profile.ai_assistant_enabled && profile.ai_auto_reply))
             .catch(() => setAutoReplyOn(false));
     }, []);
+
+    const handleSummarize = async () => {
+        if (!active || summarizing) return;
+        setSummarizing(true);
+        try {
+            setSummary(await summarizeConversation(active.id));
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not summarize this conversation.');
+        } finally {
+            setSummarizing(false);
+        }
+    };
 
     const updateTags = async (tags: string[]) => {
         if (!active) return;
@@ -436,6 +460,18 @@ export default function InboxPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleSummarize}
+                                            disabled={summarizing}
+                                            title="Summarize this conversation with AI"
+                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                            style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[16px] ${summarizing ? 'animate-spin' : ''}`}>
+                                                {summarizing ? 'progress_activity' : 'summarize'}
+                                            </span>
+                                            {summarizing ? 'Summarizing…' : 'Summary'}
+                                        </button>
                                         {autoReplyOn && (
                                             <button
                                                 onClick={toggleBotPause}
@@ -509,6 +545,26 @@ export default function InboxPage() {
                                     />
                                 </div>
                                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                                    {summary && (
+                                        <div
+                                            className="rounded-xl border p-4 text-sm leading-relaxed whitespace-pre-wrap relative"
+                                            style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}25`, color: themeConfig.text }}
+                                        >
+                                            <div className="flex items-center gap-1.5 mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: primaryColor }}>
+                                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                                AI summary
+                                            </div>
+                                            {summary}
+                                            <button
+                                                onClick={() => setSummary('')}
+                                                aria-label="Dismiss summary"
+                                                className="absolute top-2 right-2 material-symbols-outlined text-[16px]"
+                                                style={{ color: themeConfig.textSecondary }}
+                                            >
+                                                close
+                                            </button>
+                                        </div>
+                                    )}
                                     {messages.map((message) => (
                                         <MessageBubble
                                             key={message.platform_message_id}

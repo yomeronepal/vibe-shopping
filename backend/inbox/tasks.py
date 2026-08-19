@@ -24,6 +24,18 @@ def was_answered_after(conversation, message):
     ).exists()
 
 
+def apply_conversation_signals(conversation, outcome):
+    """Persist sentiment and pause the bot when a human is needed."""
+    from inbox.models import Conversation
+
+    updates = {'sentiment': outcome.get('sentiment', '')}
+    if outcome.get('needs_human'):
+        updates['ai_paused'] = True
+        logger.info('Bot handing conversation %s to a human', conversation.id)
+    Conversation.objects.filter(pk=conversation.pk).update(**updates)
+    conversation.refresh_from_db()
+
+
 @shared_task
 def auto_reply_to_message(message_id):
     """Answer an inbound message with the bot and place ready orders.
@@ -64,6 +76,7 @@ def auto_reply_to_message(message_id):
         return 'failed'
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
+    apply_conversation_signals(conversation, outcome)
     reply = outcome['reply']
     order = None
     if outcome['order_ready']:

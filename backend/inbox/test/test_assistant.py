@@ -233,3 +233,41 @@ class SizeColorPromptTests(AssistantTestBase):
         prompt = build_suggestion_prompt(self.convo)
         self.assertNotIn('sizes [', prompt)
         self.assertNotIn('colors:', prompt)
+
+
+class SummarizeAndSignalTests(AssistantTestBase):
+    @patch('inbox.services.assistant.call_gemini', return_value='- Sita asked about the linen shirt price')
+    def test_summarize_endpoint(self, mock_call):
+        response = self.client.post(f'/api/inbox/conversations/{self.convo.id}/summarize/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('linen shirt', response.data['summary'])
+        self.assertIn('CONVERSATION', mock_call.call_args[0][0])
+
+    def test_summarize_is_tenant_scoped(self):
+        other = Tenant.objects.create(name='Other', subdomain='other')
+        response = self.client.post('/api/inbox/conversations/999999/summarize/')
+        self.assertEqual(response.status_code, 404)
+
+    @patch(
+        'inbox.services.assistant.call_gemini',
+        return_value='{"reply": "A team member will help you shortly.", "ordering": false, "order_ready": false, "items": [], "collected": {}, "missing": [], "sentiment": "NEGATIVE", "needs_human": true}',
+    )
+    def test_advance_parses_sentiment_and_handoff(self, mock_call):
+        from inbox.services.assistant import advance_order_conversation
+        result = advance_order_conversation(self.convo)
+        self.assertEqual(result['sentiment'], 'negative')
+        self.assertTrue(result['needs_human'])
+
+    @patch(
+        'inbox.services.assistant.call_gemini',
+        return_value='{"reply": "ok", "ordering": false, "order_ready": false, "items": [], "collected": {}, "missing": [], "sentiment": "confused", "needs_human": false}',
+    )
+    def test_advance_defaults_invalid_sentiment_to_neutral(self, mock_call):
+        from inbox.services.assistant import advance_order_conversation
+        result = advance_order_conversation(self.convo)
+        self.assertEqual(result['sentiment'], 'neutral')
+
+    def test_prompts_include_recommendation_rule(self):
+        from inbox.services.assistant import build_order_flow_prompt
+        self.assertIn('recommend 1-2 fitting products FROM THE CATALOG ONLY', build_suggestion_prompt(self.convo))
+        self.assertIn('recommend 1-2 fitting products FROM THE CATALOG ONLY', build_order_flow_prompt(self.convo))
