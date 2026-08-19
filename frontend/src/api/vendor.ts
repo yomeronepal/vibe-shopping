@@ -174,6 +174,15 @@ export const vendorApi = {
         return response.data;
     },
 
+    archiveProduct: async (id: number): Promise<Product> => {
+        const response = await apiClient.post(`/vendor/products/${id}/archive/`);
+        return response.data;
+    },
+
+    deleteProduct: async (id: number): Promise<void> => {
+        await apiClient.delete(`/vendor/products/${id}/`);
+    },
+
     getProductAnalytics: async (id: string | number, refresh = false): Promise<ProductAnalytics> => {
         const response = await apiClient.get(`/vendor/products/${id}/analytics/`, {
             params: refresh ? { refresh: '1' } : {},

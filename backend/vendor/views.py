@@ -875,12 +875,32 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='publish')
     def publish(self, request, pk=None):
-        """Publish a draft product so it appears on the storefront."""
+        """Publish a draft or archived product to the storefront."""
         product = self.get_object()
         product.status = 'published'
         product.is_active = True
         product.save(update_fields=['status', 'is_active'])
         return Response(ProductSerializer(product).data)
+
+    @action(detail=True, methods=['post'], url_path='archive')
+    def archive(self, request, pk=None):
+        """Archive a product, hiding it from the storefront."""
+        product = self.get_object()
+        product.status = 'archived'
+        product.is_active = False
+        product.save(update_fields=['status', 'is_active'])
+        return Response(ProductSerializer(product).data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a product, refusing when order history depends on it."""
+        product = self.get_object()
+        if product.orderitem_set.exists():
+            return Response(
+                {'error': 'This product has order history and cannot be deleted. Archive it instead.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        product.social_posts.update(product=None)
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'])
     def lookup(self, request):

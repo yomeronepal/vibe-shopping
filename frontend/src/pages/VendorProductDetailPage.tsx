@@ -141,6 +141,18 @@ export default function VendorProductDetailPage() {
             .finally(() => setPublishing(false));
     };
 
+    const archiveProduct = () => {
+        if (!data?.product) return;
+        setPublishing(true);
+        vendorApi.archiveProduct(data.product.id)
+            .then(() => {
+                toast.success('Product archived — it is hidden from your store');
+                load();
+            })
+            .catch(() => toast.error('Could not archive this product'))
+            .finally(() => setPublishing(false));
+    };
+
     const product = data?.product;
     const gallery = product
         ? [product.processed_image, product.image, ...(product.images ?? []).map((img) => img.image)]
@@ -202,8 +214,13 @@ export default function VendorProductDetailPage() {
                                                 Draft
                                             </span>
                                         )}
+                                        {product.status === 'archived' && (
+                                            <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide" style={{ backgroundColor: '#f3f4f6', color: '#4b5563' }}>
+                                                Archived
+                                            </span>
+                                        )}
                                     </div>
-                                    {product.status === 'draft' && (
+                                    {(product.status === 'draft' || product.status === 'archived') && (
                                         <button
                                             onClick={publishDraft}
                                             disabled={publishing}
@@ -213,7 +230,22 @@ export default function VendorProductDetailPage() {
                                             <span className="material-symbols-outlined text-[18px]">
                                                 {publishing ? 'hourglass_empty' : 'rocket_launch'}
                                             </span>
-                                            {publishing ? 'Publishing…' : 'Publish to store'}
+                                            {publishing
+                                                ? 'Working…'
+                                                : product.status === 'draft' ? 'Publish to store' : 'Restore to store'}
+                                        </button>
+                                    )}
+                                    {product.status === 'published' && (
+                                        <button
+                                            onClick={archiveProduct}
+                                            disabled={publishing}
+                                            className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm disabled:opacity-50"
+                                            style={{ borderColor: themeConfig.border, color: themeConfig.textSecondary, backgroundColor: `${themeConfig.surface}80` }}
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">
+                                                {publishing ? 'hourglass_empty' : 'inventory_2'}
+                                            </span>
+                                            {publishing ? 'Working…' : 'Archive'}
                                         </button>
                                     )}
                                     <p className="text-xl font-bold mt-1" style={{ color: themeConfig.primary }}>

@@ -108,9 +108,76 @@ const VendorProductListPage: React.FC = () => {
         });
     };
 
-    const handleBulkAction = (action: 'archive' | 'delete' | 'update-price') => {
-        toast.success(`${action} action for ${selectedProducts.size} products`);
+    const applyProductUpdate = (updated: Product) => {
+        setProducts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+    };
+
+    const removeFromList = (productId: number) => {
+        setProducts(prev => prev.filter(p => p.id !== productId));
+        setSelectedProducts(prev => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+        });
+    };
+
+    const archiveProduct = async (product: Product) => {
+        try {
+            applyProductUpdate(await vendorApi.archiveProduct(product.id));
+            toast.success(`${product.name} archived`);
+        } catch {
+            toast.error('Could not archive product');
+        }
+    };
+
+    const restoreProduct = async (product: Product) => {
+        try {
+            applyProductUpdate(await vendorApi.publishDraftProduct(product.id));
+            toast.success(`${product.name} is back in your store`);
+        } catch {
+            toast.error('Could not restore product');
+        }
+    };
+
+    const deleteProduct = async (product: Product) => {
+        const confirmed = window.confirm(`Delete "${product.name}" permanently? This cannot be undone.`);
+        if (!confirmed) return;
+        try {
+            await vendorApi.deleteProduct(product.id);
+            removeFromList(product.id);
+            toast.success(`${product.name} deleted`);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not delete product');
+        }
+    };
+
+    const handleBulkAction = async (action: 'archive' | 'delete') => {
+        const targets = products.filter(p => selectedProducts.has(p.id));
+        if (targets.length === 0) return;
+        if (action === 'delete') {
+            const confirmed = window.confirm(
+                `Delete ${targets.length} product(s) permanently? Products with order history will be skipped.`
+            );
+            if (!confirmed) return;
+        }
+        let done = 0;
+        let failed = 0;
+        for (const product of targets) {
+            try {
+                if (action === 'archive') {
+                    applyProductUpdate(await vendorApi.archiveProduct(product.id));
+                } else {
+                    await vendorApi.deleteProduct(product.id);
+                    removeFromList(product.id);
+                }
+                done += 1;
+            } catch {
+                failed += 1;
+            }
+        }
         setSelectedProducts(new Set());
+        if (done > 0) toast.success(`${done} product(s) ${action === 'archive' ? 'archived' : 'deleted'}`);
+        if (failed > 0) toast.error(`${failed} product(s) skipped (order history or error)`);
     };
 
     const getStockStatus = (stock: number) => {
@@ -278,35 +345,52 @@ const VendorProductListPage: React.FC = () => {
                                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute inset-0 flex items-center justify-center gap-2 bg-black/20 backdrop-blur-[2px]">
-                                            <button
-                                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
-                                                title="View Details"
-                                                onClick={() => navigate(`/product/${product.id}`)}
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">visibility</span>
-                                            </button>
-                                            <button
-                                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
-                                                title="Edit Product"
-                                                onClick={() => toast.success('Edit coming soon!')}
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">edit</span>
-                                            </button>
-                                            <button
-                                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
-                                                title="Archive"
-                                                onClick={() => toast.success('Archive coming soon!')}
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">inventory_2</span>
-                                            </button>
+                                            {product.status === 'published' && (
+                                                <button
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                                    style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                                                    title="View in store"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/product/${product.id}`);
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">visibility</span>
+                                                </button>
+                                            )}
+                                            {product.status === 'archived' ? (
+                                                <button
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                                    style={{ backgroundColor: themeConfig.surface, color: '#16a34a' }}
+                                                    title="Restore to store"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        restoreProduct(product);
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">restore</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                                    style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                                                    title="Archive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        archiveProduct(product);
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+                                                </button>
+                                            )}
                                             <button
                                                 className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110 hover:bg-red-500 hover:text-white"
                                                 style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
                                                 title="Delete"
-                                                onClick={() => toast.error('Delete coming soon!')}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteProduct(product);
+                                                }}
                                             >
                                                 <span className="material-symbols-outlined text-[20px]">delete</span>
                                             </button>
@@ -315,6 +399,11 @@ const VendorProductListPage: React.FC = () => {
                                         {product.status === 'draft' && (
                                             <div className="absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide shadow-sm" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
                                                 Draft
+                                            </div>
+                                        )}
+                                        {product.status === 'archived' && (
+                                            <div className="absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide shadow-sm" style={{ backgroundColor: '#f3f4f6', color: '#4b5563' }}>
+                                                Archived
                                             </div>
                                         )}
                                         <div className="absolute top-4 left-4">
@@ -419,14 +508,6 @@ const VendorProductListPage: React.FC = () => {
                         >
                             <span className="material-symbols-outlined text-[18px]">inventory_2</span>
                             Archive
-                        </button>
-                        <button
-                            className="flex items-center gap-2 text-xs font-bold transition-colors"
-                            style={{ color: themeConfig.surface }}
-                            onClick={() => handleBulkAction('update-price')}
-                        >
-                            <span className="material-symbols-outlined text-[18px]">sell</span>
-                            Update Price
                         </button>
                         <button
                             className="flex items-center gap-2 text-xs font-bold transition-colors hover:text-red-400"
