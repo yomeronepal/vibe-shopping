@@ -78,3 +78,56 @@ class SchedulingTests(TestCase):
         post.refresh_from_db()
         self.assertEqual(post.status, 'failed')
         self.assertIn('down', post.error_message)
+
+
+class EngagementRefreshTests(TestCase):
+    def setUp(self):
+        from cryptography.fernet import Fernet
+        from django.test import override_settings
+        self.override = override_settings(FERNET_KEY=Fernet.generate_key().decode())
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        from socials.models import ConnectedPage, MetaConnection
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        connection = MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb1')
+        self.page = ConnectedPage.objects.create(
+            tenant=self.tenant, connection=connection, page_id='p1',
+            name='Store', status='connected',
+        )
+        self.page.set_access_token('pt1')
+        self.page.save()
+
+    def make_posted(self, **kwargs):
+        defaults = {
+            'tenant': self.tenant, 'platform': 'facebook', 'caption': 'x',
+            'status': 'posted', 'platform_post_id': 'p1_1',
+        }
+        defaults.update(kwargs)
+        return SocialMediaPost.objects.create(**defaults)
+
+    @patch('socials.tasks.MetaGraphClient')
+    def test_refresh_updates_recent_posted_engagement(self, mock_client_cls):
+        from socials.tasks import refresh_recent_engagement
+        mock_client = mock_client_cls.return_value
+        mock_client.get_post_engagement.return_value = {'likes': 3, 'comments': 1, 'shares': 0}
+        post = self.make_posted()
+        local = self.make_posted(platform_post_id='local-abc123')
+        refreshed = refresh_recent_engagement()
+        self.assertEqual(refreshed, 1)
+        post.refresh_from_db()
+        self.assertEqual(post.metadata['engagement']['likes'], 3)
+        local.refresh_from_db()
+        self.assertNotIn('engagement', local.metadata or {})
+
+    @patch('socials.tasks.MetaGraphClient')
+    def test_refresh_skips_old_and_unposted(self, mock_client_cls):
+        from socials.tasks import refresh_recent_engagement
+        mock_client = mock_client_cls.return_value
+        old = self.make_posted(platform_post_id='p1_old')
+        SocialMediaPost.objects.filter(id=old.id).update(
+            created_at=timezone.now() - timezone.timedelta(days=10)
+        )
+        self.make_posted(status='failed', platform_post_id='p1_f')
+        refreshed = refresh_recent_engagement()
+        self.assertEqual(refreshed, 0)
+        mock_client.get_post_engagement.assert_not_called()

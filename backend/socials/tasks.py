@@ -8,6 +8,7 @@ from django.utils import timezone
 from core.models import SocialMediaPost
 from socials.models import WebhookEvent
 from socials.services.publisher import TransientPublishError, publish_post_record
+from socials.services.meta_graph import MetaGraphClient, MetaGraphError
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +63,48 @@ def publish_scheduled_post(self, post_id):
         logger.warning('Retrying publish %s after transient error: %s', post_id, exc)
         raise self.retry()
     return post_id
+
+
+@shared_task
+def refresh_recent_engagement():
+    """Refresh cached engagement for recently published posts."""
+    from datetime import timedelta
+
+    from socials.models import ConnectedPage
+
+    cutoff = timezone.now() - timedelta(days=7)
+    posts = (
+        SocialMediaPost.objects.filter(status='posted', created_at__gte=cutoff)
+        .exclude(platform_post_id='')
+        .exclude(platform_post_id__startswith='local-')
+    )
+    client = MetaGraphClient()
+    pages = {}
+    refreshed = 0
+    for post in posts:
+        page = pages.get(post.tenant_id)
+        if page is None:
+            page = ConnectedPage.objects.filter(
+                tenant_id=post.tenant_id, status='connected'
+            ).first() or False
+            pages[post.tenant_id] = page
+        if not page:
+            continue
+        try:
+            if post.platform == 'instagram':
+                engagement = client.get_instagram_media_engagement(
+                    post.platform_post_id, page.get_access_token()
+                )
+            else:
+                engagement = client.get_post_engagement(
+                    post.platform_post_id, page.get_access_token()
+                )
+        except MetaGraphError as exc:
+            logger.info('Engagement refresh failed for post %s: %s', post.id, exc)
+            continue
+        metadata = post.metadata or {}
+        metadata['engagement'] = {**engagement, 'fetched_at': timezone.now().isoformat()}
+        post.metadata = metadata
+        post.save(update_fields=['metadata'])
+        refreshed += 1
+    return refreshed
