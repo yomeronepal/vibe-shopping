@@ -216,7 +216,6 @@ const VendorProductCreatePage: React.FC = () => {
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
     const [productBrief, setProductBrief] = useState('');
-    const [captionLoading, setCaptionLoading] = useState(false);
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
     const [mrp, setMrp] = useState(0);
     const [costPrice, setCostPrice] = useState(0);
@@ -368,28 +367,6 @@ const VendorProductCreatePage: React.FC = () => {
             images: v.images,
         })) : undefined,
     });
-
-    const generateSocialCaption = async () => {
-        const context = [
-            title ? `Product: ${title}` : '',
-            mrp ? `Price: Rs. ${discountEnabled ? discountedPrice : mrp}` : '',
-            description ? `Details: ${description.slice(0, 300)}` : '',
-            !title && productBrief ? `About: ${productBrief}` : '',
-        ].filter(Boolean).join('\n');
-        if (context.length < 5) {
-            toast.error('Add a title or description first');
-            return;
-        }
-        setCaptionLoading(true);
-        try {
-            const generated = await aiApi.generateCaption({ context });
-            setSocialCaption(generated.slice(0, 280));
-        } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Could not write a caption. Try again.');
-        } finally {
-            setCaptionLoading(false);
-        }
-    };
 
     const handlePublish = async () => {
         if (!title || !mrp) {
@@ -905,20 +882,7 @@ const VendorProductCreatePage: React.FC = () => {
                                             Posting as <span className="font-bold" style={{ color: themeConfig.text }}>{connectedPage.name || 'your connected Page'}</span>
                                         </p>
                                         <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <label className="block text-sm font-bold ml-1" style={{ color: themeConfig.text }}>Caption</label>
-                                                <button
-                                                    onClick={generateSocialCaption}
-                                                    disabled={captionLoading || (!title && productBrief.trim().length < 10)}
-                                                    className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition-all disabled:opacity-40"
-                                                    style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
-                                                >
-                                                    <span className={`material-symbols-outlined text-[14px] ${captionLoading ? 'animate-spin' : ''}`}>
-                                                        {captionLoading ? 'progress_activity' : 'auto_awesome'}
-                                                    </span>
-                                                    {captionLoading ? 'Writing…' : 'Generate'}
-                                                </button>
-                                            </div>
+                                            <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.text }}>Caption</label>
                                             <div className="relative">
                                                 <textarea
                                                     value={socialCaption}
