@@ -8,7 +8,7 @@ const ThemePickerButton: React.FC = () => {
     const { config } = useShopTheme();
     const { pathname } = useLocation();
 
-    if (pathname.startsWith('/vendor/inbox') || pathname.includes('/invoice')) {
+    if (pathname.startsWith('/vendor/inbox') || pathname.includes('/invoice') || pathname === '/privacy' || pathname === '/data-deletion') {
         return null;
     }
 

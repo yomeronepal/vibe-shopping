@@ -33,6 +33,8 @@ import VendorEmailVerificationPage from './pages/VendorEmailVerificationPage';
 import PublicStorePage from './pages/PublicStorePage';
 import DiscoveryPage from './pages/DiscoveryPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import DataDeletionPage from './pages/DataDeletionPage';
 import ThemePickerButton from './components/theme/ThemePickerButton';
 import './index.css';
 
@@ -45,6 +47,8 @@ function App() {
             <Routes>
               {/* Standalone Pages (No Layout wrapper) */}
               <Route path="/" element={<HomePage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/data-deletion" element={<DataDeletionPage />} />
               <Route path="/choose-path" element={<ChoosePathPage />} />
               <Route path="/vendor/onboarding" element={<VendorOnboardingPage />} />
               <Route path="/vendor/onboarding/success" element={<VendorOnboardingSuccessPage />} />
