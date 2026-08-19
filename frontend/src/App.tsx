@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
@@ -63,6 +63,8 @@ function App() {
 
                 <Route path="/store/:subdomain" element={<PublicStorePage />} />
               </Route>
+              <Route path="/dashboard" element={<Navigate to="/vendor" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <ThemePickerButton />
             <Toaster
