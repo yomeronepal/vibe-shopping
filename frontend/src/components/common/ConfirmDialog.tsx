@@ -48,7 +48,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel, dang
                 <button
                     onClick={onCancel}
                     aria-label="Close"
-                    className="absolute top-4 right-4 size-8 rounded-full flex items-center justify-center transition-colors hover:scale-105"
+                    className="absolute top-4 right-4 z-10 size-8 rounded-full flex items-center justify-center transition-colors hover:scale-105"
                     style={{ backgroundColor: `${themeConfig.surface}`, color: themeConfig.textSecondary }}
                 >
                     <span className="material-symbols-outlined text-[18px]">close</span>
