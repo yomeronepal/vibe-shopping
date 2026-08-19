@@ -6,7 +6,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 
 ---
 
-> **Build status (2026-08-19):** Two cycles complete. **Foundation + publishing** (PR #1): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection, signature-validated webhook receiver, product publishing to Facebook/Instagram with per-platform result tracking. **Unified inbox + dashboard sweep** (PR #2, stacked): Messenger and Instagram DMs ingested into conversations (idempotent, echo-aware), real-time WebSocket inbox at /vendor/inbox with replies via Meta's Send API, conversation statuses/unread/read-state, a shared themed VendorShell across Inbox/Orders/Products/Settings with mobile navigation, and a new vendor Orders page with live status management (GET/PATCH /api/vendor/orders/). 120+ backend tests green; verified end-to-end in a real browser including live no-reload message arrival. Remaining to go live: ngrok tunnel + Meta webhook dashboard config (also unlocks Instagram publishing via PUBLIC_MEDIA_BASE_URL).
+> **Build status (2026-08-19, PRs #1–#10):** The platform is live end-to-end against real Meta APIs. **Foundation & integration** (#1–#3): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection with New Pages Experience support, signature-validated webhooks. **Unified inbox** (#4): FB/IG DMs with real-time WebSocket updates and replies via the Send API. **Publishing** (#5): monthly content calendar with scheduled/draft/immediate posts, Facebook & Instagram feed posts and stories via Celery Beat, failed-post retry. **Engagement analytics** (#5–#6): per-product Facebook/Instagram likes/comments/shares with 5-minute automatic refresh. **Product lifecycle & dashboard** (#7): reworked create page, draft→publish→archive→restore→delete with order-history-safe deletion, product editing that syncs captions to published Facebook posts, live-data vendor dashboard. **Vendor orders & invoices** (#8–#9): manual/POS order creation with stock deduction, printable invoices, invoice delivery straight into the customer's Messenger thread, fully editable store profile. **AI assistant** (#10): Copilot reply drafts in the inbox (manual + auto-draft on new messages) grounded strictly in the product catalog and a vendor-managed knowledge base, plus AI order capture that extracts items/quantities/customer from the chat into a prefilled, human-approved order. 200+ backend tests green; every cycle verified in a real browser, AI verified against live Gemini.
 
 ## 🚀 Core Features
 
@@ -92,31 +92,31 @@ AI automatically handles repetitive customer conversations.
 
 ### Customer Questions
 
-- [ ] Product questions
-- [ ] Price questions
-- [ ] Availability questions
+- [x] Product questions
+- [x] Price questions
+- [x] Availability questions
 - [ ] Size questions
 - [ ] Color questions
-- [ ] Delivery questions
-- [ ] Payment questions
-- [ ] Return/exchange questions
-- [ ] Business FAQ questions
+- [x] Delivery questions (from knowledge base)
+- [x] Payment questions (from knowledge base)
+- [x] Return/exchange questions (from knowledge base)
+- [x] Business FAQ questions (from knowledge base)
 
 ### AI Capabilities
 
 - [ ] Automatic replies
-- [ ] AI suggested replies
-- [ ] Context-aware responses
-- [ ] Customer intent detection
+- [x] AI suggested replies (manual button + auto-draft on new messages)
+- [x] Context-aware responses (conversation history + store profile)
+- [x] Customer intent detection (purchase intent for order capture)
 - [ ] Product recommendations
-- [ ] FAQ answering
+- [x] FAQ answering
 - [ ] Customer sentiment detection
 - [ ] Conversation summarization
 - [ ] Human handoff
-- [ ] Multi-language support
-- [ ] Nepali language support
-- [ ] English language support
-- [ ] Nepali-English mixed language support
+- [x] Multi-language support
+- [x] Nepali language support
+- [x] English language support
+- [x] Nepali-English mixed language support
 
 ---
 
@@ -127,8 +127,10 @@ Businesses can maintain their products and inventory.
 ### Product Management
 
 - [x] Create product
-- [ ] Update product
-- [ ] Delete product
+- [x] Update product
+- [x] Delete product (blocked when order history exists; archive instead)
+- [x] Archive and restore product
+- [x] Save product as draft, publish later
 - [x] Product name
 - [x] Product description
 - [x] Product images
@@ -142,11 +144,11 @@ Businesses can maintain their products and inventory.
 
 ### AI Integration
 
-- [ ] AI reads product catalog
-- [ ] AI answers product questions
-- [ ] AI checks product availability
+- [x] AI reads product catalog
+- [x] AI answers product questions
+- [x] AI checks product availability
 - [ ] AI recommends products
-- [ ] AI prevents unsupported product claims
+- [x] AI prevents unsupported product claims (prices/stock only from catalog)
 
 ---
 
@@ -156,21 +158,21 @@ Convert social conversations into structured orders.
 
 ### Order Creation
 
-- [ ] Extract product from conversation
-- [ ] Extract quantity
+- [x] Extract product from conversation
+- [x] Extract quantity
 - [ ] Extract size
 - [ ] Extract color
-- [ ] Extract customer name
+- [x] Extract customer name
 - [ ] Extract phone number
 - [ ] Extract delivery address
-- [ ] Confirm order details
+- [x] Confirm order details (prefilled order form, human approves)
 - [ ] Create order automatically
-- [ ] Manual order creation
+- [x] Manual order creation (with stock deduction and totals)
 
 ### Order Status
 
-- [ ] Pending confirmation
-- [ ] Confirmed
+- [x] Pending confirmation (pending payment / pending delivery)
+- [x] Confirmed (completed)
 - [ ] Preparing
 - [x] Shipped
 - [x] Delivered
@@ -186,20 +188,22 @@ Convert social conversations into structured orders.
 - [x] Order history
 - [ ] Customer order history
 - [ ] Order notifications
+- [x] Invoice generation (printable / save as PDF)
+- [x] Send invoice to the customer via Messenger
 
 ---
 
 # 📦 7. Inventory Management
 
-- [ ] Product stock management
-- [ ] Variant stock management
-- [ ] Automatic stock deduction
+- [x] Product stock management
+- [x] Variant stock management
+- [x] Automatic stock deduction on orders
 - [ ] Low-stock alerts
-- [ ] Out-of-stock status
+- [x] Out-of-stock status
 - [ ] Stock history
 - [ ] SKU management
-- [ ] Inventory search
-- [ ] Inventory filtering
+- [x] Inventory search
+- [x] Inventory filtering (drafts / low stock / archived / out of stock)
 
 ---
 
@@ -248,16 +252,18 @@ Generate social-media content automatically.
 ### Post Management
 
 - [x] Create post
-- [ ] Save draft
+- [x] Save draft
 - [ ] Preview post
 - [x] Publish immediately
-- [ ] Schedule post
-- [ ] Edit scheduled post
+- [x] Schedule post
+- [x] Edit scheduled post
 - [ ] Delete scheduled post
 - [x] Post publishing status
 - [x] Publish product to selected platforms from product creation
 - [x] Per-platform post result log (SocialMediaPost)
-- [ ] Failed-post retry
+- [x] Failed-post retry
+- [x] Facebook & Instagram stories
+- [x] Edit captions of published Facebook posts when a product changes
 
 ### Publishing Channels
 
@@ -266,11 +272,11 @@ Generate social-media content automatically.
 
 ### Content Calendar
 
-- [ ] Monthly calendar
+- [x] Monthly calendar
 - [ ] Weekly calendar
-- [ ] Scheduled posts
-- [ ] Published posts
-- [ ] Draft posts
+- [x] Scheduled posts
+- [x] Published posts
+- [x] Draft posts
 
 ---
 
@@ -280,8 +286,8 @@ Automatically maintain customer profiles.
 
 ### Customer Information
 
-- [ ] Customer name
-- [ ] Social account
+- [x] Customer name
+- [x] Social account
 - [ ] Phone number
 - [ ] Email
 - [ ] Location
@@ -320,24 +326,24 @@ Businesses can provide information that AI should use when responding.
 
 ### Knowledge Sources
 
-- [ ] FAQs
-- [ ] Product information
-- [ ] Return policy
-- [ ] Delivery policy
-- [ ] Payment instructions
-- [ ] Business information
-- [ ] Custom instructions
+- [x] FAQs
+- [x] Product information (live catalog)
+- [x] Return policy
+- [x] Delivery policy
+- [x] Payment instructions
+- [x] Business information (store profile)
+- [x] Custom instructions (free-text knowledge box)
 - [ ] Documents
 - [ ] Website content
 
 ### AI Controls
 
-- [ ] Business-specific AI context
+- [x] Business-specific AI context
 - [ ] Custom system instructions
 - [ ] Brand tone
 - [ ] Allowed languages
 - [ ] Restricted topics
-- [ ] Human approval rules
+- [x] Human approval rules (Copilot: every reply and order is human-approved)
 
 ---
 
@@ -348,17 +354,17 @@ Businesses should always be able to control the AI.
 ### AI Modes
 
 - [ ] Full AI automation
-- [ ] AI Copilot
-- [ ] Human-only mode
+- [x] AI Copilot
+- [x] Human-only mode (assistant toggle off)
 
 ### Controls
 
-- [ ] AI suggested response
-- [ ] Approve AI response
-- [ ] Edit AI response
-- [ ] Send manually
-- [ ] Pause AI
-- [ ] Resume AI
+- [x] AI suggested response
+- [x] Approve AI response
+- [x] Edit AI response
+- [x] Send manually
+- [x] Pause AI (settings toggle)
+- [x] Resume AI (settings toggle)
 - [ ] Human takeover
 - [ ] Escalate conversation
 
@@ -366,9 +372,9 @@ Businesses should always be able to control the AI.
 
 # 🛡️ 15. AI Safety & Business Rules
 
-- [ ] Prevent AI hallucinated product information
-- [ ] Product availability validation
-- [ ] Price validation
+- [x] Prevent AI hallucinated product information
+- [x] Product availability validation
+- [x] Price validation (extracted orders validated against the catalog)
 - [ ] Discount limits
 - [ ] Maximum order value for automatic confirmation
 - [ ] Human approval for refunds
@@ -384,8 +390,8 @@ Businesses should always be able to control the AI.
 
 ### Sales Analytics
 
-- [ ] Total orders
-- [ ] Total revenue
+- [x] Total orders (dashboard)
+- [x] Total revenue (dashboard)
 - [ ] Average order value
 - [ ] Conversion rate
 - [ ] Best-selling products
@@ -398,9 +404,9 @@ Businesses should always be able to control the AI.
 - [ ] Messages received
 - [ ] Response time
 - [ ] Comments
-- [ ] Engagement
+- [x] Engagement (per-product likes/comments/shares, auto-refreshed)
 - [ ] Followers
-- [ ] Post performance
+- [x] Post performance (per-post engagement on the product analytics page)
 - [ ] Best-performing posts
 - [ ] Best-performing products
 
@@ -548,8 +554,8 @@ Businesses should always be able to control the AI.
 - [x] Webhooks (receiver built; live delivery needs a public URL)
 - [x] Unified inbox
 - [x] Product catalog
-- [ ] AI customer replies
-- [ ] AI order extraction
+- [x] AI customer replies (Copilot)
+- [x] AI order extraction
 - [x] Basic order management
 
 ## Phase 2 — Social Commerce
@@ -557,9 +563,9 @@ Businesses should always be able to control the AI.
 - [x] Facebook post publishing
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
 - [ ] AI content generation
-- [ ] Post scheduling
+- [x] Post scheduling
 - [ ] Customer CRM
-- [ ] Inventory management
+- [x] Inventory management (stock editing, deduction, filters)
 - [ ] Analytics
 
 ## Phase 3 — Automation
@@ -568,7 +574,7 @@ Businesses should always be able to control the AI.
 - [ ] AI campaigns
 - [ ] Product recommendations
 - [ ] AI sales agent
-- [ ] Business knowledge base
+- [x] Business knowledge base
 - [ ] Advanced AI controls
 
 ## Phase 4 — Commerce Infrastructure
