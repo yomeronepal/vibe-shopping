@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import { vendorApi, type ProductAnalytics, type AnalyticsPost } from '../api/vendor';
 import { mediaUrl } from '../api/media';
 
@@ -108,6 +109,7 @@ export default function VendorProductDetailPage() {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [publishing, setPublishing] = useState(false);
+    const [confirmingArchive, setConfirmingArchive] = useState(false);
 
     const load = (refresh = false) => {
         if (!id) return;
@@ -143,6 +145,7 @@ export default function VendorProductDetailPage() {
 
     const archiveProduct = () => {
         if (!data?.product) return;
+        setConfirmingArchive(false);
         setPublishing(true);
         vendorApi.archiveProduct(data.product.id)
             .then(() => {
@@ -237,7 +240,7 @@ export default function VendorProductDetailPage() {
                                     )}
                                     {product.status === 'published' && (
                                         <button
-                                            onClick={archiveProduct}
+                                            onClick={() => setConfirmingArchive(true)}
                                             disabled={publishing}
                                             className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm disabled:opacity-50"
                                             style={{ borderColor: themeConfig.border, color: themeConfig.textSecondary, backgroundColor: `${themeConfig.surface}80` }}
@@ -330,6 +333,14 @@ export default function VendorProductDetailPage() {
                     )}
                 </div>
             </div>
+            <ConfirmDialog
+                open={confirmingArchive}
+                title={`Archive ${product?.name ?? 'this product'}?`}
+                message="It will be hidden from your store but keeps all its history. You can restore it anytime."
+                confirmLabel="Archive"
+                onConfirm={archiveProduct}
+                onCancel={() => setConfirmingArchive(false)}
+            />
         </VendorShell>
     );
 }

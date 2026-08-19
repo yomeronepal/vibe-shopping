@@ -6,6 +6,15 @@ import { vendorApi, type Product } from '../api/vendor';
 import toast from 'react-hot-toast';
 import ThemePickerButton from '../components/theme/ThemePickerButton';
 import VendorShell from '../components/vendor/VendorShell';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+
+interface ConfirmRequest {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger: boolean;
+    action: () => Promise<void>;
+}
 
 type ProductFilter = 'all' | 'drafts' | 'low-stock' | 'archived' | 'out-of-stock';
 
@@ -22,6 +31,7 @@ const VendorProductListPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
+    const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
     const [, setVendorProfile] = useState<VendorProfile>({});
 
     const primaryColor = themeConfig.primary;
@@ -121,7 +131,7 @@ const VendorProductListPage: React.FC = () => {
         });
     };
 
-    const archiveProduct = async (product: Product) => {
+    const runArchive = async (product: Product) => {
         try {
             applyProductUpdate(await vendorApi.archiveProduct(product.id));
             toast.success(`${product.name} archived`);
@@ -139,9 +149,7 @@ const VendorProductListPage: React.FC = () => {
         }
     };
 
-    const deleteProduct = async (product: Product) => {
-        const confirmed = window.confirm(`Delete "${product.name}" permanently? This cannot be undone.`);
-        if (!confirmed) return;
+    const runDelete = async (product: Product) => {
         try {
             await vendorApi.deleteProduct(product.id);
             removeFromList(product.id);
@@ -151,15 +159,27 @@ const VendorProductListPage: React.FC = () => {
         }
     };
 
-    const handleBulkAction = async (action: 'archive' | 'delete') => {
-        const targets = products.filter(p => selectedProducts.has(p.id));
-        if (targets.length === 0) return;
-        if (action === 'delete') {
-            const confirmed = window.confirm(
-                `Delete ${targets.length} product(s) permanently? Products with order history will be skipped.`
-            );
-            if (!confirmed) return;
-        }
+    const archiveProduct = (product: Product) => {
+        setConfirmRequest({
+            title: `Archive ${product.name}?`,
+            message: 'It will be hidden from your store but keeps all its history. You can restore it anytime.',
+            confirmLabel: 'Archive',
+            danger: false,
+            action: () => runArchive(product),
+        });
+    };
+
+    const deleteProduct = (product: Product) => {
+        setConfirmRequest({
+            title: `Delete ${product.name}?`,
+            message: 'This permanently removes the product and cannot be undone. Products with order history cannot be deleted.',
+            confirmLabel: 'Delete forever',
+            danger: true,
+            action: () => runDelete(product),
+        });
+    };
+
+    const runBulkAction = async (action: 'archive' | 'delete', targets: Product[]) => {
         let done = 0;
         let failed = 0;
         for (const product of targets) {
@@ -178,6 +198,28 @@ const VendorProductListPage: React.FC = () => {
         setSelectedProducts(new Set());
         if (done > 0) toast.success(`${done} product(s) ${action === 'archive' ? 'archived' : 'deleted'}`);
         if (failed > 0) toast.error(`${failed} product(s) skipped (order history or error)`);
+    };
+
+    const handleBulkAction = (action: 'archive' | 'delete') => {
+        const targets = products.filter(p => selectedProducts.has(p.id));
+        if (targets.length === 0) return;
+        const isDelete = action === 'delete';
+        setConfirmRequest({
+            title: isDelete ? `Delete ${targets.length} product(s)?` : `Archive ${targets.length} product(s)?`,
+            message: isDelete
+                ? 'This permanently removes them and cannot be undone. Products with order history will be skipped.'
+                : 'They will be hidden from your store but keep all their history. You can restore them anytime.',
+            confirmLabel: isDelete ? 'Delete forever' : 'Archive all',
+            danger: isDelete,
+            action: () => runBulkAction(action, targets),
+        });
+    };
+
+    const confirmCurrentRequest = () => {
+        if (!confirmRequest) return;
+        const { action } = confirmRequest;
+        setConfirmRequest(null);
+        action();
     };
 
     const getStockStatus = (stock: number) => {
@@ -526,6 +568,16 @@ const VendorProductListPage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={confirmRequest !== null}
+                title={confirmRequest?.title ?? ''}
+                message={confirmRequest?.message ?? ''}
+                confirmLabel={confirmRequest?.confirmLabel ?? ''}
+                danger={confirmRequest?.danger}
+                onConfirm={confirmCurrentRequest}
+                onCancel={() => setConfirmRequest(null)}
+            />
 
             <ThemePickerButton />
         </div>
