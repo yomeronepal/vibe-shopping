@@ -408,7 +408,31 @@ export interface StoreProfile {
     order_fields: string[];
     followup_hours: number;
     followup_message: string;
+    restricted_topics: string[];
+    knowledge_docs: { name: string; chars: number }[];
+    website_knowledge: { url: string; chars: number };
 }
+
+export const uploadKnowledgeDoc = async (file: File): Promise<{ name: string; chars: number }[]> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/vendor/knowledge/documents/', formData);
+    return response.data.documents;
+};
+
+export const deleteKnowledgeDoc = async (name: string): Promise<{ name: string; chars: number }[]> => {
+    const response = await apiClient.delete(`/vendor/knowledge/documents/?name=${encodeURIComponent(name)}`);
+    return response.data.documents;
+};
+
+export const fetchWebsiteKnowledge = async (url: string): Promise<{ url: string; chars: number }> => {
+    const response = await apiClient.post('/vendor/knowledge/website/', { url });
+    return response.data;
+};
+
+export const removeWebsiteKnowledge = async (): Promise<void> => {
+    await apiClient.delete('/vendor/knowledge/website/');
+};
 
 export interface UpdateStoreProfileData {
     store_name?: string;
@@ -435,6 +459,7 @@ export const updateAssistantSettings = async (
     language: string,
     followupHours: number,
     followupMessage: string,
+    restrictedTopics: string[],
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
@@ -445,6 +470,7 @@ export const updateAssistantSettings = async (
         ai_language: language,
         followup_hours: followupHours,
         followup_message: followupMessage,
+        restricted_topics: JSON.stringify(restrictedTopics),
     });
     return response.data;
 };

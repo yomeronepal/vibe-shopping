@@ -308,3 +308,24 @@ class AssistantVoiceSettingTests(AssistantTestBase):
         }, format='json')
         self.assertEqual(response.data['ai_tone'], '')
         self.assertEqual(response.data['ai_language'], '')
+
+
+class RestrictedTopicsPromptTests(AssistantTestBase):
+    def test_restricted_rule_in_prompts(self):
+        from inbox.services.assistant import build_order_flow_prompt
+        self.tenant.metadata['restrictedTopics'] = ['politics', 'competitor prices']
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        for prompt in (build_suggestion_prompt(self.convo), build_order_flow_prompt(self.convo)):
+            self.assertIn('Never discuss these topics: politics, competitor prices', prompt)
+
+    def test_no_rule_when_unset(self):
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertNotIn('RESTRICTED', prompt)
+
+    def test_document_knowledge_reaches_prompt(self):
+        self.tenant.metadata['knowledgeDocs'] = [{'name': 'faq.txt', 'text': 'COD available everywhere.'}]
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('COD available everywhere.', prompt)

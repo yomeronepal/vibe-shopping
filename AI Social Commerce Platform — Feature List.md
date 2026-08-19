@@ -333,8 +333,8 @@ Businesses can provide information that AI should use when responding.
 - [x] Payment instructions
 - [x] Business information (store profile)
 - [x] Custom instructions (free-text knowledge box)
-- [ ] Documents
-- [ ] Website content
+- [x] Documents (.txt/.md/.csv/.pdf uploads feed the AI, up to 3)
+- [x] Website content (fetch a page into the AI knowledge)
 
 ### AI Controls
 
@@ -342,7 +342,7 @@ Businesses can provide information that AI should use when responding.
 - [x] Custom system instructions (knowledge box + voice settings shape the system prompt)
 - [x] Brand tone (assistant tone setting: friendly / professional / casual)
 - [x] Allowed languages (assistant language setting: match customer / English / Nepali / mixed)
-- [ ] Restricted topics
+- [x] Restricted topics (AI politely declines and steers back to the shop)
 - [x] Human approval rules (Copilot: every reply and order is human-approved)
 
 ---
@@ -379,8 +379,8 @@ Businesses should always be able to control the AI.
 - [ ] Maximum order value for automatic confirmation
 - [ ] Human approval for refunds
 - [ ] Human approval for high-value orders
-- [ ] Restricted topics
-- [ ] Brand-specific instructions
+- [x] Restricted topics
+- [x] Brand-specific instructions (brand voice from the store profile)
 - [ ] AI response logs
 - [ ] AI error monitoring
 

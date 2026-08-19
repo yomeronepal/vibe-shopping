@@ -4,7 +4,7 @@ import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import SettingsTabs from '../components/vendor/SettingsTabs';
 import TagEditor from '../components/vendor/TagEditor';
-import { getStoreProfile, updateAssistantSettings } from '../api/vendor';
+import { deleteKnowledgeDoc, fetchWebsiteKnowledge, getStoreProfile, removeWebsiteKnowledge, updateAssistantSettings, uploadKnowledgeDoc } from '../api/vendor';
 
 const KNOWLEDGE_PLACEHOLDER = `Examples:
 Delivery inside Kathmandu valley: Rs. 100, 1-2 days.
@@ -23,6 +23,11 @@ export default function VendorAssistantSettingsPage() {
     const [language, setLanguage] = useState('');
     const [followupHours, setFollowupHours] = useState(6);
     const [followupMessage, setFollowupMessage] = useState('');
+    const [restrictedTopics, setRestrictedTopics] = useState<string[]>([]);
+    const [docs, setDocs] = useState<{ name: string; chars: number }[]>([]);
+    const [website, setWebsite] = useState<{ url: string; chars: number }>({ url: '', chars: 0 });
+    const [websiteInput, setWebsiteInput] = useState('');
+    const [fetchingSite, setFetchingSite] = useState(false);
     const [knowledge, setKnowledge] = useState('');
 
     const primaryColor = themeConfig.primary;
@@ -37,16 +42,63 @@ export default function VendorAssistantSettingsPage() {
                 setLanguage(profile.ai_language);
                 setFollowupHours(profile.followup_hours);
                 setFollowupMessage(profile.followup_message);
+                setRestrictedTopics(profile.restricted_topics);
+                setDocs(profile.knowledge_docs);
+                setWebsite(profile.website_knowledge);
+                setWebsiteInput(profile.website_knowledge.url);
                 setKnowledge(profile.ai_knowledge);
             })
             .catch(() => toast.error('Could not load assistant settings'))
             .finally(() => setLoading(false));
     }, []);
 
+    const handleDocUpload = async (files: FileList | null) => {
+        const file = files?.[0];
+        if (!file) return;
+        try {
+            setDocs(await uploadKnowledgeDoc(file));
+            toast.success(`${file.name} added to knowledge`);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not read that file');
+        }
+    };
+
+    const handleDocDelete = async (name: string) => {
+        try {
+            setDocs(await deleteKnowledgeDoc(name));
+        } catch {
+            toast.error('Could not remove the document');
+        }
+    };
+
+    const handleFetchWebsite = async () => {
+        if (!websiteInput.trim()) return;
+        setFetchingSite(true);
+        try {
+            const result = await fetchWebsiteKnowledge(websiteInput.trim());
+            setWebsite(result);
+            toast.success('Website content added to knowledge');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not fetch that page');
+        } finally {
+            setFetchingSite(false);
+        }
+    };
+
+    const handleRemoveWebsite = async () => {
+        try {
+            await removeWebsiteKnowledge();
+            setWebsite({ url: '', chars: 0 });
+            setWebsiteInput('');
+        } catch {
+            toast.error('Could not remove the website content');
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage, restrictedTopics);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -252,6 +304,67 @@ export default function VendorAssistantSettingsPage() {
                                     (plus the products they want), the order is created automatically.
                                 </p>
                                 <TagEditor label="Fields" tags={orderFields} placeholder="Add field, press Enter" onChange={setOrderFields} />
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>More knowledge sources</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    Documents (price lists, policies) and your website — the AI reads them alongside the knowledge box.
+                                </p>
+                                <div className="space-y-2 mb-4">
+                                    {docs.map((doc) => (
+                                        <div key={doc.name} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ backgroundColor: `${themeConfig.surface}80` }}>
+                                            <span className="text-sm font-semibold truncate" style={{ color: themeConfig.text }}>
+                                                <span className="material-symbols-outlined text-[16px] align-middle mr-1" style={{ color: themeConfig.primary }}>description</span>
+                                                {doc.name}
+                                            </span>
+                                            <span className="text-xs shrink-0" style={{ color: themeConfig.textSecondary }}>{doc.chars} chars</span>
+                                            <button onClick={() => handleDocDelete(doc.name)} aria-label={`Remove ${doc.name}`} className="material-symbols-outlined text-[16px]" style={{ color: '#dc2626' }}>delete</button>
+                                        </div>
+                                    ))}
+                                    {docs.length < 3 && (
+                                        <label
+                                            className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-2.5 text-sm font-bold cursor-pointer"
+                                            style={{ borderColor: `${primaryColor}40`, color: primaryColor }}
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                                            Upload document (.txt, .md, .csv, .pdf)
+                                            <input type="file" accept=".txt,.md,.csv,.pdf" className="hidden" onChange={(e) => handleDocUpload(e.target.files)} />
+                                        </label>
+                                    )}
+                                </div>
+                                <div className="flex gap-2">
+                                    <input
+                                        value={websiteInput}
+                                        onChange={(e) => setWebsiteInput(e.target.value)}
+                                        placeholder="https://your-website.com"
+                                        className="flex-1 rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                        style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                    />
+                                    <button
+                                        onClick={handleFetchWebsite}
+                                        disabled={fetchingSite}
+                                        className="px-4 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                                        style={{ backgroundColor: primaryColor }}
+                                    >
+                                        {fetchingSite ? 'Fetching…' : 'Fetch'}
+                                    </button>
+                                </div>
+                                {website.chars > 0 && (
+                                    <p className="mt-2 flex items-center gap-2 text-xs" style={{ color: themeConfig.textSecondary }}>
+                                        <span className="material-symbols-outlined text-[14px]" style={{ color: '#16a34a' }}>check_circle</span>
+                                        {website.url} — {website.chars} chars in knowledge
+                                        <button onClick={handleRemoveWebsite} className="font-bold underline" style={{ color: '#dc2626' }}>remove</button>
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Restricted topics</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    The assistant will politely refuse to discuss these and steer back to your shop.
+                                </p>
+                                <TagEditor label="Topics" tags={restrictedTopics} placeholder="Add topic, press Enter" onChange={setRestrictedTopics} />
                             </div>
 
                             <div

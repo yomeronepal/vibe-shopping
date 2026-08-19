@@ -18,10 +18,12 @@ router.register(r'themes', ThemeViewSet, basename='vendor-themes')
 
 from vendor.order_views import ProductStockHistoryView, VendorOrderDetailView, VendorOrderInvoiceSendView, VendorOrderListView
 from vendor.product_analytics_views import ProductAnalyticsView
-from vendor.profile_views import VendorStoreProfileView
+from vendor.profile_views import KnowledgeDocumentView, KnowledgeWebsiteView, VendorStoreProfileView
 
 urlpatterns = [
     path('profile/', VendorStoreProfileView.as_view(), name='vendor-store-profile'),
+    path('knowledge/documents/', KnowledgeDocumentView.as_view(), name='vendor-knowledge-documents'),
+    path('knowledge/website/', KnowledgeWebsiteView.as_view(), name='vendor-knowledge-website'),
     path('products/<int:product_id>/analytics/', ProductAnalyticsView.as_view(), name='vendor-product-analytics'),
     path('products/<int:product_id>/stock-history/', ProductStockHistoryView.as_view(), name='vendor-product-stock-history'),
     path('orders/', VendorOrderListView.as_view(), name='vendor-orders'),

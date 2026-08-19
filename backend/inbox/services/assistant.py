@@ -128,8 +128,10 @@ def get_order_fields(tenant):
 
 def build_suggestion_prompt(conversation):
     """Assemble the grounded prompt for one reply suggestion."""
+    from inbox.services.knowledge import build_knowledge_block
+
     tenant = conversation.tenant
-    knowledge = (tenant.metadata or {}).get('aiKnowledge', '')
+    knowledge = build_knowledge_block(tenant)
     order_fields = ', '.join(get_order_fields(tenant))
     return f"""You are the customer-support assistant for a small business in Nepal that sells through Facebook and Instagram messages.
 
@@ -154,7 +156,7 @@ Write the Business's next reply. Rules:
 5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then collect what is still missing from this list: {order_fields}.
 6. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 
-Return ONLY the reply text, nothing else."""
+Return ONLY the reply text, nothing else.{get_restricted_rule(tenant)}"""
 
 
 def call_claude_fallback(prompt):
@@ -205,6 +207,18 @@ ASSISTANT_LANGUAGES = {
     'nepali': 'Always reply in Nepali written in Latin script (romanized Nepali).',
     'mixed': 'Always reply in the natural English + romanized Nepali mix used by Nepali online shops.',
 }
+
+
+def get_restricted_rule(tenant):
+    """Return the restricted-topics rule, or empty when none are set."""
+    topics = (tenant.metadata or {}).get('restrictedTopics') or []
+    if not topics:
+        return ''
+    joined = ', '.join(str(topic) for topic in topics[:10])
+    return (
+        f'\nRESTRICTED: Never discuss these topics: {joined}. '
+        'If the customer brings one up, politely decline and steer back to the shop.'
+    )
 
 
 def get_tone_hint(tenant):
@@ -335,8 +349,10 @@ def extract_order(conversation):
 
 def build_order_flow_prompt(conversation):
     """Assemble the combined reply + order-state prompt for the bot."""
+    from inbox.services.knowledge import build_knowledge_block
+
     tenant = conversation.tenant
-    knowledge = (tenant.metadata or {}).get('aiKnowledge', '')
+    knowledge = build_knowledge_block(tenant)
     fields = get_order_fields(tenant)
     fields_json = ', '.join(f'"{field}": "<value or empty string>"' for field in fields)
     return f"""You run the chat for a small Nepali business selling on Facebook and Instagram. You both answer the customer and collect order information.
@@ -372,7 +388,7 @@ Rules:
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
 8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 9. sentiment reflects the customer's mood in their recent messages.
-10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else."""
+10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}"""
 
 
 def advance_order_conversation(conversation):
