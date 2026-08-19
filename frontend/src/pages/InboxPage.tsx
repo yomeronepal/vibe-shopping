@@ -554,27 +554,27 @@ export default function InboxPage() {
                                         style={{ color: themeConfig.text }}
                                     />
                                 </div>
-                                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-                                    {summary && (
-                                        <div
-                                            className="rounded-xl border p-4 text-sm leading-relaxed whitespace-pre-wrap relative"
-                                            style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}25`, color: themeConfig.text }}
-                                        >
-                                            <div className="flex items-center gap-1.5 mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: primaryColor }}>
-                                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                                                AI summary
-                                            </div>
-                                            {summary}
-                                            <button
-                                                onClick={() => setSummary('')}
-                                                aria-label="Dismiss summary"
-                                                className="absolute top-2 right-2 material-symbols-outlined text-[16px]"
-                                                style={{ color: themeConfig.textSecondary }}
-                                            >
-                                                close
-                                            </button>
+                                {summary && (
+                                    <div
+                                        className="mx-5 mt-3 rounded-xl border p-4 text-sm leading-relaxed whitespace-pre-wrap relative shadow-sm max-h-56 overflow-y-auto"
+                                        style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}25`, color: themeConfig.text }}
+                                    >
+                                        <div className="flex items-center gap-1.5 mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: primaryColor }}>
+                                            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                            AI summary
                                         </div>
-                                    )}
+                                        {summary}
+                                        <button
+                                            onClick={() => setSummary('')}
+                                            aria-label="Dismiss summary"
+                                            className="absolute top-2 right-2 material-symbols-outlined text-[16px]"
+                                            style={{ color: themeConfig.textSecondary }}
+                                        >
+                                            close
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                                     {messages.map((message) => (
                                         <MessageBubble
                                             key={message.platform_message_id}
