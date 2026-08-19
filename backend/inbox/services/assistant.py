@@ -233,7 +233,7 @@ CONVERSATION (Customer is the buyer; Business is the shop)
 
 TASK
 Decide whether the customer has clearly asked to buy something. Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"order_detected": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "customer_name": "<name if the customer stated one, else empty string>", "note": "<one short sentence explaining your decision>"}}
+{{"order_detected": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "customer_name": "<name if the customer stated one, else empty string>", "note": "<one short sentence explaining your decision>"}}
 
 Rules:
 1. order_detected is true only when the customer explicitly wants to buy, not when they are just asking questions.
@@ -273,6 +273,8 @@ def coerce_extracted_item(item, products):
         'price': format_price(product.price),
         'quantity': quantity,
         'stock': product.stock,
+        'size': str(item.get('size') or '').strip()[:20],
+        'color': str(item.get('color') or '').strip()[:50],
     }
 
 
@@ -329,7 +331,7 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, simple everyday words, plain text, no markdown.

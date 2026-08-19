@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
@@ -14,6 +14,8 @@ import {
 const STATUS_LABELS: Record<string, string> = {
     pending_payment: 'Pending payment',
     pending_delivery: 'Pending delivery',
+    preparing: 'Preparing',
+    returned: 'Returned',
     shipped: 'Shipped',
     delivered: 'Delivered',
     completed: 'Completed',
@@ -24,6 +26,8 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
     pending_payment: { bg: '#fef3c7', fg: '#b45309' },
     pending_delivery: { bg: '#dbeafe', fg: '#1d4ed8' },
+    preparing: { bg: '#fef9c3', fg: '#a16207' },
+    returned: { bg: '#ffedd5', fg: '#c2410c' },
     shipped: { bg: '#e0e7ff', fg: '#4338ca' },
     delivered: { bg: '#dcfce7', fg: '#15803d' },
     completed: { bg: '#dcfce7', fg: '#166534' },
@@ -112,7 +116,11 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                 <div className="mt-3 pt-3 border-t space-y-1" style={{ borderColor: `${themeConfig.border}50` }}>
                     {order.items.map((item, index) => (
                         <p key={index} className="text-sm" style={{ color: themeConfig.textSecondary }}>
-                            {item.quantity} × {item.product_name} — Rs. {item.price}
+                            {item.quantity} × {item.product_name}
+                            {(item.size || item.color) && (
+                                <span className="font-semibold"> ({[item.size, item.color].filter(Boolean).join(', ')})</span>
+                            )}
+                            {' — Rs. '}{item.price}
                         </p>
                     ))}
                 </div>
@@ -123,26 +131,34 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
 
 export default function VendorOrdersPage() {
     const { config: themeConfig } = useShopTheme();
+    const [searchParams] = useSearchParams();
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
+    const [search, setSearch] = useState(searchParams.get('q') ?? '');
+    const [statusFilter, setStatusFilter] = useState('all');
 
-    const loadOrders = () => {
-        listVendorOrders()
+    const loadOrders = (q = search, status = statusFilter) => {
+        listVendorOrders(q, status)
             .then(setOrders)
             .catch(() => toast.error('Could not load orders. Refresh to retry.'))
             .finally(() => setLoading(false));
     };
 
     useEffect(() => {
-        loadOrders();
-    }, []);
+        const handle = window.setTimeout(() => loadOrders(), search ? 350 : 0);
+        return () => window.clearTimeout(handle);
+    }, [search, statusFilter]);
 
     const handleStatusChange = async (order: VendorOrder, status: string) => {
         try {
             const updated = await updateVendorOrderStatus(order.id, status);
             setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-            toast.success(`Order #${order.id} marked ${STATUS_LABELS[status] ?? status}`);
+            toast.success(
+                updated.customer_notified
+                    ? `Order #${order.id} marked ${STATUS_LABELS[status] ?? status} — customer notified on Messenger`
+                    : `Order #${order.id} marked ${STATUS_LABELS[status] ?? status}`
+            );
         } catch {
             toast.error('Could not update the order status');
         }
@@ -170,7 +186,43 @@ export default function VendorOrdersPage() {
                             New order
                         </button>
                     </div>
-                    <div className="mt-8 space-y-4">
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                        <div
+                            className="flex items-center gap-2 rounded-xl px-3 py-2 flex-1 min-w-[220px] border"
+                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border }}
+                        >
+                            <span className="material-symbols-outlined text-[18px]" style={{ color: themeConfig.textSecondary }}>search</span>
+                            <input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search order #, customer, phone, or product…"
+                                className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm"
+                                style={{ color: themeConfig.text }}
+                            />
+                            {search && (
+                                <button
+                                    onClick={() => setSearch('')}
+                                    aria-label="Clear order search"
+                                    className="material-symbols-outlined text-[16px]"
+                                    style={{ color: themeConfig.textSecondary }}
+                                >
+                                    close
+                                </button>
+                            )}
+                        </div>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none"
+                            style={{ backgroundColor: themeConfig.surface, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                        >
+                            <option value="all">All statuses</option>
+                            {ORDER_STATUSES.map((value) => (
+                                <option key={value} value={value}>{STATUS_LABELS[value]}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="mt-6 space-y-4">
                         {orders.map((order) => (
                             <OrderCard
                                 key={order.id}

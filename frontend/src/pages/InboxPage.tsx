@@ -471,6 +471,15 @@ export default function InboxPage() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
+                                            onClick={() => window.open(`/vendor/orders?q=${encodeURIComponent(displayName(active))}`, '_self')}
+                                            title="See this customer's orders"
+                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all"
+                                            style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                                            Orders
+                                        </button>
+                                        <button
                                             onClick={handleSummarize}
                                             disabled={summarizing}
                                             title="Summarize this conversation with AI"

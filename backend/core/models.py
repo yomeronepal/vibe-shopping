@@ -257,10 +257,12 @@ class Order(TimeStampedModel):
     ORDER_STATUS_CHOICES = [
         ('pending_payment', 'Pending Payment'),
         ('pending_delivery', 'Pending Delivery'), # Paid & in Escrow
+        ('preparing', 'Preparing'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('completed', 'Completed'), # Funds Released
         ('cancelled', 'Cancelled'), # Funds Refunded
+        ('returned', 'Returned'),
         ('disputed', 'Disputed'),
     ]
     
@@ -301,6 +303,8 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
+    size = models.CharField(max_length=20, blank=True, default='')
+    color = models.CharField(max_length=50, blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2) # Snapshot of price at purchase
     
     def __str__(self):

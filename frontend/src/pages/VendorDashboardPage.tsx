@@ -11,6 +11,8 @@ import { mediaUrl } from '../api/media';
 const ORDER_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
     pending_payment: { bg: '#fef3c7', fg: '#b45309' },
     pending_delivery: { bg: '#dbeafe', fg: '#1d4ed8' },
+    preparing: { bg: '#fef9c3', fg: '#a16207' },
+    returned: { bg: '#ffedd5', fg: '#c2410c' },
     shipped: { bg: '#e0e7ff', fg: '#4338ca' },
     delivered: { bg: '#dcfce7', fg: '#15803d' },
     completed: { bg: '#dcfce7', fg: '#15803d' },

@@ -1137,7 +1137,9 @@ class POSOrderViewSet(viewsets.GenericViewSet):
                     items_to_create.append({
                         'product': product,
                         'quantity': item_data['quantity'],
-                        'price': product.price
+                        'price': product.price,
+                        'size': item_data.get('size', ''),
+                        'color': item_data.get('color', ''),
                     })
                 
                 # Create Order
@@ -1159,7 +1161,9 @@ class POSOrderViewSet(viewsets.GenericViewSet):
                         order=order,
                         product=item['product'],
                         quantity=item['quantity'],
-                        price=item['price']
+                        price=item['price'],
+                        size=item.get('size', ''),
+                        color=item.get('color', ''),
                     )
                     
                     # Update stock

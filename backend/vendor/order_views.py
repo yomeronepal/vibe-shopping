@@ -12,6 +12,8 @@ class VendorOrderItemSerializer(serializers.Serializer):
     product_name = serializers.CharField(source='product.name')
     quantity = serializers.IntegerField()
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    size = serializers.CharField(required=False, allow_blank=True)
+    color = serializers.CharField(required=False, allow_blank=True)
 
 
 class VendorOrderSerializer(serializers.ModelSerializer):
@@ -52,7 +54,13 @@ class VendorOrderListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """List the tenant's orders, newest first."""
+        """List the tenant's orders, newest first.
+
+        Supports ?status= and ?q= (order id, customer name/phone,
+        or product name).
+        """
+        from django.db.models import Q
+
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
@@ -61,6 +69,19 @@ class VendorOrderListView(APIView):
             .prefetch_related('items__product')
             .order_by('-created_at')
         )
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            orders = orders.filter(status=status_filter)
+        search = (request.query_params.get('q') or '').strip()
+        if search:
+            query = (
+                Q(customer_name__icontains=search)
+                | Q(customer_phone__icontains=search)
+                | Q(items__product__name__icontains=search)
+            )
+            if search.isdigit():
+                query = query | Q(id=int(search))
+            orders = orders.filter(query).distinct()
         return Response(VendorOrderSerializer(orders, many=True).data)
 
 
@@ -94,7 +115,42 @@ class VendorOrderDetailView(APIView):
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         order.status = new_status
         order.save(update_fields=['status'])
-        return Response(VendorOrderSerializer(order).data)
+        notified = notify_customer_of_status(order)
+        data = VendorOrderSerializer(order).data
+        data['customer_notified'] = notified
+        return Response(data)
+
+
+STATUS_NOTIFICATIONS = {
+    'preparing': 'Your order #{id} is being prepared. We will update you soon!',
+    'shipped': 'Good news! Your order #{id} has been shipped and is on its way.',
+    'delivered': 'Your order #{id} has been delivered. Dhanyabad for shopping with us!',
+    'cancelled': 'Your order #{id} has been cancelled. Message us if you have any questions.',
+    'returned': 'We have recorded the return of your order #{id}. Message us for anything else.',
+}
+
+
+def notify_customer_of_status(order):
+    """DM the customer about the new status when the order came from chat."""
+    template = STATUS_NOTIFICATIONS.get(order.status)
+    conversation_id = (order.metadata or {}).get('conversation_id')
+    if not template or not conversation_id:
+        return False
+    from inbox.models import Conversation
+    from inbox.services.sending import ConversationSendError, send_conversation_text
+
+    conversation = (
+        Conversation.objects.filter(tenant=order.tenant, id=conversation_id)
+        .select_related('customer', 'page')
+        .first()
+    )
+    if conversation is None:
+        return False
+    try:
+        send_conversation_text(conversation, template.format(id=order.id), sent_by_ai=True)
+    except ConversationSendError:
+        return False
+    return True
 
 
 class VendorOrderInvoiceSendView(APIView):

@@ -17,6 +17,8 @@ const PAYMENT_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
     pending_payment: 'Payment pending',
     pending_delivery: 'Pending delivery',
+    preparing: 'Preparing',
+    returned: 'Returned',
     shipped: 'Shipped',
     delivered: 'Delivered',
     completed: 'Paid',
@@ -211,7 +213,12 @@ export default function VendorOrderInvoicePage() {
                     <tbody className="divide-y divide-gray-100">
                         {order.items.map((item, index) => (
                             <tr key={index}>
-                                <td className="py-3 text-sm font-semibold text-gray-900">{item.product_name}</td>
+                                <td className="py-3 text-sm font-semibold text-gray-900">
+                                    {item.product_name}
+                                    {(item.size || item.color) && (
+                                        <span className="text-gray-500 font-normal"> ({[item.size, item.color].filter(Boolean).join(', ')})</span>
+                                    )}
+                                </td>
                                 <td className="py-3 text-sm text-gray-600 text-center">{item.quantity}</td>
                                 <td className="py-3 text-sm text-gray-600 text-right">Rs. {parseFloat(item.price).toLocaleString()}</td>
                                 <td className="py-3 text-sm font-bold text-gray-900 text-right">

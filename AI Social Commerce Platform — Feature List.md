@@ -160,8 +160,8 @@ Convert social conversations into structured orders.
 
 - [x] Extract product from conversation
 - [x] Extract quantity
-- [ ] Extract size
-- [ ] Extract color
+- [x] Extract size
+- [x] Extract color
 - [x] Extract customer name
 - [x] Extract phone number
 - [x] Extract delivery address
@@ -173,21 +173,21 @@ Convert social conversations into structured orders.
 
 - [x] Pending confirmation (pending payment / pending delivery)
 - [x] Confirmed (completed)
-- [ ] Preparing
+- [x] Preparing
 - [x] Shipped
 - [x] Delivered
 - [x] Cancelled
-- [ ] Returned
+- [x] Returned
 
 ### Order Management
 
 - [x] Order dashboard
 - [x] Order status updates from the dashboard
-- [ ] Order search
-- [ ] Order filtering
+- [x] Order search (id, customer, phone, product)
+- [x] Order filtering (by status)
 - [x] Order history
-- [ ] Customer order history
-- [ ] Order notifications
+- [x] Customer order history (Orders button in the chat thread)
+- [x] Order notifications (status changes DM the customer automatically for chat orders)
 - [x] Invoice generation (printable / save as PDF)
 - [x] Send invoice to the customer via Messenger
 
@@ -310,8 +310,8 @@ Automatically maintain customer profiles.
 
 - [ ] Abandoned-order follow-up
 - [ ] Order confirmation
-- [ ] Shipping notification
-- [ ] Delivery notification
+- [x] Shipping notification (automatic DM on status change)
+- [x] Delivery notification (automatic DM on status change)
 - [ ] Review request
 - [ ] Repeat-purchase reminder
 - [ ] New-product notification

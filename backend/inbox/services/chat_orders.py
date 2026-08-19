@@ -70,7 +70,7 @@ def create_chat_order(conversation, items, collected):
             quantity = min(max(1, int(item['quantity'])), product.stock) if product.stock > 0 else 0
             if quantity < 1:
                 continue
-            lines.append((product, quantity))
+            lines.append((product, quantity, item.get('size', ''), item.get('color', '')))
             total += product.price * quantity
         if not lines:
             return None
@@ -90,8 +90,11 @@ def create_chat_order(conversation, items, collected):
                 'collected': collected,
             },
         )
-        for product, quantity in lines:
-            OrderItem.objects.create(order=order, product=product, quantity=quantity, price=product.price)
+        for product, quantity, size, color in lines:
+            OrderItem.objects.create(
+                order=order, product=product, quantity=quantity, price=product.price,
+                size=size, color=color,
+            )
             product.stock -= quantity
             product.save(update_fields=['stock'])
     logger.info('Chat bot created order %s for conversation %s', order.id, conversation.id)

@@ -4,6 +4,8 @@ export interface VendorOrderItem {
     product_name: string;
     quantity: number;
     price: string;
+    size?: string;
+    color?: string;
 }
 
 export interface VendorOrder {
@@ -23,19 +25,24 @@ export interface VendorOrder {
 export const ORDER_STATUSES = [
     'pending_payment',
     'pending_delivery',
+    'preparing',
     'shipped',
     'delivered',
     'completed',
     'cancelled',
+    'returned',
     'disputed',
 ] as const;
 
-export const listVendorOrders = async (): Promise<VendorOrder[]> => {
-    const response = await apiClient.get('/vendor/orders/');
+export const listVendorOrders = async (q?: string, status?: string): Promise<VendorOrder[]> => {
+    const params: Record<string, string> = {};
+    if (q && q.trim()) params.q = q.trim();
+    if (status && status !== 'all') params.status = status;
+    const response = await apiClient.get('/vendor/orders/', { params });
     return response.data;
 };
 
-export const updateVendorOrderStatus = async (orderId: number, status: string): Promise<VendorOrder> => {
+export const updateVendorOrderStatus = async (orderId: number, status: string): Promise<VendorOrder & { customer_notified?: boolean }> => {
     const response = await apiClient.patch(`/vendor/orders/${orderId}/`, { status });
     return response.data;
 };

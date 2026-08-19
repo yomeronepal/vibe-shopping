@@ -72,13 +72,15 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 class OrderItemSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
+    size = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    color = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
 class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemSerializer(many=True)
     order_type = serializers.ChoiceField(choices=['online', 'pos'], default='online')
     payment_method = serializers.CharField(max_length=50, required=False, default='credit_card')
     status = serializers.ChoiceField(
-        choices=['pending_payment', 'pending_delivery', 'shipped', 'delivered', 'completed'],
+        choices=['pending_payment', 'pending_delivery', 'preparing', 'shipped', 'delivered', 'completed'],
         required=False,
         default='completed',
     )
