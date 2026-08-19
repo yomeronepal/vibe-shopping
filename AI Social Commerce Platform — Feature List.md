@@ -339,9 +339,9 @@ Businesses can provide information that AI should use when responding.
 ### AI Controls
 
 - [x] Business-specific AI context
-- [ ] Custom system instructions
-- [ ] Brand tone
-- [ ] Allowed languages
+- [x] Custom system instructions (knowledge box + voice settings shape the system prompt)
+- [x] Brand tone (assistant tone setting: friendly / professional / casual)
+- [x] Allowed languages (assistant language setting: match customer / English / Nepali / mixed)
 - [ ] Restricted topics
 - [x] Human approval rules (Copilot: every reply and order is human-approved)
 

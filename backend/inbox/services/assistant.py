@@ -149,8 +149,8 @@ TASK
 Write the Business's next reply. Rules:
 1. Product names, prices, and availability must come ONLY from the catalog above. Sizes and colors listed there (with per-size stock counts) are the only ones that exist; a count of 0 means out of stock. Never invent products, prices, discounts, or delivery times.
 2. If the answer is not in the profile, knowledge, or catalog, say you will check and get back to them — do not guess.
-3. Reply in the same language the customer used (English, Nepali, or romanized Nepali mix).
-4. Sound like a friendly shop owner on Messenger: warm, natural, at most 2-3 short sentences. No hashtags or signatures.
+3. {get_language_rule(tenant)}
+4. Sound {get_tone_hint(tenant)} on Messenger: at most 2-3 short sentences. No hashtags or signatures.
 5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then collect what is still missing from this list: {order_fields}.
 6. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 
@@ -193,6 +193,33 @@ def call_gemini(prompt):
 def suggest_reply(conversation):
     """Return an AI-drafted reply for the conversation."""
     return call_gemini(build_suggestion_prompt(conversation))
+
+
+ASSISTANT_TONES = {
+    'professional': 'polished and professional, while staying approachable',
+    'casual': 'casual and playful, like chatting with a friend',
+}
+
+ASSISTANT_LANGUAGES = {
+    'english': 'Always reply in clear English.',
+    'nepali': 'Always reply in Nepali written in Latin script (romanized Nepali).',
+    'mixed': 'Always reply in the natural English + romanized Nepali mix used by Nepali online shops.',
+}
+
+
+def get_tone_hint(tenant):
+    """Return the reply-tone description from the assistant settings."""
+    tone = (tenant.metadata or {}).get('aiTone', '')
+    return ASSISTANT_TONES.get(tone, 'warm and natural, like a friendly shop owner')
+
+
+def get_language_rule(tenant):
+    """Return the reply-language rule from the assistant settings."""
+    language = (tenant.metadata or {}).get('aiLanguage', '')
+    return ASSISTANT_LANGUAGES.get(
+        language,
+        'Reply in the same language the customer used (English, Nepali, or romanized Nepali mix).',
+    )
 
 
 def is_auto_reply_enabled(tenant):
@@ -334,7 +361,7 @@ Respond with ONLY a JSON object, no markdown, in this exact shape:
 {{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
-1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, simple everyday words, plain text, no markdown.
+1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
 2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. Sizes and colors listed in a catalog line (with their per-size stock counts) are the ONLY sizes and colors that exist for that product; a size with count 0 is out of stock.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
 3b. Never mention any product that is not in the catalog, and always use the exact catalog names.

@@ -271,3 +271,40 @@ class SummarizeAndSignalTests(AssistantTestBase):
         from inbox.services.assistant import build_order_flow_prompt
         self.assertIn('recommend 1-2 fitting products FROM THE CATALOG ONLY', build_suggestion_prompt(self.convo))
         self.assertIn('recommend 1-2 fitting products FROM THE CATALOG ONLY', build_order_flow_prompt(self.convo))
+
+
+class AssistantVoiceSettingTests(AssistantTestBase):
+    def test_default_tone_and_language(self):
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('warm and natural, like a friendly shop owner', prompt)
+        self.assertIn('same language the customer used', prompt)
+
+    def test_configured_tone_and_language(self):
+        self.tenant.metadata.update({'aiTone': 'professional', 'aiLanguage': 'english'})
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('polished and professional', prompt)
+        self.assertIn('Always reply in clear English.', prompt)
+
+    def test_order_flow_prompt_uses_settings(self):
+        from inbox.services.assistant import build_order_flow_prompt
+        self.tenant.metadata.update({'aiTone': 'casual', 'aiLanguage': 'nepali'})
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        prompt = build_order_flow_prompt(self.convo)
+        self.assertIn('casual and playful', prompt)
+        self.assertIn('romanized Nepali', prompt)
+
+    def test_profile_round_trips_voice_settings(self):
+        response = self.client.patch('/api/vendor/profile/', {
+            'ai_tone': 'professional', 'ai_language': 'mixed',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['ai_tone'], 'professional')
+        self.assertEqual(response.data['ai_language'], 'mixed')
+        response = self.client.patch('/api/vendor/profile/', {
+            'ai_tone': 'invalid-tone', 'ai_language': 'klingon',
+        }, format='json')
+        self.assertEqual(response.data['ai_tone'], '')
+        self.assertEqual(response.data['ai_language'], '')

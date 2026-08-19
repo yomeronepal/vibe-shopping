@@ -29,6 +29,8 @@ def build_profile_payload(tenant):
         'ai_knowledge': metadata.get('aiKnowledge', ''),
         'ai_assistant_enabled': bool(metadata.get('aiAssistantEnabled', True)),
         'ai_auto_reply': bool(metadata.get('aiAutoReply', False)),
+        'ai_tone': metadata.get('aiTone', ''),
+        'ai_language': metadata.get('aiLanguage', ''),
         'order_fields': metadata.get('orderFields') or ['Full name', 'Phone number', 'Delivery address'],
     }
 
@@ -60,6 +62,10 @@ def apply_profile_fields(tenant, metadata, data):
         metadata['aiAssistantEnabled'] = data['ai_assistant_enabled']
     if 'ai_auto_reply' in data:
         metadata['aiAutoReply'] = data['ai_auto_reply']
+    if 'ai_tone' in data:
+        metadata['aiTone'] = data['ai_tone'] if data['ai_tone'] in ('professional', 'casual') else ''
+    if 'ai_language' in data:
+        metadata['aiLanguage'] = data['ai_language'] if data['ai_language'] in ('english', 'nepali', 'mixed') else ''
     if 'order_fields' in data:
         metadata['orderFields'] = parse_string_list(data['order_fields'])[:10]
 

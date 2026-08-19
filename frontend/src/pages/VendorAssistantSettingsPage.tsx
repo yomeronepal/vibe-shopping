@@ -19,6 +19,8 @@ export default function VendorAssistantSettingsPage() {
     const [enabled, setEnabled] = useState(true);
     const [autoReply, setAutoReply] = useState(false);
     const [orderFields, setOrderFields] = useState<string[]>([]);
+    const [tone, setTone] = useState('');
+    const [language, setLanguage] = useState('');
     const [knowledge, setKnowledge] = useState('');
 
     const primaryColor = themeConfig.primary;
@@ -29,6 +31,8 @@ export default function VendorAssistantSettingsPage() {
                 setEnabled(profile.ai_assistant_enabled);
                 setAutoReply(profile.ai_auto_reply);
                 setOrderFields(profile.order_fields);
+                setTone(profile.ai_tone);
+                setLanguage(profile.ai_language);
                 setKnowledge(profile.ai_knowledge);
             })
             .catch(() => toast.error('Could not load assistant settings'))
@@ -38,7 +42,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -148,6 +152,42 @@ export default function VendorAssistantSettingsPage() {
                                         You can pause the bot for any single conversation from its thread header.
                                     </p>
                                 )}
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Voice & language</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    How the assistant sounds in every reply — drafts and the auto-reply bot alike.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Tone</label>
+                                        <select
+                                            value={tone}
+                                            onChange={(e) => setTone(e.target.value)}
+                                            className="w-full rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Friendly (default)</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="casual">Casual</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Language</label>
+                                        <select
+                                            value={language}
+                                            onChange={(e) => setLanguage(e.target.value)}
+                                            className="w-full rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Match the customer (default)</option>
+                                            <option value="english">Always English</option>
+                                            <option value="nepali">Always Nepali (romanized)</option>
+                                            <option value="mixed">Always mixed Nepali-English</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
