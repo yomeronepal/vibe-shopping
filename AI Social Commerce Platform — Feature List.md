@@ -6,7 +6,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 
 ---
 
-> **Build status (2026-08-19):** Two cycles complete. **Foundation + publishing** (PR #1): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection, signature-validated webhook receiver, product publishing to Facebook/Instagram with per-platform result tracking. **Unified inbox + dashboard sweep** (PR #2, stacked): Messenger and Instagram DMs ingested into conversations (idempotent, echo-aware), real-time WebSocket inbox at /vendor/inbox with replies via Meta's Send API, conversation statuses/unread/read-state, a shared themed VendorShell across Inbox/Orders/Products/Settings with mobile navigation, and a new vendor Orders page with live status management (GET/PATCH /api/vendor/orders/). 120+ backend tests green; verified end-to-end in a real browser including live no-reload message arrival. Remaining to go live: ngrok tunnel + Meta webhook dashboard config (also unlocks Instagram publishing via PUBLIC_MEDIA_BASE_URL).
+> **Build status (2026-08-19):** Two cycles complete. **Foundation + publishing** (PR #1): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection, signature-validated webhook receiver, product publishing to Facebook/Instagram with per-platform result tracking. **Unified inbox + dashboard sweep** (PR #2, stacked): Messenger and Instagram DMs ingested into conversations (idempotent, echo-aware), real-time WebSocket inbox at /vendor/inbox with replies via Meta's Send API, conversation statuses/unread/read-state, a shared themed VendorShell across Inbox/Orders/Products/Settings with mobile navigation, and a new vendor Orders page with live status management (GET/PATCH /api/vendor/orders/). 120+ backend tests green; verified end-to-end in a real browser including live no-reload message arrival. Remaining to go live: ngrok tunnel + Meta webhook dashboard config (also unlocks Instagram publishing via PUBLIC_MEDIA_BASE_URL). **AI sales agent** (#12–#14): opt-in auto-reply bot that answers customers by itself (grounded, debounced, per-conversation pause, AI-labeled messages, unread preserved for vendor review); automatic order creation from chat using a vendor-defined info template (name/phone/address + custom fields) with atomic stock handling and in-chat confirmation — proven with a real order placed entirely through Messenger on the live Page; Facebook & Instagram comments ingested into the inbox and answered via private DM (comment-to-chat), with the commented post mapped back to the catalog product so "pp" gets that product's price.
 
 ## 🚀 Core Features
 
@@ -34,7 +34,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 - [x] Page connection status
 - [x] Disconnect/reconnect Page
 - [x] Facebook Page messaging
-- [ ] Facebook comments
+- [x] Facebook comments (ingested to inbox, answered via private DM)
 - [x] Facebook post publishing
 - [x] Facebook webhooks (receiver with signature validation; live delivery needs a public URL/tunnel)
 - [x] New Pages Experience support (granular-scope Page and Instagram resolution)
@@ -46,7 +46,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 - [x] Account connection status
 - [x] Disconnect/reconnect account
 - [x] Instagram DMs
-- [ ] Instagram comments
+- [x] Instagram comments (ingested to inbox, answered via private DM)
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
 - [x] Instagram webhooks (DM ingestion live; live delivery needs a public URL/tunnel)
 
@@ -58,8 +58,8 @@ Manage customer conversations from one dashboard.
 
 - [x] Instagram DMs
 - [x] Facebook messages
-- [ ] Instagram comments
-- [ ] Facebook comments
+- [x] Instagram comments
+- [x] Facebook comments
 - [x] Conversation list
 - [x] Unread message count
 - [ ] Search conversations
@@ -73,8 +73,8 @@ Manage customer conversations from one dashboard.
 - [x] Reply to DMs from the dashboard (24-hour window enforced)
 - [x] Conversation status
 - [x] Message attachments (receiving and display; sending later)
-- [ ] Human takeover
-- [ ] AI takeover
+- [x] Human takeover (pause the bot per conversation)
+- [x] AI takeover (opt-in auto-reply bot)
 
 ### Conversation statuses
 
@@ -104,7 +104,7 @@ AI automatically handles repetitive customer conversations.
 
 ### AI Capabilities
 
-- [ ] Automatic replies
+- [x] Automatic replies (opt-in bot with debounce and safety rails)
 - [ ] AI suggested replies
 - [ ] Context-aware responses
 - [ ] Customer intent detection
@@ -161,10 +161,10 @@ Convert social conversations into structured orders.
 - [ ] Extract size
 - [ ] Extract color
 - [ ] Extract customer name
-- [ ] Extract phone number
-- [ ] Extract delivery address
+- [x] Extract phone number
+- [x] Extract delivery address
 - [ ] Confirm order details
-- [ ] Create order automatically
+- [x] Create order automatically (when items + all template fields are collected)
 - [ ] Manual order creation
 
 ### Order Status
@@ -347,7 +347,7 @@ Businesses should always be able to control the AI.
 
 ### AI Modes
 
-- [ ] Full AI automation
+- [x] Full AI automation (auto-reply bot)
 - [ ] AI Copilot
 - [ ] Human-only mode
 
@@ -409,7 +409,7 @@ Businesses should always be able to control the AI.
 - [ ] AI conversations
 - [ ] AI resolution rate
 - [ ] Human handoff rate
-- [ ] AI-generated orders
+- [x] AI-generated orders (Chat bot badge + collected fields on the Orders page)
 - [ ] AI conversion rate
 - [ ] AI usage
 - [ ] AI cost tracking
@@ -567,7 +567,7 @@ Businesses should always be able to control the AI.
 - [ ] Automated follow-ups
 - [ ] AI campaigns
 - [ ] Product recommendations
-- [ ] AI sales agent
+- [x] AI sales agent (chat → info gathering → order)
 - [ ] Business knowledge base
 - [ ] Advanced AI controls
 
