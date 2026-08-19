@@ -254,3 +254,23 @@ class PostApiTests(APITestCase):
         ]:
             response = getattr(self.client, method)(url, payload, format='json')
             self.assertEqual(response.status_code, 404)
+
+    def test_create_scheduled_story(self):
+        response = self.client.post('/api/socials/posts/', {
+            'caption': '',
+            'platforms': ['facebook'],
+            'product_id': self.product.id,
+            'scheduled_for': self.future,
+            'post_format': 'story',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data[0]['post_format'], 'story')
+        self.assertEqual(SocialMediaPost.objects.get().post_format, 'story')
+
+    def test_create_rejects_invalid_format(self):
+        response = self.client.post('/api/socials/posts/', {
+            'caption': 'x', 'platforms': ['facebook'],
+            'product_id': self.product.id, 'scheduled_for': self.future,
+            'post_format': 'reel',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)

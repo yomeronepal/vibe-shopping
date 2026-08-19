@@ -76,6 +76,7 @@ export interface ScheduledPost {
     post_url: string | null;
     error_message: string;
     created_at: string;
+    post_format: 'feed' | 'story';
 }
 
 export const listPosts = async (fromDate: string, toDate: string): Promise<ScheduledPost[]> => {

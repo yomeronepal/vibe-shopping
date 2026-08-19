@@ -59,10 +59,42 @@ def publish_instagram(client, page, image_field, caption):
     )
 
 
+def publish_facebook_story(client, page, image_field, caption):
+    """Post the image as a Page story; stories carry no caption."""
+    with image_field.open('rb') as handle:
+        return client.publish_page_story(page.page_id, page.get_access_token(), handle)
+
+
+def publish_instagram_story(client, page, image_field, caption):
+    """Post the image as an IG story; stories carry no caption."""
+    if not page.instagram_account_id:
+        raise MetaGraphError('No Instagram account is linked to the connected Page')
+    image_url = build_public_image_url(image_field)
+    if not image_url:
+        raise MetaGraphError(
+            'Instagram needs a publicly reachable image URL. '
+            'Set PUBLIC_MEDIA_BASE_URL (e.g. an ngrok URL) and restart the backend.'
+        )
+    return client.publish_instagram_story(
+        page.instagram_account_id, page.get_access_token(), image_url
+    )
+
+
 PLATFORM_PUBLISHERS = {
     'facebook': publish_facebook,
     'instagram': publish_instagram,
 }
+
+STORY_PUBLISHERS = {
+    'facebook': publish_facebook_story,
+    'instagram': publish_instagram_story,
+}
+
+
+def select_publisher(record):
+    """Return the publish function for the record's platform and format."""
+    table = STORY_PUBLISHERS if record.post_format == 'story' else PLATFORM_PUBLISHERS
+    return table[record.platform]
 
 
 def mark_failed(record, message):
@@ -84,7 +116,7 @@ def publish_post_record(record):
         return mark_failed(record, 'Post has no image')
     client = MetaGraphClient()
     try:
-        outcome = PLATFORM_PUBLISHERS[record.platform](client, page, image_field, record.caption)
+        outcome = select_publisher(record)(client, page, image_field, record.caption)
     except MetaGraphError as exc:
         if str(exc) == NETWORK_ERROR_MESSAGE:
             raise TransientPublishError(str(exc))

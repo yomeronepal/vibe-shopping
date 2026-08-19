@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import { vendorApi, type Product } from '../api/vendor';
+import { mediaUrl } from '../api/media';
 import {
     createPost,
     deletePost,
@@ -83,7 +84,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 
 function productThumbnail(product: Product): string | null {
     const path = product.processed_image || product.image;
-    return path ? `${API_ORIGIN}${path}` : null;
+    return mediaUrl(path);
 }
 
 export default function PublishingCalendarPage() {
@@ -97,6 +98,7 @@ export default function PublishingCalendarPage() {
     const [connectedPage, setConnectedPage] = useState<ConnectedPage | null>(null);
 
     const [caption, setCaption] = useState('');
+    const [postFormat, setPostFormat] = useState<'feed' | 'story'>('feed');
     const [platforms, setPlatforms] = useState<{ facebook: boolean; instagram: boolean }>({ facebook: false, instagram: false });
     const [imageTab, setImageTab] = useState<'product' | 'upload'>('product');
     const [productId, setProductId] = useState<number | null>(null);
@@ -209,7 +211,8 @@ export default function PublishingCalendarPage() {
 
     const buildCreateFormData = (): FormData => {
         const form = new FormData();
-        form.append('caption', caption);
+        form.append('caption', postFormat === 'story' ? '' : caption);
+        form.append('post_format', postFormat);
         if (platforms.facebook) form.append('platforms', 'facebook');
         if (platforms.instagram) form.append('platforms', 'instagram');
         if (imageTab === 'product' && productId) {
@@ -230,6 +233,7 @@ export default function PublishingCalendarPage() {
     };
 
     const hasPlatformSelected = platforms.facebook || platforms.instagram;
+    const isStoryFormat = (modal?.mode === 'edit' ? (modal.post.post_format ?? 'feed') : postFormat) === 'story';
 
     const handleSchedule = async () => {
         if (!hasPlatformSelected) {
@@ -477,7 +481,7 @@ export default function PublishingCalendarPage() {
                                                     {post.status === 'failed' && (
                                                         <span className="material-symbols-outlined text-[12px]">error</span>
                                                     )}
-                                                    {post.platform === 'facebook' ? 'FB' : 'IG'} {post.caption.slice(0, 18)}
+                                                    {post.platform === 'facebook' ? 'FB' : 'IG'}{post.post_format === 'story' ? ' ◉' : ''} {post.post_format === 'story' && !post.caption ? 'Story' : post.caption.slice(0, 18)}
                                                 </span>
                                             );
                                         })}
@@ -516,16 +520,40 @@ export default function PublishingCalendarPage() {
                         <div className="space-y-4">
                             <div>
                                 <textarea
-                                    value={caption}
+                                    value={isStoryFormat ? '' : caption}
                                     onChange={(event) => setCaption(event.target.value.slice(0, 280))}
-                                    readOnly={isReadOnly}
-                                    placeholder="Write a caption…"
+                                    readOnly={isReadOnly || isStoryFormat}
+                                    placeholder={isStoryFormat ? 'Stories don’t include captions' : 'Write a caption…'}
                                     className="w-full min-h-[100px] rounded-xl p-3 text-sm resize-none focus:outline-none"
-                                    style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                    style={{
+                                        backgroundColor: `${themeConfig.background}`,
+                                        border: `1px solid ${themeConfig.border}`,
+                                        color: themeConfig.text,
+                                        opacity: isStoryFormat ? 0.6 : 1,
+                                    }}
                                 />
                                 <div className="text-right text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
-                                    {caption.length}/280
+                                    {isStoryFormat ? 'Stories don’t include captions' : `${caption.length}/280`}
                                 </div>
+                            </div>
+
+                            <div className="flex gap-2 items-center">
+                                {(['feed', 'story'] as const).map((format) => {
+                                    const active = (isEdit ? (editPost?.post_format ?? 'feed') : postFormat) === format;
+                                    return (
+                                        <button
+                                            key={format}
+                                            disabled={isEdit}
+                                            onClick={() => setPostFormat(format)}
+                                            className="px-3 py-1.5 rounded-full text-sm font-semibold disabled:cursor-not-allowed"
+                                            style={active
+                                                ? { backgroundColor: themeConfig.accent, color: '#ffffff' }
+                                                : { backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                        >
+                                            {format === 'feed' ? 'Feed' : 'Story'}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             <div className="flex gap-2">

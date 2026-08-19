@@ -28,7 +28,7 @@ class SocialMediaPostSerializer(serializers.ModelSerializer):
         model = SocialMediaPost
         fields = [
             'id', 'platform', 'status', 'caption', 'image_url', 'product',
-            'scheduled_for', 'post_url', 'error_message', 'created_at',
+            'scheduled_for', 'post_url', 'error_message', 'created_at', 'post_format',
         ]
 
     def get_image_url(self, obj):

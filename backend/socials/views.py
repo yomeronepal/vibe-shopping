@@ -353,17 +353,23 @@ class PublishPostView(APIView):
             or (product.name if product else '')
         )
         save_as_draft = request.data.get('save_as') == 'draft'
+        post_format = request.data.get('post_format') or 'feed'
+        if post_format not in ('feed', 'story'):
+            return Response(
+                {'error': 'post_format must be feed or story'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         scheduled_for, schedule_error = parse_schedule_datetime(request.data.get('scheduled_for'))
         if schedule_error:
             return Response({'error': schedule_error}, status=status.HTTP_400_BAD_REQUEST)
         is_create_mode = save_as_draft or bool(scheduled_for)
         if is_create_mode:
             return self.create_posts(
-                tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for
+                tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for, post_format
             )
-        return self.publish_immediately(tenant, platforms, product, caption, image_file)
+        return self.publish_immediately(tenant, platforms, product, caption, image_file, post_format)
 
-    def create_posts(self, tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for):
+    def create_posts(self, tenant, platforms, product, caption, image_file, save_as_draft, scheduled_for, post_format):
         """Persist draft or scheduled records without publishing them."""
         if not product and not image_file:
             return Response(
@@ -379,13 +385,14 @@ class PublishPostView(APIView):
                 caption=caption, image=image_file,
                 status='draft' if save_as_draft else 'scheduled',
                 scheduled_for=scheduled_for,
+                post_format=post_format,
             ))
         return Response(
             SocialMediaPostSerializer(records, many=True).data,
             status=status.HTTP_201_CREATED,
         )
 
-    def publish_immediately(self, tenant, platforms, product, caption, image_file):
+    def publish_immediately(self, tenant, platforms, product, caption, image_file, post_format):
         """Publish now, preserving the original immediate-publish behavior."""
         if not product and not image_file:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -401,17 +408,18 @@ class PublishPostView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         results = [
-            self.publish_one(platform, product, tenant, caption, image_file)
+            self.publish_one(platform, product, tenant, caption, image_file, post_format)
             for platform in platforms
         ]
         return Response({'results': results})
 
-    def publish_one(self, platform, product, tenant, caption, image_file):
+    def publish_one(self, platform, product, tenant, caption, image_file, post_format='feed'):
         """Create and publish one record, tolerating transient failures."""
         if image_file:
             image_file.seek(0)
         record = SocialMediaPost.objects.create(
-            product=product, tenant=tenant, platform=platform, caption=caption, image=image_file
+            product=product, tenant=tenant, platform=platform, caption=caption,
+            image=image_file, post_format=post_format,
         )
         try:
             publish_post_record(record)

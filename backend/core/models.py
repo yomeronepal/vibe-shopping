@@ -361,6 +361,11 @@ class SocialMediaPost(TimeStampedModel):
     caption = models.TextField(blank=True)
     image = models.ImageField(upload_to='uploads/social_posts/', null=True, blank=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
+    post_format = models.CharField(
+        max_length=10,
+        choices=[('feed', 'Feed'), ('story', 'Story')],
+        default='feed',
+    )
     post_url = models.URLField(blank=True, null=True)
     platform_post_id = models.CharField(max_length=255, blank=True)
     

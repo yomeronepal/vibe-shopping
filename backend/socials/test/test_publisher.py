@@ -100,3 +100,48 @@ class PublisherTests(TestCase):
         self.page.delete()
         record = publish_post_record(self.make_post())
         self.assertEqual(record.status, 'failed')
+
+
+@override_settings(FERNET_KEY=TEST_KEY, PUBLIC_MEDIA_BASE_URL='https://pub.example.com')
+class StoryPublisherTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        connection = MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb1')
+        self.page = ConnectedPage.objects.create(
+            tenant=self.tenant, connection=connection, page_id='p1',
+            name='Store', instagram_account_id='ig1', status='connected',
+        )
+        self.page.set_access_token('pt1')
+        self.page.save()
+        self.product = Product.objects.create(
+            tenant=self.tenant, name='Jacket', price=10,
+            image=SimpleUploadedFile('jacket.png', PNG_BYTES, 'image/png'),
+        )
+
+    @patch('socials.services.publisher.MetaGraphClient')
+    def test_facebook_story_publishes(self, mock_client_cls):
+        mock_client_cls.return_value.publish_page_story.return_value = {
+            'post_id': 'story1', 'post_url': 'https://facebook.com/story1'
+        }
+        record = SocialMediaPost.objects.create(
+            tenant=self.tenant, product=self.product, platform='facebook',
+            caption='ignored', status='pending', post_format='story',
+        )
+        publish_post_record(record)
+        self.assertEqual(record.status, 'posted')
+        mock_client_cls.return_value.publish_page_story.assert_called_once()
+        mock_client_cls.return_value.publish_page_photo.assert_not_called()
+
+    @patch('socials.services.publisher.MetaGraphClient')
+    def test_instagram_story_publishes(self, mock_client_cls):
+        mock_client_cls.return_value.publish_instagram_story.return_value = {
+            'post_id': 'media5', 'post_url': ''
+        }
+        record = SocialMediaPost.objects.create(
+            tenant=self.tenant, product=self.product, platform='instagram',
+            caption='', status='pending', post_format='story',
+        )
+        publish_post_record(record)
+        self.assertEqual(record.status, 'posted')
+        call = mock_client_cls.return_value.publish_instagram_story.call_args
+        self.assertTrue(call.args[2].startswith('https://pub.example.com/'))

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { mediaUrl } from '../api/media';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import { vendorApi, type Product } from '../api/vendor';
 import toast from 'react-hot-toast';
@@ -259,7 +260,7 @@ const VendorProductListPage: React.FC = () => {
                                             <div
                                                 className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-110"
                                                 style={{
-                                                    backgroundImage: `url(http://localhost:8000${product.processed_image || product.image})`
+                                                    backgroundImage: `url(${mediaUrl(product.processed_image || product.image)})`
                                                 }}
                                             />
                                         ) : (
