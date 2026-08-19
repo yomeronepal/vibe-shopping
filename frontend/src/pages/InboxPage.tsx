@@ -182,6 +182,7 @@ export default function InboxPage() {
     const { conversations, messages, activeConversationId, statusFilter, loading, sendError } =
         useAppSelector((state) => state.inbox);
     const [draft, setDraft] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
@@ -196,8 +197,11 @@ export default function InboxPage() {
     const primaryColor = themeConfig.primary;
 
     useEffect(() => {
-        dispatch(fetchConversations(statusFilter));
-    }, [dispatch, statusFilter]);
+        const handle = window.setTimeout(() => {
+            dispatch(fetchConversations({ status: statusFilter, q: searchQuery }));
+        }, searchQuery ? 350 : 0);
+        return () => window.clearTimeout(handle);
+    }, [dispatch, statusFilter, searchQuery]);
 
     useEffect(() => {
         threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -321,9 +325,35 @@ export default function InboxPage() {
                     style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
                 >
                     <div
-                        className={`${active ? 'hidden md:block' : 'block'} w-full md:w-96 overflow-y-auto border-r`}
+                        className={`${active ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r`}
                         style={{ borderColor: `${themeConfig.border}50` }}
                     >
+                        <div className="p-3 border-b" style={{ borderColor: `${themeConfig.border}50` }}>
+                            <div
+                                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                                style={{ backgroundColor: `${themeConfig.border}30` }}
+                            >
+                                <span className="material-symbols-outlined text-[18px]" style={{ color: themeConfig.textSecondary }}>search</span>
+                                <input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search name or messages…"
+                                    className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm"
+                                    style={{ color: themeConfig.text }}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        aria-label="Clear search"
+                                        className="material-symbols-outlined text-[16px]"
+                                        style={{ color: themeConfig.textSecondary }}
+                                    >
+                                        close
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
                         {conversations.map((conversation) => (
                             <ConversationRow
                                 key={conversation.id}
@@ -334,13 +364,18 @@ export default function InboxPage() {
                         ))}
                         {!loading && conversations.length === 0 && (
                             <div className="p-8 text-center">
-                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>forum</span>
-                                <p className="text-sm font-medium" style={{ color: themeConfig.text }}>No conversations yet</p>
+                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>{searchQuery ? 'search_off' : 'forum'}</span>
+                                <p className="text-sm font-medium" style={{ color: themeConfig.text }}>
+                                    {searchQuery ? 'No conversations match' : 'No conversations yet'}
+                                </p>
                                 <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
-                                    Messages from your connected Facebook Page and Instagram will appear here.
+                                    {searchQuery
+                                        ? 'Try a different name or keyword.'
+                                        : 'Messages from your connected Facebook Page and Instagram will appear here.'}
                                 </p>
                             </div>
                         )}
+                        </div>
                     </div>
                     <div className={`${active ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
                         {active ? (

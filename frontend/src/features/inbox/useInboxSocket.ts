@@ -26,7 +26,7 @@ export function useInboxSocket() {
             socket.onopen = () => {
                 if (retryRef.current > 0) {
                     const { statusFilter, activeConversationId } = store.getState().inbox;
-                    dispatch(fetchConversations(statusFilter));
+                    dispatch(fetchConversations({ status: statusFilter }));
                     if (activeConversationId) {
                         dispatch(fetchMessages(activeConversationId));
                     }

@@ -36,8 +36,10 @@ export interface InboxMessage {
     sent_by_ai: boolean;
 }
 
-export const listConversations = async (status?: string): Promise<InboxConversation[]> => {
-    const params = status && status !== 'all' ? { status } : {};
+export const listConversations = async (status?: string, q?: string): Promise<InboxConversation[]> => {
+    const params: Record<string, string> = {};
+    if (status && status !== 'all') params.status = status;
+    if (q && q.trim()) params.q = q.trim();
     const response = await apiClient.get('/inbox/conversations/', { params });
     return response.data;
 };

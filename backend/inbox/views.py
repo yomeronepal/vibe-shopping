@@ -1,5 +1,6 @@
 import logging
 
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -45,7 +46,11 @@ class ConversationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """List the tenant's conversations, newest activity first."""
+        """List the tenant's conversations, newest activity first.
+
+        Supports ?status=, ?platform=, and ?q= which searches the
+        customer name and full message history.
+        """
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
@@ -56,6 +61,12 @@ class ConversationListView(APIView):
         platform_filter = request.query_params.get('platform')
         if platform_filter:
             queryset = queryset.filter(platform=platform_filter)
+        search = (request.query_params.get('q') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(customer__name__icontains=search)
+                | Q(messages__text__icontains=search)
+            ).distinct()
         return Response(ConversationSerializer(queryset, many=True).data)
 
 
