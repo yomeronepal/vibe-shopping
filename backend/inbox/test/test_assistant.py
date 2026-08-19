@@ -194,3 +194,42 @@ class OrderExtractionTests(AssistantTestBase):
         self.tenant.save()
         response = self.extract()
         self.assertEqual(response.status_code, 400)
+
+
+class SizeColorPromptTests(AssistantTestBase):
+    def setUp(self):
+        super().setUp()
+        from core.models import ProductVariant
+        shirt = Product.objects.get(name='Linen Shirt')
+        shirt.stock_by_size = {'S': 2, 'M': 0, 'L': 4}
+        shirt.save()
+        ProductVariant.objects.create(
+            product=shirt, color_name='Navy Blue', color_hex='#000080',
+            stock_by_size={'M': 1, 'L': 3},
+        )
+        ProductVariant.objects.create(
+            product=shirt, color_name='Maroon', color_hex='#800000',
+            stock_by_size={},
+        )
+
+    def test_suggestion_prompt_includes_sizes_and_colors(self):
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('sizes [', prompt)
+        for token in ('S:2', 'M:0', 'L:4', 'Navy Blue [', 'M:1', 'L:3', 'Maroon'):
+            self.assertIn(token, prompt)
+        self.assertIn('a count of 0 means out of stock', prompt)
+
+    def test_order_prompt_includes_sizes_and_colors(self):
+        from inbox.services.assistant import build_order_prompt
+        prompt = build_order_prompt(self.convo)
+        self.assertIn('sizes [', prompt)
+        for token in ('S:2', 'M:0', 'L:4', 'Navy Blue ['):
+            self.assertIn(token, prompt)
+
+    def test_products_without_sizes_render_plain(self):
+        Product.objects.filter(name='Linen Shirt').update(stock_by_size={})
+        from core.models import ProductVariant
+        ProductVariant.objects.all().delete()
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertNotIn('sizes [', prompt)
+        self.assertNotIn('colors:', prompt)

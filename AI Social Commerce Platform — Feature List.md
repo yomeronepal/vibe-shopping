@@ -95,8 +95,8 @@ AI automatically handles repetitive customer conversations.
 - [x] Product questions
 - [x] Price questions
 - [x] Availability questions
-- [ ] Size questions
-- [ ] Color questions
+- [x] Size questions (per-size stock from the catalog)
+- [x] Color questions (color variants with per-size stock)
 - [x] Delivery questions (from knowledge base)
 - [x] Payment questions (from knowledge base)
 - [x] Return/exchange questions (from knowledge base)

@@ -26,18 +26,47 @@ def format_price(value):
     return text.rstrip('0').rstrip('.') if '.' in text else text
 
 
+def format_size_counts(stock_by_size):
+    """Render per-size stock like S:2, M:0."""
+    sizes = stock_by_size or {}
+    return ', '.join(f'{size}:{count}' for size, count in sizes.items())
+
+
+def format_availability_details(product):
+    """Render size and color availability for one product."""
+    details = []
+    sizes = format_size_counts(product.stock_by_size)
+    if sizes:
+        details.append(f'sizes [{sizes}]')
+    variant_bits = []
+    for variant in product.variants.all():
+        if not variant.color_name:
+            continue
+        variant_sizes = format_size_counts(variant.stock_by_size)
+        variant_bits.append(
+            f'{variant.color_name} [{variant_sizes}]' if variant_sizes else variant.color_name
+        )
+    if variant_bits:
+        details.append(f"colors: {', '.join(variant_bits)}")
+    return '; '.join(details)
+
+
 def format_product_line(product):
     """Render one catalog line the model may quote from."""
     stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
     description = (product.description or '').replace('\n', ' ')[:120]
-    return f'- {product.name} — Rs. {format_price(product.price)} — {stock} — {description}'
+    line = f'- {product.name} — Rs. {format_price(product.price)} — {stock}'
+    availability = format_availability_details(product)
+    if availability:
+        line += f' — {availability}'
+    return f'{line} — {description}'
 
 
 def build_catalog_block(tenant):
     """List the tenant's live products as the only allowed product facts."""
     products = Product.objects.filter(
         tenant=tenant, status='published', is_active=True,
-    ).order_by('-created_at')[:MAX_PRODUCTS]
+    ).prefetch_related('variants').order_by('-created_at')[:MAX_PRODUCTS]
     lines = [format_product_line(product) for product in products]
     return '\n'.join(lines) if lines else '(no products published yet)'
 
@@ -118,7 +147,7 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Write the Business's next reply. Rules:
-1. Product names, prices, and availability must come ONLY from the catalog above. Never invent products, prices, discounts, or delivery times.
+1. Product names, prices, and availability must come ONLY from the catalog above. Sizes and colors listed there (with per-size stock counts) are the only ones that exist; a count of 0 means out of stock. Never invent products, prices, discounts, or delivery times.
 2. If the answer is not in the profile, knowledge, or catalog, say you will check and get back to them — do not guess.
 3. Reply in the same language the customer used (English, Nepali, or romanized Nepali mix).
 4. Sound like a friendly shop owner on Messenger: warm, natural, at most 2-3 short sentences. No hashtags or signatures.
@@ -174,14 +203,18 @@ def is_auto_reply_enabled(tenant):
 def format_order_product_line(product):
     """Render one catalog line with the id the model must reference."""
     stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
-    return f'- [id {product.id}] {product.name} — Rs. {format_price(product.price)} — {stock}'
+    line = f'- [id {product.id}] {product.name} — Rs. {format_price(product.price)} — {stock}'
+    availability = format_availability_details(product)
+    if availability:
+        line += f' — {availability}'
+    return line
 
 
 def build_order_catalog_block(tenant):
     """List purchasable products with their database ids."""
     products = Product.objects.filter(
         tenant=tenant, status='published', is_active=True,
-    ).order_by('-created_at')[:MAX_PRODUCTS]
+    ).prefetch_related('variants').order_by('-created_at')[:MAX_PRODUCTS]
     lines = [format_order_product_line(product) for product in products]
     return '\n'.join(lines) if lines else '(no products published yet)'
 
@@ -299,7 +332,7 @@ Respond with ONLY a JSON object, no markdown, in this exact shape:
 
 Rules:
 1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, simple everyday words, plain text, no markdown.
-2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check.
+2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. Sizes and colors listed in a catalog line (with their per-size stock counts) are the ONLY sizes and colors that exist for that product; a size with count 0 is out of stock.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
 3b. Never mention any product that is not in the catalog, and always use the exact catalog names.
 3c. If the customer's latest message is unclear, only an emoji or short reaction, or an attachment you cannot see, reply with ONE short friendly question asking what they would like — do not guess or apologize repeatedly.
