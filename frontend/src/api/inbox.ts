@@ -108,3 +108,35 @@ export const summarizeConversation = async (conversationId: number): Promise<str
     const response = await apiClient.post(`/inbox/conversations/${conversationId}/summarize/`);
     return response.data.summary;
 };
+
+export interface CustomerCard {
+    id: number;
+    platform: string;
+    platform_user_id: string;
+    name: string;
+    profile_pic_url: string;
+    phone: string;
+    email: string;
+    location: string;
+    notes: string;
+    tags: string[];
+    status: string;
+    order_count: number;
+    total_spent: number;
+    last_purchase_at: string | null;
+    product_interests: string[];
+    last_active_at: string | null;
+}
+
+export const getCustomerCard = async (customerId: number): Promise<CustomerCard> => {
+    const response = await apiClient.get(`/inbox/customers/${customerId}/`);
+    return response.data;
+};
+
+export const updateCustomerCard = async (
+    customerId: number,
+    data: Partial<Pick<CustomerCard, 'name' | 'phone' | 'email' | 'location' | 'notes' | 'tags'>>,
+): Promise<CustomerCard> => {
+    const response = await apiClient.patch(`/inbox/customers/${customerId}/`, data);
+    return response.data;
+};

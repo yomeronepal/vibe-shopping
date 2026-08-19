@@ -98,5 +98,7 @@ def create_chat_order(conversation, items, collected):
             product.stock -= quantity
             product.save(update_fields=['stock'])
             record_stock_change(product, -quantity, 'chat_order', f'Order #{order.id}')
+    from inbox.services.crm import apply_collected_contact
+    apply_collected_contact(conversation.customer, collected)
     logger.info('Chat bot created order %s for conversation %s', order.id, conversation.id)
     return order

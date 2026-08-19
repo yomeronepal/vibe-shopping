@@ -288,21 +288,21 @@ Automatically maintain customer profiles.
 
 - [x] Customer name
 - [x] Social account
-- [ ] Phone number
-- [ ] Email
-- [ ] Location
-- [ ] Tags
-- [ ] Notes
-- [ ] Customer status
+- [x] Phone number (auto-filled from chat orders, editable)
+- [x] Email (auto-filled from chat orders, editable)
+- [x] Location (auto-filled from the delivery address, editable)
+- [x] Tags
+- [x] Notes
+- [x] Customer status (prospect / customer / repeat, computed from orders)
 
 ### Customer History
 
 - [x] Conversation history
 - [x] Order history
-- [ ] Total spending
-- [ ] Last purchase
-- [ ] Product interests
-- [ ] Customer activity
+- [x] Total spending
+- [x] Last purchase
+- [x] Product interests (from their order history)
+- [x] Customer activity (last active timestamp)
 
 ---
 
@@ -564,7 +564,7 @@ Businesses should always be able to control the AI.
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
 - [x] AI content generation
 - [x] Post scheduling
-- [ ] Customer CRM
+- [x] Customer CRM
 - [x] Inventory management (stock editing, deduction, filters)
 - [ ] Analytics
 

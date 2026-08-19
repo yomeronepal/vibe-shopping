@@ -217,3 +217,50 @@ class ExtractOrderView(APIView):
         except AssistantError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response(extraction)
+
+
+class CustomerDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    EDITABLE_FIELDS = ('name', 'phone', 'email', 'location', 'notes')
+
+    def get_customer(self, request, customer_id):
+        from inbox.models import Customer
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return None
+        return Customer.objects.filter(tenant=tenant, id=customer_id).first()
+
+    def get(self, request, customer_id):
+        """Return the customer's CRM card with purchase metrics."""
+        from inbox.services.crm import build_customer_card
+
+        customer = self.get_customer(request, customer_id)
+        if not customer:
+            return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(build_customer_card(customer))
+
+    def patch(self, request, customer_id):
+        """Update the customer's contact details, notes, or tags."""
+        from inbox.services.crm import build_customer_card
+
+        customer = self.get_customer(request, customer_id)
+        if not customer:
+            return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
+        updates = []
+        for field in self.EDITABLE_FIELDS:
+            if field in request.data:
+                setattr(customer, field, str(request.data.get(field) or '').strip())
+                updates.append(field)
+        if 'tags' in request.data:
+            tags = request.data.get('tags')
+            if not isinstance(tags, list):
+                return Response({'error': 'tags must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+            cleaned = [str(tag).strip()[:30] for tag in tags if str(tag).strip()]
+            customer.tags = list(dict.fromkeys(cleaned))[:10]
+            updates.append('tags')
+        if not updates:
+            return Response({'error': 'Nothing to update'}, status=status.HTTP_400_BAD_REQUEST)
+        customer.save(update_fields=updates)
+        return Response(build_customer_card(customer))

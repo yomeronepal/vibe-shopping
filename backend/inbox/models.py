@@ -35,6 +35,11 @@ class Customer(TimeStampedModel):
     platform_user_id = models.CharField(max_length=64)
     name = models.CharField(max_length=255, blank=True, default='')
     profile_pic_url = models.URLField(max_length=500, blank=True, default='')
+    phone = models.CharField(max_length=30, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
+    location = models.CharField(max_length=255, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    tags = models.JSONField(default=list, blank=True)
 
     class Meta:
         constraints = [
