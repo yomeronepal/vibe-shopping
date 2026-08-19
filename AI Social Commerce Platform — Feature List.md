@@ -213,24 +213,24 @@ Generate social-media content automatically.
 
 ### Content Types
 
-- [ ] Instagram captions
-- [ ] Facebook posts
+- [x] Instagram captions
+- [x] Facebook posts
 - [x] Product descriptions
-- [ ] Promotional messages
-- [ ] TikTok captions
-- [ ] Hashtags
-- [ ] Ad copy
-- [ ] Customer announcements
+- [x] Promotional messages
+- [x] TikTok captions (generation; TikTok publishing not connected)
+- [x] Hashtags (included per content type)
+- [x] Ad copy
+- [x] Customer announcements
 
 ### AI Options
 
-- [ ] Nepali content
-- [ ] English content
-- [ ] Nepali-English content
-- [ ] Professional tone
-- [ ] Casual tone
-- [ ] Promotional tone
-- [ ] Custom brand voice
+- [x] Nepali content
+- [x] English content
+- [x] Nepali-English content
+- [x] Professional tone
+- [x] Casual tone
+- [x] Promotional tone
+- [x] Custom brand voice (store name, bio, and brand vibes shape every generation)
 
 ---
 
@@ -562,7 +562,7 @@ Businesses should always be able to control the AI.
 
 - [x] Facebook post publishing
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
-- [ ] AI content generation
+- [x] AI content generation
 - [x] Post scheduling
 - [ ] Customer CRM
 - [x] Inventory management (stock editing, deduction, filters)

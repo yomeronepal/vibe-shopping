@@ -100,6 +100,9 @@ export default function PublishingCalendarPage() {
 
     const [caption, setCaption] = useState('');
     const [captionLoading, setCaptionLoading] = useState(false);
+    const [aiType, setAiType] = useState<'caption' | 'promo' | 'announcement' | 'ad'>('caption');
+    const [aiTone, setAiTone] = useState('');
+    const [aiLanguage, setAiLanguage] = useState('');
     const [postFormat, setPostFormat] = useState<'feed' | 'story'>('feed');
     const [platforms, setPlatforms] = useState<{ facebook: boolean; instagram: boolean }>({ facebook: false, instagram: false });
     const [imageTab, setImageTab] = useState<'product' | 'upload'>('product');
@@ -210,9 +213,12 @@ export default function PublishingCalendarPage() {
         }
         setCaptionLoading(true);
         try {
-            const generated = await aiApi.generateCaption(
-                useProduct ? { product_id: productId as number } : { context: caption.trim() },
-            );
+            const generated = await aiApi.generateCaption({
+                ...(useProduct ? { product_id: productId as number } : { context: caption.trim() }),
+                content_type: aiType,
+                tone: aiTone || undefined,
+                language: aiLanguage || undefined,
+            });
             setCaption(generated.slice(0, 280));
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Could not write a caption. Try again.');
@@ -541,7 +547,39 @@ export default function PublishingCalendarPage() {
                         <div className="space-y-4">
                             <div>
                                 {!isReadOnly && !isStoryFormat && (
-                                    <div className="flex justify-end mb-1">
+                                    <div className="flex items-center justify-end gap-1.5 mb-1 flex-wrap">
+                                        <select
+                                            value={aiType}
+                                            onChange={(e) => setAiType(e.target.value as typeof aiType)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="caption">Caption</option>
+                                            <option value="promo">Promo</option>
+                                            <option value="announcement">Announcement</option>
+                                            <option value="ad">Ad copy</option>
+                                        </select>
+                                        <select
+                                            value={aiTone}
+                                            onChange={(e) => setAiTone(e.target.value)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Friendly</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="casual">Casual</option>
+                                            <option value="promotional">Promotional</option>
+                                        </select>
+                                        <select
+                                            value={aiLanguage}
+                                            onChange={(e) => setAiLanguage(e.target.value)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Mixed</option>
+                                            <option value="english">English</option>
+                                            <option value="nepali">Nepali</option>
+                                        </select>
                                         <button
                                             onClick={generateCaption}
                                             disabled={captionLoading}

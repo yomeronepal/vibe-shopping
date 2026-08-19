@@ -147,3 +147,56 @@ class BriefClaudeFallbackTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, 200)
         self.assertIn('Winter deals', response.data['caption'])
+
+
+class ContentGeneratorTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(
+            name='Acme', subdomain='acme',
+            metadata={'bio': 'Handmade fashion', 'brandVibe': ['#Chic', '#Local']},
+        )
+        self.user = User.objects.create_user(username='owner', password='pass12345')
+        VendorProfile.objects.create(user=self.user, tenant=self.tenant, role='owner')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def test_prompt_reflects_all_options(self):
+        from core.services.gemini_service import build_caption_prompt
+        prompt = build_caption_prompt(
+            'Winter sale on shawls', platform='tiktok', content_type='promo',
+            tone='promotional', language='nepali', brand='Store: Acme',
+        )
+        self.assertIn('promotional message', prompt)
+        self.assertIn('tiktok', prompt)
+        self.assertIn('High-energy promotional', prompt)
+        self.assertIn('romanized Nepali (Nepali words in Latin script)', prompt)
+        self.assertIn('BRAND VOICE', prompt)
+        self.assertIn('Store: Acme', prompt)
+
+    def test_prompt_defaults(self):
+        from core.services.gemini_service import build_caption_prompt
+        prompt = build_caption_prompt('New arrivals')
+        self.assertIn('one social-media caption', prompt)
+        self.assertIn('Warm and friendly', prompt)
+        self.assertIn('English + romanized Nepali mix', prompt)
+        self.assertNotIn('BRAND VOICE', prompt)
+
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer.generate_caption',
+        return_value={'success': True, 'caption': 'Naya announcement! #acme'},
+    )
+    def test_endpoint_passes_options_and_brand(self, mock_caption, mock_init):
+        response = self.client.post('/api/products/generate-caption/', {
+            'context': 'Dashain holiday closure notice',
+            'content_type': 'announcement',
+            'tone': 'professional',
+            'language': 'english',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        kwargs = mock_caption.call_args[1]
+        self.assertEqual(kwargs['content_type'], 'announcement')
+        self.assertEqual(kwargs['tone'], 'professional')
+        self.assertEqual(kwargs['language'], 'english')
+        self.assertIn('Store: Acme', kwargs['brand'])
+        self.assertIn('#Chic', kwargs['brand'])
