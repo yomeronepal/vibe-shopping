@@ -69,10 +69,23 @@ def build_history_block(conversation):
     return '\n'.join(lines) if lines else '(no messages yet)'
 
 
+DEFAULT_ORDER_FIELDS = ['Full name', 'Phone number', 'Delivery address']
+
+
+def get_order_fields(tenant):
+    """Return the info fields the vendor wants collected before an order."""
+    metadata = tenant.metadata or {}
+    fields = metadata.get('orderFields')
+    if isinstance(fields, list) and fields:
+        return [str(field)[:60] for field in fields][:10]
+    return list(DEFAULT_ORDER_FIELDS)
+
+
 def build_suggestion_prompt(conversation):
     """Assemble the grounded prompt for one reply suggestion."""
     tenant = conversation.tenant
     knowledge = (tenant.metadata or {}).get('aiKnowledge', '')
+    order_fields = ', '.join(get_order_fields(tenant))
     return f"""You are the customer-support assistant for a small business in Nepal that sells through Facebook and Instagram messages.
 
 BUSINESS PROFILE
@@ -93,7 +106,7 @@ Write the Business's next reply. Rules:
 2. If the answer is not in the profile, knowledge, or catalog, say you will check and get back to them — do not guess.
 3. Reply in the same language the customer used (English, Nepali, or romanized Nepali mix).
 4. Sound like a friendly shop owner on Messenger: warm, natural, at most 2-3 short sentences. No hashtags or signatures.
-5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then ask for their delivery details.
+5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then collect what is still missing from this list: {order_fields}.
 
 Return ONLY the reply text, nothing else."""
 
@@ -239,3 +252,61 @@ def extract_order(conversation):
     if not isinstance(data, dict):
         raise AssistantError('The AI returned an unreadable answer. Try again.')
     return validate_order_extraction(conversation.tenant, data, conversation)
+
+
+def build_order_flow_prompt(conversation):
+    """Assemble the combined reply + order-state prompt for the bot."""
+    tenant = conversation.tenant
+    knowledge = (tenant.metadata or {}).get('aiKnowledge', '')
+    fields = get_order_fields(tenant)
+    fields_json = ', '.join(f'"{field}": "<value or empty string>"' for field in fields)
+    return f"""You run the chat for a small Nepali business selling on Facebook and Instagram. You both answer the customer and collect order information.
+
+BUSINESS PROFILE
+{build_business_block(tenant)}
+
+BUSINESS KNOWLEDGE (policies and FAQs — the only extra facts you may state)
+{knowledge or '(none provided)'}
+
+PRODUCT CATALOG (only these can be ordered; use the exact id; the ONLY source of prices and stock)
+{build_order_catalog_block(tenant)}
+
+INFORMATION TO COLLECT BEFORE PLACING AN ORDER
+{', '.join(fields)}
+
+CONVERSATION SO FAR (Customer is the buyer; Business is you)
+{build_history_block(conversation)}
+
+TASK
+Respond with ONLY a JSON object, no markdown, in this exact shape:
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"]}}
+
+Rules:
+1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, plain text, no markdown.
+2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check.
+3. ordering is true when the customer clearly wants to buy something from the catalog.
+4. Fill collected only with values the customer actually stated anywhere in the conversation; never invent them.
+5. When ordering and fields are missing, the reply must naturally ask for the missing fields (all of them at once) and order_ready is false.
+6. order_ready is true ONLY when ordering is true, items are known, and every field in the list has been collected. Then the reply confirms the items, total price from the catalog, and tells the customer their order is being placed.
+7. When the customer is not ordering, just answer their question; items and collected may be empty."""
+
+
+def advance_order_conversation(conversation):
+    """Return the bot's reply plus validated order state for the thread."""
+    raw = call_gemini(build_order_flow_prompt(conversation))
+    data = parse_model_json(raw)
+    if not isinstance(data, dict) or not str(data.get('reply', '')).strip():
+        raise AssistantError('The AI returned an unreadable answer. Try again.')
+    grounded = validate_order_extraction(conversation.tenant, data, conversation)
+    collected = data.get('collected') if isinstance(data.get('collected'), dict) else {}
+    cleaned = {str(k)[:60]: str(v)[:200] for k, v in collected.items() if str(v).strip()}
+    fields = get_order_fields(conversation.tenant)
+    missing = [field for field in fields if not cleaned.get(field)]
+    return {
+        'reply': str(data['reply']).strip()[:1500],
+        'ordering': bool(data.get('ordering')),
+        'order_ready': bool(data.get('order_ready')) and bool(grounded['items']) and not missing,
+        'items': grounded['items'],
+        'collected': cleaned,
+        'missing': missing,
+    }

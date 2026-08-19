@@ -390,6 +390,7 @@ export interface StoreProfile {
     ai_knowledge: string;
     ai_assistant_enabled: boolean;
     ai_auto_reply: boolean;
+    order_fields: string[];
 }
 
 export interface UpdateStoreProfileData {
@@ -412,11 +413,13 @@ export const updateAssistantSettings = async (
     knowledge: string,
     enabled: boolean,
     autoReply: boolean,
+    orderFields: string[],
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
         ai_assistant_enabled: enabled,
         ai_auto_reply: autoReply,
+        order_fields: JSON.stringify(orderFields),
     });
     return response.data;
 };

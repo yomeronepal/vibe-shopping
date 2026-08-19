@@ -55,6 +55,15 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                     <div className="flex items-center gap-3">
                         <span className="font-bold" style={{ color: themeConfig.text }}>Order #{order.id}</span>
                         <StatusPill status={order.status} />
+                        {order.metadata?.source === 'chat_bot' && (
+                            <span
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+                                style={{ backgroundColor: '#ede9fe', color: '#6d28d9' }}
+                            >
+                                <span className="material-symbols-outlined text-[12px]">smart_toy</span>
+                                Chat bot
+                            </span>
+                        )}
                     </div>
                     <p className="text-sm mt-1" style={{ color: themeConfig.textSecondary }}>
                         {order.customer_name || 'Online customer'}
@@ -62,6 +71,13 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                         {' · '}
                         {new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
+                    {order.metadata?.collected && Object.keys(order.metadata.collected).length > 0 && (
+                        <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
+                            {Object.entries(order.metadata.collected as Record<string, string>)
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join(' · ')}
+                        </p>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="font-extrabold text-lg" style={{ color: themeConfig.text }}>

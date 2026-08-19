@@ -15,6 +15,7 @@ export interface VendorOrder {
     customer_name: string;
     customer_phone: string;
     customer_email?: string;
+    metadata?: Record<string, any>;
     created_at: string;
     items: VendorOrderItem[];
 }
@@ -49,6 +50,7 @@ export interface CreateOrderPayload {
     customer_name: string;
     customer_phone?: string;
     customer_email?: string;
+    metadata?: Record<string, any>;
     payment_method: string;
     status?: string;
 }

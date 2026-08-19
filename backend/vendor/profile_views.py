@@ -29,11 +29,12 @@ def build_profile_payload(tenant):
         'ai_knowledge': metadata.get('aiKnowledge', ''),
         'ai_assistant_enabled': bool(metadata.get('aiAssistantEnabled', True)),
         'ai_auto_reply': bool(metadata.get('aiAutoReply', False)),
+        'order_fields': metadata.get('orderFields') or ['Full name', 'Phone number', 'Delivery address'],
     }
 
 
-def parse_brand_vibes(raw):
-    """Parse the JSON-encoded vibe list, tolerating bad input."""
+def parse_string_list(raw):
+    """Parse a JSON-encoded string list, tolerating bad input."""
     try:
         parsed = json.loads(raw) if raw else []
     except ValueError:
@@ -52,13 +53,15 @@ def apply_profile_fields(tenant, metadata, data):
     if 'category' in data:
         metadata['niches'] = [data['category']] if data['category'] else []
     if 'brand_vibes' in data:
-        metadata['brandVibe'] = parse_brand_vibes(data['brand_vibes'])
+        metadata['brandVibe'] = parse_string_list(data['brand_vibes'])
     if 'ai_knowledge' in data:
         metadata['aiKnowledge'] = data['ai_knowledge']
     if 'ai_assistant_enabled' in data:
         metadata['aiAssistantEnabled'] = data['ai_assistant_enabled']
     if 'ai_auto_reply' in data:
         metadata['aiAutoReply'] = data['ai_auto_reply']
+    if 'order_fields' in data:
+        metadata['orderFields'] = parse_string_list(data['order_fields'])[:10]
 
 
 def apply_contact_fields(metadata, data):
