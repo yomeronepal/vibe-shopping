@@ -179,4 +179,110 @@ def ingest_webhook_event(event):
                 continue
             if record:
                 created_count += 1
+        for change in entry.get('changes', []) or []:
+            if not isinstance(change, dict):
+                logger.warning('Invalid change type: %s', type(change).__name__)
+                continue
+            try:
+                record = store_comment(page, platform, change)
+            except (KeyError, TypeError, ValueError, AttributeError):
+                logger.exception('Failed to ingest change event %s', event.id)
+                continue
+            if record:
+                created_count += 1
     return created_count
+
+
+def extract_comment(platform, change):
+    """Normalize a webhook change into comment fields, or None."""
+    field = change.get('field', '')
+    value = change.get('value') or {}
+    if platform == 'facebook':
+        if field != 'feed' or value.get('item') != 'comment' or value.get('verb') != 'add':
+            return None
+        return {
+            'comment_id': value.get('comment_id', ''),
+            'text': value.get('message', '') or '',
+            'from': value.get('from') or {},
+            'post_id': value.get('post_id', ''),
+        }
+    if field != 'comments':
+        return None
+    return {
+        'comment_id': value.get('id', ''),
+        'text': value.get('text', '') or '',
+        'from': value.get('from') or {},
+        'post_id': (value.get('media') or {}).get('id', ''),
+    }
+
+
+def resolve_commented_product(page, post_id):
+    """Map the commented post back to a catalog product, if published here."""
+    if not post_id:
+        return None
+    from core.models import SocialMediaPost
+
+    post = (
+        SocialMediaPost.objects.filter(tenant=page.tenant, platform_post_id=post_id)
+        .select_related('product')
+        .first()
+    )
+    return post.product if post and post.product else None
+
+
+def store_comment(page, platform, change):
+    """Persist one comment as an inbox message; returns it or None."""
+    comment = extract_comment(platform, change)
+    if not comment or not comment['comment_id']:
+        return None
+    author_id = str(comment['from'].get('id', ''))
+    own_identity = page.instagram_account_id if platform == 'instagram' else page.page_id
+    if not author_id or author_id == own_identity:
+        return None
+    author_name = comment['from'].get('name') or comment['from'].get('username') or ''
+    customer, created = Customer.objects.get_or_create(
+        tenant=page.tenant, platform=platform, platform_user_id=author_id,
+        defaults={'name': author_name},
+    )
+    if not created and author_name and not customer.name:
+        customer.name = author_name
+        customer.save(update_fields=['name'])
+    conversation, _ = Conversation.objects.get_or_create(
+        page=page, customer=customer,
+        defaults={'tenant': page.tenant, 'platform': platform},
+    )
+    product = resolve_commented_product(page, comment['post_id'])
+    text = comment['text'] or '(comment without text)'
+    record, created = Message.objects.get_or_create(
+        platform_message_id=comment['comment_id'],
+        defaults={
+            'conversation': conversation,
+            'direction': 'in',
+            'source': 'comment',
+            'text': text,
+            'sent_at': timezone.now(),
+            'metadata': {
+                'post_id': comment['post_id'],
+                'product_id': product.id if product else None,
+                'product_name': product.name if product else '',
+            },
+        },
+    )
+    if not created:
+        return None
+    Conversation.objects.filter(pk=conversation.pk).update(
+        unread_count=F('unread_count') + 1,
+        status='waiting_business',
+        last_message_at=record.sent_at,
+        last_message_preview=f'Commented: {text}'[:120],
+    )
+    conversation.refresh_from_db()
+    try:
+        push_inbox_event(page.tenant_id, 'inbox.message', {
+            'conversation': ConversationSerializer(conversation).data,
+            'message': MessageSerializer(record).data,
+        })
+    except Exception:
+        logger.warning('Inbox push failed for comment %s', record.id, exc_info=True)
+    queue_auto_reply(record, page.tenant)
+    return record

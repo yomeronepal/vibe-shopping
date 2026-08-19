@@ -65,15 +65,23 @@ def describe_attachments(message):
     return f"(sent a {', '.join(types)} attachment the assistant cannot see)"
 
 
+def format_history_line(message):
+    """Render one thread line, marking comments and their post context."""
+    text = message.text or describe_attachments(message)
+    if message.direction != 'in':
+        return f'Business: {text}'
+    if message.source == 'comment':
+        product = (message.metadata or {}).get('product_name', '')
+        context = f' about {product}' if product else ''
+        return f'Customer (commented on your post{context}; you are replying privately): {text}'
+    return f'Customer: {text}'
+
+
 def build_history_block(conversation):
     """Render the recent thread, oldest first."""
     recent = list(conversation.messages.order_by('-sent_at')[:MAX_HISTORY])
     recent.reverse()
-    lines = []
-    for message in recent:
-        speaker = 'Customer' if message.direction == 'in' else 'Business'
-        text = message.text or describe_attachments(message)
-        lines.append(f'{speaker}: {text}')
+    lines = [format_history_line(message) for message in recent]
     return '\n'.join(lines) if lines else '(no messages yet)'
 
 

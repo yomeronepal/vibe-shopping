@@ -224,6 +224,20 @@ class MetaGraphClient:
         })
         return payload.get('message_id', '')
 
+    def send_private_reply(self, sender_id, page_token, comment_id, text):
+        """Privately message the author of a comment; returns the message id.
+
+        Works for both Facebook Pages (sender_id = page id) and
+        Instagram professional accounts (sender_id = IG account id).
+        Meta allows one private reply per comment, within 7 days.
+        """
+        payload = self.post(f'/{sender_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'comment_id': comment_id}),
+            'message': json.dumps({'text': text}),
+        })
+        return payload.get('message_id', '')
+
     def publish_page_story(self, page_id, page_token, image_file):
         """Publish a photo story to a Page; returns story id and URL."""
         photo = self.post(

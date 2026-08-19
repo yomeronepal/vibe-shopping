@@ -140,6 +140,12 @@ function MessageBubble({ message, primaryColor }: { message: InboxMessage; prima
                         : { backgroundColor: themeConfig.surface, color: themeConfig.text, border: `1px solid ${themeConfig.border}60` }
                 }
             >
+                {message.source === 'comment' && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">
+                        <span className="material-symbols-outlined text-[12px]">comment</span>
+                        Comment on your post
+                    </span>
+                )}
                 {message.sent_by_ai && (
                     <span
                         className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80"

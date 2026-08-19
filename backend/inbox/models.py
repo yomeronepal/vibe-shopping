@@ -21,6 +21,11 @@ MESSAGE_DIRECTIONS = [
     ('out', 'Outbound'),
 ]
 
+MESSAGE_SOURCES = [
+    ('dm', 'Direct message'),
+    ('comment', 'Post comment'),
+]
+
 
 class Customer(TimeStampedModel):
     """A social platform identity that has messaged a tenant."""
@@ -74,6 +79,8 @@ class Message(TimeStampedModel):
     text = models.TextField(blank=True, default='')
     attachments = models.JSONField(default=list, blank=True)
     platform_message_id = models.CharField(max_length=255, unique=True)
+    source = models.CharField(max_length=10, choices=MESSAGE_SOURCES, default='dm')
+    metadata = models.JSONField(default=dict, blank=True)
     sent_by_ai = models.BooleanField(default=False)
     sent_at = models.DateTimeField()
 

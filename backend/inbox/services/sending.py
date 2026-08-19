@@ -29,14 +29,39 @@ def push_safely(tenant_id, event_type, payload):
         logger.warning('Inbox push failed for tenant %s', tenant_id, exc_info=True)
 
 
+def resolve_reply_route(conversation):
+    """Decide how the next reply reaches the customer.
+
+    A comment that has not been answered yet is answered privately via
+    Meta's one-shot private reply; everything else goes as a normal DM.
+    """
+    latest_in = (
+        conversation.messages.filter(direction='in')
+        .order_by('-sent_at', '-id')
+        .first()
+    )
+    if latest_in and latest_in.source == 'comment':
+        answered = conversation.messages.filter(
+            direction='out', sent_at__gte=latest_in.sent_at
+        ).exists()
+        if not answered:
+            return 'comment', latest_in.platform_message_id
+    return 'dm', conversation.customer.platform_user_id
+
+
 def deliver_via_meta(conversation, text):
     """Send the text through Meta; return the platform message id."""
     client = MetaGraphClient()
+    page = conversation.page
+    route, target = resolve_reply_route(conversation)
     try:
+        if route == 'comment':
+            sender_id = page.instagram_account_id if conversation.platform == 'instagram' else page.page_id
+            return client.send_private_reply(sender_id, page.get_access_token(), target, text)
         return client.send_message(
-            conversation.page.page_id,
-            conversation.page.get_access_token(),
-            conversation.customer.platform_user_id,
+            page.page_id,
+            page.get_access_token(),
+            target,
             text,
         )
     except MetaGraphError as exc:
