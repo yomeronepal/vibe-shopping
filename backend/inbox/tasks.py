@@ -4,7 +4,7 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
-AUTO_REPLY_DEBOUNCE_SECONDS = 60
+AUTO_REPLY_DEBOUNCE_SECONDS = 20
 
 
 def is_latest_inbound(conversation, message):

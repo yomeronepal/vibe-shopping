@@ -208,7 +208,7 @@ class QueueAutoReplyTests(AutoReplyTestBase):
     @patch('inbox.tasks.auto_reply_to_message.apply_async')
     def test_queues_with_debounce_when_enabled(self, mock_apply):
         queue_auto_reply(self.inbound, self.tenant)
-        mock_apply.assert_called_once_with(args=[self.inbound.id], countdown=60)
+        mock_apply.assert_called_once_with(args=[self.inbound.id], countdown=20)
 
     @patch('inbox.tasks.auto_reply_to_message.apply_async')
     def test_does_not_queue_when_disabled(self, mock_apply):
