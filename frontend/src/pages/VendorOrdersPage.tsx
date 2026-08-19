@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import { mediaUrl } from '../api/media';
 import NewOrderModal from '../components/vendor/NewOrderModal';
 import {
     listVendorOrders,
@@ -113,15 +114,52 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                 </div>
             </div>
             {order.items.length > 0 && (
-                <div className="mt-3 pt-3 border-t space-y-1" style={{ borderColor: `${themeConfig.border}50` }}>
+                <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: `${themeConfig.border}50` }}>
                     {order.items.map((item, index) => (
-                        <p key={index} className="text-sm" style={{ color: themeConfig.textSecondary }}>
-                            {item.quantity} × {item.product_name}
-                            {(item.size || item.color) && (
-                                <span className="font-semibold"> ({[item.size, item.color].filter(Boolean).join(', ')})</span>
+                        <div key={index} className="flex items-center gap-3">
+                            {item.image ? (
+                                <img
+                                    src={mediaUrl(item.image) ?? undefined}
+                                    alt=""
+                                    className="size-11 rounded-lg object-cover shrink-0 border"
+                                    style={{ borderColor: `${themeConfig.border}60` }}
+                                />
+                            ) : (
+                                <div
+                                    className="size-11 rounded-lg flex items-center justify-center shrink-0"
+                                    style={{ backgroundColor: `${themeConfig.border}40` }}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]" style={{ color: themeConfig.textSecondary }}>inventory_2</span>
+                                </div>
                             )}
-                            {' — Rs. '}{item.price}
-                        </p>
+                            <div className="min-w-0 flex-1">
+                                <Link
+                                    to={`/vendor/products/${item.product_id}`}
+                                    className="text-sm font-semibold hover:underline block truncate"
+                                    style={{ color: themeConfig.text }}
+                                >
+                                    {item.quantity} × {item.product_name}
+                                </Link>
+                                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                    {item.sku && (
+                                        <span
+                                            className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono"
+                                            style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                        >
+                                            {item.sku}
+                                        </span>
+                                    )}
+                                    {(item.size || item.color) && (
+                                        <span className="text-xs font-semibold" style={{ color: themeConfig.textSecondary }}>
+                                            {[item.size && `Size ${item.size}`, item.color].filter(Boolean).join(' · ')}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-sm font-bold shrink-0" style={{ color: themeConfig.text }}>
+                                Rs. {item.price}
+                            </span>
+                        </div>
                     ))}
                 </div>
             )}

@@ -1,7 +1,10 @@
 import apiClient from './client';
 
 export interface VendorOrderItem {
+    product_id: number;
     product_name: string;
+    sku: string;
+    image: string | null;
     quantity: number;
     price: string;
     size?: string;
