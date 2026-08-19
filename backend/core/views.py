@@ -183,7 +183,9 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                  
             return queryset
             
-        return Product.objects.none()  # Or return global marketplace products if applicable
+        if self.action == 'retrieve':
+            return Product.objects.filter(is_active=True)
+        return Product.objects.none()
 
 @api_view(['POST'])
 @throttle_classes([AIAnalysisThrottle])
