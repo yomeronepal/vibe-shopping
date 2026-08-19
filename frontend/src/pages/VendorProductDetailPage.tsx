@@ -292,6 +292,12 @@ export default function VendorProductDetailPage() {
                                             <p className="text-xs" style={{ color: themeConfig.textSecondary }}>Status</p>
                                             <p className="font-bold capitalize" style={{ color: themeConfig.text }}>{product.status}</p>
                                         </div>
+                                        {product.product_code && (
+                                            <div>
+                                                <p className="text-xs" style={{ color: themeConfig.textSecondary }}>SKU</p>
+                                                <p className="font-bold font-mono text-sm" style={{ color: themeConfig.text }}>{product.product_code}</p>
+                                            </div>
+                                        )}
                                     </div>
                                     {(product.tags?.length || product.vibe_tags?.length) ? (
                                         <div className="mt-4 flex flex-wrap gap-2">

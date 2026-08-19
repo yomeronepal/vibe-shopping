@@ -135,7 +135,7 @@ Businesses can maintain their products and inventory.
 - [x] Product description
 - [x] Product images
 - [x] Product price
-- [ ] SKU
+- [x] SKU (auto-generated per store, shown on product pages, searchable)
 - [x] Category
 - [x] Product variants
 - [x] Sizes
@@ -147,7 +147,7 @@ Businesses can maintain their products and inventory.
 - [x] AI reads product catalog
 - [x] AI answers product questions
 - [x] AI checks product availability
-- [ ] AI recommends products
+- [x] AI recommends products (catalog-only)
 - [x] AI prevents unsupported product claims (prices/stock only from catalog)
 
 ---
@@ -201,7 +201,7 @@ Convert social conversations into structured orders.
 - [ ] Low-stock alerts
 - [x] Out-of-stock status
 - [ ] Stock history
-- [ ] SKU management
+- [x] SKU management (auto-generated tenant-prefixed codes, POS lookup)
 - [x] Inventory search
 - [x] Inventory filtering (drafts / low stock / archived / out of stock)
 
