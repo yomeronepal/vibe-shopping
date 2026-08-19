@@ -24,4 +24,4 @@ class ConversationSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ['id', 'direction', 'text', 'attachments', 'platform_message_id', 'sent_by_ai', 'sent_at']
+        fields = ['id', 'direction', 'text', 'attachments', 'platform_message_id', 'source', 'sent_by_ai', 'sent_at']

@@ -32,6 +32,7 @@ export interface InboxMessage {
     attachments: InboxAttachment[];
     platform_message_id: string;
     sent_at: string;
+    source: 'dm' | 'comment';
     sent_by_ai: boolean;
 }
 
