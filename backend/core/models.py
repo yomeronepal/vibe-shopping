@@ -291,6 +291,8 @@ class Order(TimeStampedModel):
     customer_name = models.CharField(max_length=255, blank=True, help_text="Customer name for POS orders")
     customer_phone = models.CharField(max_length=20, blank=True, help_text="Customer phone for POS orders")
     customer_email = models.EmailField(blank=True, help_text="Customer email for POS orders")
+    metadata = models.JSONField(default=dict, blank=True,
+                                help_text="Source info and collected order details (e.g. chat bot fields)")
     
     def __str__(self):
         return f"Order #{self.id} - {self.tenant.name}"

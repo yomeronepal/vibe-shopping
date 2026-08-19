@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import SettingsTabs from '../components/vendor/SettingsTabs';
+import TagEditor from '../components/vendor/TagEditor';
 import { getStoreProfile, updateAssistantSettings } from '../api/vendor';
 
 const KNOWLEDGE_PLACEHOLDER = `Examples:
@@ -17,6 +18,7 @@ export default function VendorAssistantSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [enabled, setEnabled] = useState(true);
     const [autoReply, setAutoReply] = useState(false);
+    const [orderFields, setOrderFields] = useState<string[]>([]);
     const [knowledge, setKnowledge] = useState('');
 
     const primaryColor = themeConfig.primary;
@@ -26,6 +28,7 @@ export default function VendorAssistantSettingsPage() {
             .then((profile) => {
                 setEnabled(profile.ai_assistant_enabled);
                 setAutoReply(profile.ai_auto_reply);
+                setOrderFields(profile.order_fields);
                 setKnowledge(profile.ai_knowledge);
             })
             .catch(() => toast.error('Could not load assistant settings'))
@@ -35,7 +38,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -164,6 +167,15 @@ export default function VendorAssistantSettingsPage() {
                                 <p className="mt-2 text-xs text-right" style={{ color: themeConfig.textSecondary }}>
                                     {knowledge.length}/6000
                                 </p>
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Order information to collect</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    Before placing a chat order, the AI asks the customer for each of these. Once it has them all
+                                    (plus the products they want), the order is created automatically.
+                                </p>
+                                <TagEditor label="Fields" tags={orderFields} placeholder="Add field, press Enter" onChange={setOrderFields} />
                             </div>
 
                             <div
