@@ -882,6 +882,48 @@ class ProductViewSet(viewsets.ModelViewSet):
         product.save(update_fields=['status', 'is_active'])
         return Response(ProductSerializer(product).data)
 
+    @action(detail=True, methods=['post'], url_path='sync-social')
+    def sync_social(self, request, pk=None):
+        """Push the product's updated caption to its published Facebook posts.
+
+        Instagram posts are reported as skipped because the Meta API
+        does not support editing published Instagram media.
+        """
+        from socials.models import ConnectedPage
+        from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+
+        product = self.get_object()
+        caption = request.data.get('caption') or product.description or product.name
+        page = ConnectedPage.objects.filter(tenant=product.tenant, status='connected').first()
+        if page is None:
+            return Response(
+                {'error': 'No connected Facebook Page.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        posts = product.social_posts.filter(status='posted').exclude(platform_post_id='')
+        client = MetaGraphClient()
+        results = [self.sync_one_post(client, page, post, caption) for post in posts]
+        return Response({'caption': caption, 'results': results})
+
+    def sync_one_post(self, client, page, post, caption):
+        """Update one published post's caption, or explain why not."""
+        from socials.services.meta_graph import MetaGraphError
+
+        base = {'post_id': post.id, 'platform': post.platform}
+        if post.platform != 'facebook':
+            return {**base, 'status': 'skipped', 'reason': 'Instagram posts cannot be edited via the Meta API.'}
+        if post.post_format == 'story':
+            return {**base, 'status': 'skipped', 'reason': 'Stories cannot be edited.'}
+        if post.platform_post_id.startswith('local-'):
+            return {**base, 'status': 'skipped', 'reason': 'Simulated post.'}
+        try:
+            client.update_page_post_caption(post.platform_post_id, page.get_access_token(), caption)
+        except MetaGraphError as exc:
+            return {**base, 'status': 'failed', 'error': str(exc)}
+        post.caption = caption
+        post.save(update_fields=['caption'])
+        return {**base, 'status': 'updated'}
+
     @action(detail=True, methods=['post'], url_path='archive')
     def archive(self, request, pk=None):
         """Archive a product, hiding it from the storefront."""

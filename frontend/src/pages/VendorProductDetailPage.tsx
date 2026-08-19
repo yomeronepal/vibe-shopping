@@ -167,9 +167,21 @@ export default function VendorProductDetailPage() {
         <VendorShell>
             <div className="overflow-y-auto h-full">
                 <div className="mx-auto max-w-5xl px-4 md:px-6 py-8">
-                    <Link to="/vendor/products" className="text-sm font-semibold" style={{ color: themeConfig.primary }}>
-                        ← All products
-                    </Link>
+                    <div className="flex items-center justify-between gap-3">
+                        <Link to="/vendor/products" className="text-sm font-semibold" style={{ color: themeConfig.primary }}>
+                            ← All products
+                        </Link>
+                        {product && (
+                            <Link
+                                to={`/vendor/products/${product.id}/edit`}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm"
+                                style={{ backgroundColor: `${themeConfig.surface}80`, borderColor: themeConfig.border, color: themeConfig.text }}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                                Edit
+                            </Link>
+                        )}
+                    </div>
                     {loading && (
                         <p className="mt-8 text-sm" style={{ color: themeConfig.textSecondary }}>Loading product…</p>
                     )}

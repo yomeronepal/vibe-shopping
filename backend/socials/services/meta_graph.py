@@ -255,6 +255,14 @@ class MetaGraphClient:
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
 
+    def update_page_post_caption(self, post_id, page_token, message):
+        """Update the caption of an existing Page post."""
+        payload = self.post(f'/{post_id}', {
+            'access_token': page_token,
+            'message': message,
+        })
+        return bool(payload.get('success'))
+
     def get_post_engagement(self, post_id, page_token):
         """Return likes, comments, and shares for a Page post."""
         payload = self.get(f'/{post_id}', {

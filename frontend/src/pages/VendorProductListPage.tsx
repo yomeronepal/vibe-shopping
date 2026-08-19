@@ -400,6 +400,17 @@ const VendorProductListPage: React.FC = () => {
                                                     <span className="material-symbols-outlined text-[20px]">visibility</span>
                                                 </button>
                                             )}
+                                            <button
+                                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                                                title="Edit"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/vendor/products/${product.id}/edit`);
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
                                             {product.status === 'archived' ? (
                                                 <button
                                                     className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
