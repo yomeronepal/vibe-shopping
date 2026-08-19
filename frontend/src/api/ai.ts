@@ -35,6 +35,17 @@ export interface AIProductDetails {
 }
 
 export const aiApi = {
+    generateProductDetailsFromBrief: async (
+        brief: string,
+        price?: number
+    ): Promise<AIProductDetails> => {
+        const response = await apiClient.post<AIProductDetails>(
+            '/products/generate-details-from-text/',
+            { brief, price }
+        );
+        return response.data;
+    },
+
     generateProductDetails: async (
         image: File,
         price?: number

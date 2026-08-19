@@ -92,6 +92,76 @@ def analyze_with_openai(image_data: bytes, prompt: str, is_logo: bool = False) -
         raise
 
 
+PRODUCT_JSON_SPEC = """Generate a JSON response with the following structure. Be as detailed and specific as possible, especially with tags:
+
+{
+    "title": "Create a compelling, SEO-optimized product title in English followed by Romanized Nepali in brackets (e.g., 'Red Velvet Sari (Rato Velvet Sari)') (max 100 characters)",
+    "description": "Write a detailed, persuasive product description (250-350 words). Include features, benefits, materials, use cases, and appeal. Use English primarily but mix in common Romanized Nepali fashion terms where natural.",
+    
+    "tags": [
+        "Generate 20-30 highly specific, searchable tags covering:
+        - Product type/category
+        - Style (casual, formal, vintage, modern, minimalist, bohemian)
+        - Colors (all visible colors)
+        - Materials/fabrics
+        - Patterns (solid, striped, floral, geometric)
+        - Occasions (work, party, casual, formal, beach, gym)
+        - Season (summer, winter, spring, fall, all-season)
+        - Target demographic (men, women, unisex, teens, adults)
+        - Fit/cut (slim, regular, oversized, fitted)
+        - Features (pockets, zipper, buttons, sleeveless, long-sleeve)
+        - Trends (trending, bestseller, new-arrival, classic)
+        - Brand style (luxury, budget-friendly, eco-friendly, sustainable)
+        - Activity (sports, yoga, running, hiking, office)"
+    ],
+    
+    "vibe_tags": ["List 3-5 specific fashion vibes. MUST include if applicable: Traditional, Cultural, Musical, Party, Concert, Festival, Bohemain, Streetwear, Minimalist, Y2K"],
+
+    "weather_tags": [
+        {
+            "tag": "Weather condition (Sunny/Rainy/Windy/Cold/Hot/Snowy/Humid/Mild/All-Weather)",
+            "fit": "1-2 sentences explaining why this product suits this weather. Mention specific features like fabric breathability, insulation, water resistance, UV protection, or temperature regulation."
+        }
+    ],
+
+    "confidence_score": 0.95,
+    
+    "suggested_price_range": "25.00 - 45.00",
+    
+    "category": "Main product category",
+    "subcategory": "More specific subcategory",
+    
+    "attributes": {
+        "color": ["primary color", "secondary color"],
+        "material": ["main material", "secondary material"],
+        "style": "overall style (e.g., casual chic, streetwear, formal business)",
+        "fit": "fit type",
+        "pattern": "pattern type",
+        "sleeve_length": "sleeve style if applicable",
+        "neckline": "neckline style if applicable",
+        "length": "garment length if applicable"
+    },
+    
+    "target_audience": {
+        "gender": "primary gender target",
+        "age_range": "age range (e.g., 18-35, 25-45)",
+        "lifestyle": "target lifestyle (e.g., active, professional, casual)"
+    },
+    
+    "occasions": ["list 5-10 occasions this product is suitable for"],
+    
+    "season": ["applicable seasons"],
+    
+    "care_instructions": "Brief care/maintenance tips if determinable",
+    
+    "seo_keywords": ["15-20 keywords for search optimization"],
+    
+    "selling_points": ["5-7 unique selling points or benefits"],
+    
+    "similar_styles": ["3-5 similar style keywords for recommendations"]
+}"""
+
+
 class GeminiProductAnalyzer:
     """
     Service to analyze product images using Google Gemini AI
@@ -104,7 +174,7 @@ class GeminiProductAnalyzer:
             raise ValueError("GOOGLE_AI_API_KEY not configured in settings")
 
         self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-2.0-flash-exp'
+        self.model = getattr(settings, 'GEMINI_ASSISTANT_MODEL', 'gemini-2.5-flash')
 
     def _generate_with_retry(self, image_data: bytes, prompt: str, max_retries=3, base_delay=2):
         for attempt in range(max_retries):
@@ -133,6 +203,72 @@ class GeminiProductAnalyzer:
                     raise
         return None
 
+    def _generate_text_with_retry(self, prompt, max_retries=3, base_delay=2):
+        for attempt in range(max_retries):
+            try:
+                return self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                )
+            except Exception as e:
+                error_str = str(e)
+                if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"Gemini rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                    else:
+                        raise
+                else:
+                    raise
+        return None
+
+    def _parse_details_json(self, result_text):
+        """Strip markdown fences and parse the model's JSON payload."""
+        cleaned = result_text.strip()
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith('```'):
+            cleaned = cleaned[3:]
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]
+        return json.loads(cleaned.strip())
+
+    def generate_from_brief(self, brief: str, price: float = None) -> dict:
+        """Generate product details from the vendor's own description.
+
+        Args:
+            brief: What the vendor wrote about the product.
+            price: Optional product price in rupees.
+
+        Returns:
+            dict with success status and data/error.
+        """
+        price_context = f"The vendor set the price at Rs. {price}." if price else ""
+        prompt = f"""A vendor in Nepal is listing a product in their online shop. They described it in their own words (English, Nepali, or a mix):
+
+VENDOR'S DESCRIPTION
+{brief}
+
+{price_context}
+
+{PRODUCT_JSON_SPEC}
+
+Ground everything in the vendor's description: keep every fact they stated (colors, materials, sizes, features) and expand naturally around them, but do not contradict them or invent specific claims like materials or measurements they never mentioned. Where the description is silent, stay general rather than specific.
+All field values must be plain text — no markdown, no asterisks, no bold markers.
+Return ONLY valid JSON, no markdown formatting."""
+        try:
+            response = self._generate_text_with_retry(prompt)
+            result = self._parse_details_json(response.text)
+            logger.info(f"Generated product details from brief with {len(result.get('tags', []))} tags")
+            return {'success': True, 'data': result}
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini brief response as JSON: {e}")
+            return {'success': False, 'error': 'The AI returned an unreadable answer. Try again.'}
+        except Exception as e:
+            logger.error(f"Error generating from brief: {e}")
+            return {'success': False, 'error': str(e)}
+
     def analyze_product_image(self, image_data: bytes, price: float = None) -> dict:
         """
         Analyze product image and generate comprehensive details
@@ -157,74 +293,7 @@ Analyze this product image in extreme detail and provide comprehensive e-commerc
 
 {price_context}
 
-Generate a JSON response with the following structure. Be as detailed and specific as possible, especially with tags:
-
-{{
-    "title": "Create a compelling, SEO-optimized product title in English followed by Romanized Nepali in brackets (e.g., 'Red Velvet Sari (Rato Velvet Sari)') (max 100 characters)",
-    "description": "Write a detailed, persuasive product description (250-350 words). Include features, benefits, materials, use cases, and appeal. Use English primarily but mix in common Romanized Nepali fashion terms where natural.",
-    
-    "tags": [
-        "Generate 20-30 highly specific, searchable tags covering:
-        - Product type/category
-        - Style (casual, formal, vintage, modern, minimalist, bohemian)
-        - Colors (all visible colors)
-        - Materials/fabrics
-        - Patterns (solid, striped, floral, geometric)
-        - Occasions (work, party, casual, formal, beach, gym)
-        - Season (summer, winter, spring, fall, all-season)
-        - Target demographic (men, women, unisex, teens, adults)
-        - Fit/cut (slim, regular, oversized, fitted)
-        - Features (pockets, zipper, buttons, sleeveless, long-sleeve)
-        - Trends (trending, bestseller, new-arrival, classic)
-        - Brand style (luxury, budget-friendly, eco-friendly, sustainable)
-        - Activity (sports, yoga, running, hiking, office)"
-    ],
-    
-    "vibe_tags": ["List 3-5 specific fashion vibes. MUST include if applicable: Traditional, Cultural, Musical, Party, Concert, Festival, Bohemain, Streetwear, Minimalist, Y2K"],
-
-    "weather_tags": [
-        {{
-            "tag": "Weather condition (Sunny/Rainy/Windy/Cold/Hot/Snowy/Humid/Mild/All-Weather)",
-            "fit": "1-2 sentences explaining why this product suits this weather. Mention specific features like fabric breathability, insulation, water resistance, UV protection, or temperature regulation."
-        }}
-    ],
-
-    "confidence_score": 0.95,
-    
-    "suggested_price_range": "25.00 - 45.00",
-    
-    "category": "Main product category",
-    "subcategory": "More specific subcategory",
-    
-    "attributes": {{
-        "color": ["primary color", "secondary color"],
-        "material": ["main material", "secondary material"],
-        "style": "overall style (e.g., casual chic, streetwear, formal business)",
-        "fit": "fit type",
-        "pattern": "pattern type",
-        "sleeve_length": "sleeve style if applicable",
-        "neckline": "neckline style if applicable",
-        "length": "garment length if applicable"
-    }},
-    
-    "target_audience": {{
-        "gender": "primary gender target",
-        "age_range": "age range (e.g., 18-35, 25-45)",
-        "lifestyle": "target lifestyle (e.g., active, professional, casual)"
-    }},
-    
-    "occasions": ["list 5-10 occasions this product is suitable for"],
-    
-    "season": ["applicable seasons"],
-    
-    "care_instructions": "Brief care/maintenance tips if determinable",
-    
-    "seo_keywords": ["15-20 keywords for search optimization"],
-    
-    "selling_points": ["5-7 unique selling points or benefits"],
-    
-    "similar_styles": ["3-5 similar style keywords for recommendations"]
-}}
+{PRODUCT_JSON_SPEC}
 
 Be extremely thorough with tags - include every relevant descriptor you can identify from the image.
 Return ONLY valid JSON, no markdown formatting.
@@ -299,7 +368,7 @@ class GeminiLogoAnalyzer:
             raise ValueError("GOOGLE_AI_API_KEY not configured in settings")
 
         self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-2.0-flash-exp'
+        self.model = getattr(settings, 'GEMINI_ASSISTANT_MODEL', 'gemini-2.5-flash')
 
     def _generate_with_retry(self, image_data: bytes, prompt: str, max_retries=3, base_delay=2):
         for attempt in range(max_retries):

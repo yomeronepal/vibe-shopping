@@ -156,6 +156,57 @@ def list_gemini_models(request):
         )
 
 
+@api_view(['POST'])
+@throttle_classes([AIAnalysisThrottle])
+def generate_product_details_from_text(request):
+    """Generate product details from the vendor's written description.
+
+    Request data:
+        brief: What the vendor wrote about the product (required).
+        price: Product price (optional).
+
+    Returns the same JSON structure as image-based generation.
+    """
+    brief = (request.data.get('brief') or '').strip()
+    if len(brief) < 10:
+        return Response(
+            {'error': 'Describe the product in a sentence or two first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    price = request.data.get('price')
+
+    from .services.gemini_service import GeminiProductAnalyzer
+    from .utils.ai_tracker import track_ai_usage, estimate_text_tokens
+
+    tenant = None
+    if hasattr(request.user, 'vendor_profile'):
+        tenant = request.user.vendor_profile.tenant
+
+    try:
+        analyzer = GeminiProductAnalyzer()
+        result = analyzer.generate_from_brief(brief, price=float(price) if price else None)
+    except Exception as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if not result.get('success'):
+        return Response(
+            {'error': result.get('error', 'Generation failed. Try again.')},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    track_ai_usage(
+        tenant=tenant,
+        ai_provider='gemini',
+        operation_type='product_brief',
+        input_tokens=estimate_text_tokens(brief),
+        output_tokens=estimate_text_tokens(str(result['data'])),
+        success=True,
+        user=request.user if request.user.is_authenticated else None,
+        metadata={'price': price},
+    )
+    return Response(result['data'], status=status.HTTP_200_OK)
+
+
 class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Public ViewSet for customers to view products.
