@@ -4,6 +4,25 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
+AUTO_REPLY_DEBOUNCE_SECONDS = 8
+
+
+def is_latest_inbound(conversation, message):
+    """Whether no newer customer message has arrived since this one."""
+    latest = (
+        conversation.messages.filter(direction='in')
+        .order_by('-sent_at', '-id')
+        .first()
+    )
+    return latest is not None and latest.id == message.id
+
+
+def was_answered_after(conversation, message):
+    """Whether an outbound reply was already sent after this message."""
+    return conversation.messages.filter(
+        direction='out', sent_at__gte=message.sent_at
+    ).exists()
+
 
 @shared_task
 def auto_reply_to_message(message_id):
@@ -34,14 +53,17 @@ def auto_reply_to_message(message_id):
     conversation = message.conversation
     if conversation.ai_paused or not is_auto_reply_enabled(conversation.tenant):
         return 'skipped'
-    latest = conversation.messages.order_by('-sent_at', '-id').first()
-    if latest is None or latest.id != message.id:
+    if not is_latest_inbound(conversation, message):
         return 'superseded'
+    if was_answered_after(conversation, message):
+        return 'already_answered'
     try:
         outcome = advance_order_conversation(conversation)
     except AssistantError as exc:
         logger.warning('Auto-reply failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
+    if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
+        return 'superseded'
     reply = outcome['reply']
     order = None
     if outcome['order_ready']:

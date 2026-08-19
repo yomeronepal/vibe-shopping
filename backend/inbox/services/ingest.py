@@ -144,7 +144,8 @@ def queue_auto_reply(record, tenant):
     if record.conversation.ai_paused or not is_auto_reply_enabled(tenant):
         return
     try:
-        auto_reply_to_message.delay(record.id)
+        from inbox.tasks import AUTO_REPLY_DEBOUNCE_SECONDS
+        auto_reply_to_message.apply_async(args=[record.id], countdown=AUTO_REPLY_DEBOUNCE_SECONDS)
     except Exception:
         logger.warning('Could not queue auto-reply for message %s', record.id, exc_info=True)
 

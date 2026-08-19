@@ -57,6 +57,14 @@ def build_business_block(tenant):
     return '\n'.join(parts)
 
 
+def describe_attachments(message):
+    """Describe a text-less message by its attachment types."""
+    types = sorted({(item or {}).get('type', 'file') for item in (message.attachments or [])})
+    if not types:
+        return '(sent something the assistant cannot see)'
+    return f"(sent a {', '.join(types)} attachment the assistant cannot see)"
+
+
 def build_history_block(conversation):
     """Render the recent thread, oldest first."""
     recent = list(conversation.messages.order_by('-sent_at')[:MAX_HISTORY])
@@ -64,7 +72,7 @@ def build_history_block(conversation):
     lines = []
     for message in recent:
         speaker = 'Customer' if message.direction == 'in' else 'Business'
-        text = message.text or '(attachment)'
+        text = message.text or describe_attachments(message)
         lines.append(f'{speaker}: {text}')
     return '\n'.join(lines) if lines else '(no messages yet)'
 
@@ -282,9 +290,11 @@ Respond with ONLY a JSON object, no markdown, in this exact shape:
 {{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"]}}
 
 Rules:
-1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, plain text, no markdown.
+1. reply follows the shop's voice: warm, 1-3 short sentences, same language as the customer, simple everyday words, plain text, no markdown.
 2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
+3b. Never mention any product that is not in the catalog, and always use the exact catalog names.
+3c. If the customer's latest message is unclear, only an emoji or short reaction, or an attachment you cannot see, reply with ONE short friendly question asking what they would like — do not guess or apologize repeatedly.
 4. Fill collected only with values the customer actually stated anywhere in the conversation; never invent them.
 5. When ordering and fields are missing, the reply must naturally ask for the missing fields (all of them at once) and order_ready is false.
 6. order_ready is true ONLY when ordering is true, items are known, and every field in the list has been collected. Then the reply confirms the items, total price from the catalog, and tells the customer their order is being placed.

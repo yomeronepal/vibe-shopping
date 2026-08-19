@@ -93,6 +93,26 @@ class AutoReplyTaskTests(AutoReplyTestBase):
         Conversation.objects.filter(pk=self.convo.pk).update(ai_paused=True)
         self.assertEqual(auto_reply_to_message(self.inbound.id), 'skipped')
 
+    def test_skips_when_already_answered(self):
+        Message.objects.create(
+            conversation=self.convo, direction='out', text='Handled by human',
+            platform_message_id='m-human', sent_at=timezone.now(),
+        )
+        self.assertEqual(auto_reply_to_message(self.inbound.id), 'already_answered')
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-late')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_skips_send_when_newer_message_arrives_during_generation(self, mock_advance, mock_deliver):
+        def add_newer_then_return(conversation):
+            Message.objects.create(
+                conversation=conversation, direction='in', text='One more thing',
+                platform_message_id='m-during', sent_at=timezone.now(),
+            )
+            return outcome()
+        mock_advance.side_effect = add_newer_then_return
+        self.assertEqual(auto_reply_to_message(self.inbound.id), 'superseded')
+        self.assertFalse(Message.objects.filter(direction='out').exists())
+
     def test_skips_when_superseded_by_newer_message(self):
         Message.objects.create(
             conversation=self.convo, direction='in', text='Actually never mind',
@@ -185,24 +205,24 @@ class ChatOrderCreationTests(AutoReplyTestBase):
 
 
 class QueueAutoReplyTests(AutoReplyTestBase):
-    @patch('inbox.tasks.auto_reply_to_message.delay')
-    def test_queues_when_enabled(self, mock_delay):
+    @patch('inbox.tasks.auto_reply_to_message.apply_async')
+    def test_queues_with_debounce_when_enabled(self, mock_apply):
         queue_auto_reply(self.inbound, self.tenant)
-        mock_delay.assert_called_once_with(self.inbound.id)
+        mock_apply.assert_called_once_with(args=[self.inbound.id], countdown=8)
 
-    @patch('inbox.tasks.auto_reply_to_message.delay')
-    def test_does_not_queue_when_disabled(self, mock_delay):
+    @patch('inbox.tasks.auto_reply_to_message.apply_async')
+    def test_does_not_queue_when_disabled(self, mock_apply):
         self.tenant.metadata = {}
         queue_auto_reply(self.inbound, self.tenant)
-        mock_delay.assert_not_called()
+        mock_apply.assert_not_called()
 
-    @patch('inbox.tasks.auto_reply_to_message.delay')
-    def test_does_not_queue_when_paused(self, mock_delay):
+    @patch('inbox.tasks.auto_reply_to_message.apply_async')
+    def test_does_not_queue_when_paused(self, mock_apply):
         Conversation.objects.filter(pk=self.convo.pk).update(ai_paused=True)
         self.inbound.refresh_from_db()
         self.inbound.conversation.refresh_from_db()
         queue_auto_reply(self.inbound, self.tenant)
-        mock_delay.assert_not_called()
+        mock_apply.assert_not_called()
 
 
 class AutoReplyApiTests(AutoReplyTestBase):
