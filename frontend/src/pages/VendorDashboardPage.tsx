@@ -230,6 +230,35 @@ export default function VendorDashboardPage() {
                                 <StatTile icon="chat" label="Unread messages" value={unreadMessages.toLocaleString()} to="/vendor/inbox" />
                             </div>
 
+                            {(() => {
+                                const lowStock = products.filter((p) => p.status === 'published' && p.stock > 0 && p.stock < 10);
+                                const outOfStock = products.filter((p) => p.status === 'published' && p.stock === 0);
+                                if (lowStock.length === 0 && outOfStock.length === 0) return null;
+                                return (
+                                    <div
+                                        className="mt-6 rounded-2xl border p-5 backdrop-blur-xl shadow-sm"
+                                        style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d' }}
+                                    >
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="material-symbols-outlined" style={{ color: '#b45309' }}>warning</span>
+                                            <h3 className="text-base font-bold" style={{ color: '#92400e' }}>Inventory alerts</h3>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {outOfStock.slice(0, 5).map((p) => (
+                                                <Link key={p.id} to={`/vendor/products/${p.id}`} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                                                    {p.name.slice(0, 30)} — out of stock
+                                                </Link>
+                                            ))}
+                                            {lowStock.slice(0, 5).map((p) => (
+                                                <Link key={p.id} to={`/vendor/products/${p.id}`} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
+                                                    {p.name.slice(0, 30)} — {p.stock} left
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                                 {!setupComplete && (
                                     <div

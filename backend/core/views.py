@@ -433,9 +433,10 @@ class OrderViewSet(viewsets.GenericViewSet, generics.RetrieveAPIView):
                     if product.stock < item['quantity']:
                          raise ValueError(f"Insufficient stock for {product.name}.")
                          
-                    # Deduct Stock
                     product.stock -= item['quantity']
                     product.save()
+                    from core.models import record_stock_change
+                    record_stock_change(product, -item['quantity'], 'online_order', f'Order #{order.id}')
                     
                     line_total = product.price * item['quantity']
                     total_amount += line_total

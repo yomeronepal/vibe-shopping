@@ -198,9 +198,9 @@ Convert social conversations into structured orders.
 - [x] Product stock management
 - [x] Variant stock management
 - [x] Automatic stock deduction on orders
-- [ ] Low-stock alerts
+- [x] Low-stock alerts (Inventory alerts card on the dashboard)
 - [x] Out-of-stock status
-- [ ] Stock history
+- [x] Stock history (every movement logged with reason, shown on the product page)
 - [x] SKU management (auto-generated tenant-prefixed codes, POS lookup)
 - [x] Inventory search
 - [x] Inventory filtering (drafts / low stock / archived / out of stock)
@@ -427,7 +427,7 @@ Businesses should always be able to control the AI.
 - [ ] New order notification
 - [ ] New message notification
 - [ ] Human assistance required
-- [ ] Low-stock notification
+- [x] Low-stock notification (dashboard inventory alerts)
 - [ ] Failed post notification
 - [ ] Payment notification
 - [ ] Delivery notification

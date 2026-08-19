@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-import { vendorApi, type ProductAnalytics, type AnalyticsPost } from '../api/vendor';
+import { vendorApi, type ProductAnalytics, type AnalyticsPost, type StockHistoryEntry } from '../api/vendor';
 import { mediaUrl } from '../api/media';
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -110,6 +110,7 @@ export default function VendorProductDetailPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [publishing, setPublishing] = useState(false);
     const [confirmingArchive, setConfirmingArchive] = useState(false);
+    const [stockHistory, setStockHistory] = useState<StockHistoryEntry[]>([]);
 
     const load = (refresh = false) => {
         if (!id) return;
@@ -129,6 +130,9 @@ export default function VendorProductDetailPage() {
 
     useEffect(() => {
         load();
+        if (id) {
+            vendorApi.getStockHistory(id).then(setStockHistory).catch(() => setStockHistory([]));
+        }
     }, [id]);
 
     const publishDraft = () => {
@@ -315,6 +319,40 @@ export default function VendorProductDetailPage() {
                                 </div>
                             </div>
 
+                            {stockHistory.length > 0 && (
+                                <>
+                                    <h2 className="mt-10 text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                                        Stock history
+                                    </h2>
+                                    <div
+                                        className="mt-3 rounded-2xl border divide-y backdrop-blur-xl shadow-sm"
+                                        style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+                                    >
+                                        {stockHistory.slice(0, 10).map((entry, index) => (
+                                            <div key={index} className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ borderColor: `${themeConfig.border}40` }}>
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <span
+                                                        className="px-2 py-0.5 rounded-md text-xs font-extrabold tabular-nums shrink-0"
+                                                        style={entry.delta > 0
+                                                            ? { backgroundColor: '#dcfce7', color: '#15803d' }
+                                                            : { backgroundColor: '#fee2e2', color: '#b91c1c' }}
+                                                    >
+                                                        {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                                                    </span>
+                                                    <span className="text-sm font-semibold truncate" style={{ color: themeConfig.text }}>{entry.reason}</span>
+                                                    {entry.note && (
+                                                        <span className="text-xs truncate" style={{ color: themeConfig.textSecondary }}>{entry.note}</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-3 shrink-0 text-xs" style={{ color: themeConfig.textSecondary }}>
+                                                    <span>→ {entry.resulting_stock} left</span>
+                                                    <span>{new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                             <div className="mt-10 flex items-center justify-between gap-3">
                                 <h2 className="text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
                                     Social performance

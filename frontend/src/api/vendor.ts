@@ -31,6 +31,14 @@ export interface PublishProductData {
     variants?: ProductVariantData[];
 }
 
+export interface StockHistoryEntry {
+    delta: number;
+    resulting_stock: number;
+    reason: string;
+    note: string;
+    created_at: string;
+}
+
 export interface UpdateProductData {
     name?: string;
     description?: string;
@@ -215,6 +223,11 @@ export const vendorApi = {
             `/vendor/products/${id}/sync-social/`,
             caption ? { caption } : {},
         );
+        return response.data;
+    },
+
+    getStockHistory: async (id: number | string): Promise<StockHistoryEntry[]> => {
+        const response = await apiClient.get(`/vendor/products/${id}/stock-history/`);
         return response.data;
     },
 

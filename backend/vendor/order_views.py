@@ -187,3 +187,29 @@ class VendorOrderInvoiceSendView(APIView):
         except ConversationSendError as exc:
             return Response({'error': str(exc)}, status=exc.status_code)
         return Response({'sent': True, 'message_id': record.id, 'text': text})
+
+
+class ProductStockHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, product_id):
+        """Return the product's stock movements, newest first."""
+        from core.models import Product, StockHistory
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        product = Product.objects.filter(tenant=tenant, id=product_id).first()
+        if not product:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        entries = StockHistory.objects.filter(product=product)[:50]
+        return Response([
+            {
+                'delta': entry.delta,
+                'resulting_stock': entry.resulting_stock,
+                'reason': entry.get_reason_display(),
+                'note': entry.note,
+                'created_at': entry.created_at,
+            }
+            for entry in entries
+        ])

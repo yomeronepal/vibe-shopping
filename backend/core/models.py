@@ -177,6 +177,43 @@ class Product(TimeStampedModel):
     def __str__(self):
         return self.name
 
+class StockHistory(TimeStampedModel):
+    """One stock movement for a product, with the reason it happened."""
+
+    REASON_CHOICES = [
+        ('initial', 'Initial stock'),
+        ('manual', 'Manual adjustment'),
+        ('order', 'Order placed'),
+        ('chat_order', 'Chat bot order'),
+        ('online_order', 'Online order'),
+    ]
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_history')
+    delta = models.IntegerField()
+    resulting_stock = models.IntegerField()
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    note = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.product_id} {self.delta:+d} ({self.reason})'
+
+
+def record_stock_change(product, delta, reason, note=''):
+    """Append a stock movement entry for the product."""
+    if delta == 0:
+        return None
+    return StockHistory.objects.create(
+        product=product,
+        delta=delta,
+        resulting_stock=product.stock,
+        reason=reason,
+        note=note[:255],
+    )
+
+
 class ProductVariant(TimeStampedModel):
     """
     Product variants for different colors.
