@@ -30,12 +30,12 @@ function LoadingSkeleton() {
     return (
         <div className="min-h-screen p-4 md:p-8">
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 animate-pulse">
-                <div className="aspect-square rounded-2xl bg-gray-100 dark:bg-gray-800" />
+                <div className="aspect-square rounded-2xl bg-gray-100" />
                 <div className="space-y-6 pt-4">
-                    <div className="h-10 w-3/4 rounded-lg bg-gray-100 dark:bg-gray-800" />
-                    <div className="h-6 w-1/3 rounded-lg bg-gray-100 dark:bg-gray-800" />
-                    <div className="h-24 w-full rounded-lg bg-gray-100 dark:bg-gray-800" />
-                    <div className="h-12 w-1/2 rounded-full bg-gray-100 dark:bg-gray-800" />
+                    <div className="h-10 w-3/4 rounded-lg bg-gray-100" />
+                    <div className="h-6 w-1/3 rounded-lg bg-gray-100" />
+                    <div className="h-24 w-full rounded-lg bg-gray-100" />
+                    <div className="h-12 w-1/2 rounded-full bg-gray-100" />
                 </div>
             </div>
         </div>
@@ -52,7 +52,7 @@ function NotFound() {
                 <Link
                     to="/products"
                     className="inline-block px-6 py-3 rounded-full font-semibold text-white"
-                    style={{ backgroundColor: 'var(--vibe-accent, #8A2BE2)' }}
+                    style={{ backgroundColor: '#8A2BE2' }}
                 >
                     Browse products
                 </Link>
@@ -97,14 +97,14 @@ export default function ProductDetailPage() {
     };
 
     return (
-        <div className="min-h-screen bg-white dark:bg-black text-[var(--vibe-fg)] p-4 md:p-8">
+        <div className="min-h-screen bg-white text-gray-900 p-4 md:p-8">
             <Button variant="ghost" className="mb-6 flex items-center gap-2" onClick={() => navigate(-1)}>
                 <ArrowLeft className="w-4 h-4" /> Back
             </Button>
 
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
                 <div className="space-y-4">
-                    <div className={`aspect-square rounded-2xl overflow-hidden border border-[var(--vibe-border)] flex items-center justify-center ${selectedImage?.type === 'processed' ? 'bg-white' : 'bg-gray-50 dark:bg-gray-900'}`}>
+                    <div className={`aspect-square rounded-2xl overflow-hidden border border-gray-200 flex items-center justify-center ${selectedImage?.type === 'processed' ? 'bg-white' : 'bg-gray-50'}`}>
                         {selectedImage ? (
                             <img
                                 src={selectedImage.src}
@@ -126,7 +126,7 @@ export default function ProductDetailPage() {
                                     key={`${img.src}-${idx}`}
                                     onClick={() => setSelectedImage(img)}
                                     className={`w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${selectedImage?.src === img.src
-                                        ? 'border-[var(--vibe-accent)] ring-2 ring-[var(--vibe-accent)] ring-opacity-50'
+                                        ? 'border-primary ring-2 ring-primary ring-opacity-50'
                                         : 'border-transparent opacity-70 hover:opacity-100'
                                         }`}
                                 >
@@ -145,7 +145,7 @@ export default function ProductDetailPage() {
                     <div>
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                             {product.vibe_tags?.slice(0, 3).map(tag => (
-                                <span key={tag} className="text-xs font-bold uppercase tracking-wider text-[var(--vibe-accent)] bg-opacity-10 bg-[var(--vibe-accent)] px-2 py-1 rounded-full">
+                                <span key={tag} className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-full">
                                     {tag}
                                 </span>
                             ))}
@@ -167,13 +167,13 @@ export default function ProductDetailPage() {
                         onClick={handleAddToCart}
                         disabled={!inStock}
                         className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-white transition-transform hover:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: 'var(--vibe-accent, #8A2BE2)' }}
+                        style={{ backgroundColor: '#8A2BE2' }}
                     >
                         {added ? <Check className="w-5 h-5" /> : <ShoppingBag className="w-5 h-5" />}
                         {added ? 'Added to bag' : inStock ? 'Add to bag' : 'Out of stock'}
                     </button>
 
-                    <div className="grid grid-cols-2 gap-6 py-6 border-t border-b border-[var(--vibe-border)]">
+                    <div className="grid grid-cols-2 gap-6 py-6 border-t border-b border-gray-200">
                         <div>
                             <span className="block text-sm opacity-50 mb-1">Category</span>
                             <span className="font-medium">{product.category || 'Uncategorized'}</span>
