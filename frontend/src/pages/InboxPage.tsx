@@ -260,6 +260,9 @@ export default function InboxPage() {
         if (sendReply.fulfilled.match(result)) {
             setDraft('');
             setDraftFromAi(false);
+            if ((result.payload as { human_takeover?: boolean })?.human_takeover) {
+                toast('Bot paused — you have taken over this chat. Resume it from the header anytime.', { icon: '🤝' });
+            }
         }
     };
 

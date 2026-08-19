@@ -307,3 +307,42 @@ class SentimentHandoffTests(AutoReplyTestBase):
             platform_message_id='m-angry-2', sent_at=timezone.now(),
         )
         self.assertEqual(auto_reply_to_message(newer.id), 'skipped')
+
+
+class HumanTakeoverTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-1')
+    def test_manual_reply_pauses_bot(self, mock_deliver):
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Let me handle this personally.'}, format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data['human_takeover'])
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='ok thanks',
+            platform_message_id='m-ht-2', sent_at=timezone.now(),
+        )
+        self.assertEqual(auto_reply_to_message(newer.id), 'skipped')
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-3')
+    def test_no_takeover_when_bot_disabled(self, mock_deliver):
+        self.tenant.metadata = {}
+        self.tenant.save()
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Hello!'}, format='json',
+        )
+        self.assertFalse(response.data['human_takeover'])
+        self.convo.refresh_from_db()
+        self.assertFalse(self.convo.ai_paused)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-4')
+    def test_no_duplicate_takeover_when_already_paused(self, mock_deliver):
+        Conversation.objects.filter(pk=self.convo.pk).update(ai_paused=True)
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Still me.'}, format='json',
+        )
+        self.assertFalse(response.data['human_takeover'])

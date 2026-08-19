@@ -117,6 +117,20 @@ class ConversationReadView(APIView):
         return Response(data)
 
 
+def apply_human_takeover(tenant, conversation):
+    """Pause the bot for this chat when a human replies while it is active."""
+    from inbox.services.assistant import is_auto_reply_enabled
+
+    if conversation.ai_paused or not is_auto_reply_enabled(tenant):
+        return False
+    Conversation.objects.filter(pk=conversation.pk).update(ai_paused=True)
+    conversation.refresh_from_db()
+    push_safely(tenant.id, 'inbox.conversation_update', {
+        'conversation': ConversationSerializer(conversation).data,
+    })
+    return True
+
+
 class MessageListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -147,7 +161,10 @@ class MessageListView(APIView):
             record = send_conversation_text(conversation, text)
         except ConversationSendError as exc:
             return Response({'error': str(exc)}, status=exc.status_code)
-        return Response(MessageSerializer(record).data, status=status.HTTP_201_CREATED)
+        took_over = apply_human_takeover(tenant, conversation)
+        data = MessageSerializer(record).data
+        data['human_takeover'] = took_over
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class SuggestReplyView(APIView):

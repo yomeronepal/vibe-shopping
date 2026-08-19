@@ -365,7 +365,7 @@ Businesses should always be able to control the AI.
 - [x] Send manually
 - [x] Pause AI (settings toggle)
 - [x] Resume AI (settings toggle)
-- [ ] Human takeover
+- [x] Human takeover (replying manually pauses the bot for that chat automatically)
 - [x] Escalate conversation (automatic on negative sentiment / human request)
 
 ---
