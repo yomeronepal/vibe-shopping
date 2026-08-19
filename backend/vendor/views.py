@@ -873,6 +873,15 @@ class ProductViewSet(viewsets.ModelViewSet):
             from core.tasks import remove_background_task
             remove_background_task.delay(product.id)
 
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish(self, request, pk=None):
+        """Publish a draft product so it appears on the storefront."""
+        product = self.get_object()
+        product.status = 'published'
+        product.is_active = True
+        product.save(update_fields=['status', 'is_active'])
+        return Response(ProductSerializer(product).data)
+
     @action(detail=False, methods=['get'])
     def lookup(self, request):
         """

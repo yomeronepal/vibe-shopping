@@ -16,7 +16,8 @@ export interface PublishProductData {
     name: string;
     description: string;
     price: number;
-    image: File;
+    image?: File | null;
+    status?: 'draft' | 'published';
     ai_generated_title?: string;
     ai_generated_description?: string;
     tags?: string[];
@@ -102,9 +103,11 @@ export const vendorApi = {
         formData.append('name', productData.name);
         formData.append('description', productData.description);
         formData.append('price', productData.price.toString());
-        formData.append('image', productData.image);
+        if (productData.image) {
+            formData.append('image', productData.image);
+        }
         formData.append('stock', productData.stock?.toString() || '0');
-        formData.append('is_active', 'true');
+        formData.append('status', productData.status || 'published');
 
         if (productData.ai_generated_title) {
             formData.append('ai_generated_title', productData.ai_generated_title);
@@ -163,6 +166,11 @@ export const vendorApi = {
 
     updateTenant: async (data: { metadata: any }) => {
         const response = await apiClient.patch('/vendor/tenant/current/', data);
+        return response.data;
+    },
+
+    publishDraftProduct: async (id: number): Promise<Product> => {
+        const response = await apiClient.post(`/vendor/products/${id}/publish/`);
         return response.data;
     },
 

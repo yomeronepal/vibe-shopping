@@ -47,29 +47,26 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    status = serializers.ChoiceField(choices=['draft', 'published'], default='published')
+    image = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'description', 'price', 
-            'stock', 'image', 'gallery_images', 
+            'id', 'name', 'description', 'price',
+            'stock', 'image', 'gallery_images',
             'status',
             'ai_generated_title', 'ai_generated_description',
             'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size'
         ]
-        read_only_fields = ['status'] 
-    
+
     def create(self, validated_data):
+        """Create the product, syncing visibility to its status."""
         gallery_images = validated_data.pop('gallery_images', [])
-        # Force draft initially as per requirements
-        validated_data['status'] = 'draft'
-        
+        validated_data['is_active'] = validated_data.get('status', 'published') == 'published'
         product = Product.objects.create(**validated_data)
-        
-        # Handle Gallery Images
         for img in gallery_images:
             ProductImage.objects.create(product=product, image=img)
-            
         return product
 
 class OrderItemSerializer(serializers.Serializer):

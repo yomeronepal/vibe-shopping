@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import ThemePickerButton from '../components/theme/ThemePickerButton';
 import VendorShell from '../components/vendor/VendorShell';
 
-type ProductFilter = 'all' | 'low-stock' | 'archived' | 'out-of-stock';
+type ProductFilter = 'all' | 'drafts' | 'low-stock' | 'archived' | 'out-of-stock';
 
 interface VendorProfile {
     store_name?: string;
@@ -75,12 +75,14 @@ const VendorProductListPage: React.FC = () => {
         if (!matchesSearch) return false;
 
         switch (activeFilter) {
+            case 'drafts':
+                return product.status === 'draft';
             case 'low-stock':
                 return product.stock > 0 && product.stock < 10;
             case 'out-of-stock':
                 return product.stock === 0;
             case 'archived':
-                return product.is_active === false;
+                return product.status === 'archived';
             default:
                 return true;
         }
@@ -88,8 +90,9 @@ const VendorProductListPage: React.FC = () => {
 
     const productCounts = {
         all: Array.isArray(products) ? products.length : 0,
+        drafts: Array.isArray(products) ? products.filter(p => p.status === 'draft').length : 0,
         'low-stock': Array.isArray(products) ? products.filter(p => p.stock > 0 && p.stock < 10).length : 0,
-        archived: Array.isArray(products) ? products.filter(p => p.is_active === false).length : 0,
+        archived: Array.isArray(products) ? products.filter(p => p.status === 'archived').length : 0,
         'out-of-stock': Array.isArray(products) ? products.filter(p => p.stock === 0).length : 0,
     };
 
@@ -179,6 +182,7 @@ const VendorProductListPage: React.FC = () => {
                 <div className="flex border-b mb-8 overflow-x-auto" style={{ borderColor: themeConfig.border }}>
                     {[
                         { id: 'all', label: 'All Products', count: productCounts.all },
+                        { id: 'drafts', label: 'Drafts', count: productCounts.drafts, badgeBg: '#fef3c7', badgeColor: '#b45309' },
                         { id: 'low-stock', label: 'Low Stock', count: productCounts['low-stock'], badgeBg: '#fff7ed', badgeColor: '#ea580c' },
                         { id: 'archived', label: 'Archived', count: productCounts.archived },
                         { id: 'out-of-stock', label: 'Out of Stock', count: productCounts['out-of-stock'] },
@@ -308,6 +312,11 @@ const VendorProductListPage: React.FC = () => {
                                             </button>
                                         </div>
 
+                                        {product.status === 'draft' && (
+                                            <div className="absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide shadow-sm" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
+                                                Draft
+                                            </div>
+                                        )}
                                         <div className="absolute top-4 left-4">
                                             <input
                                                 className="w-5 h-5 rounded-md border-white/50 text-primary cursor-pointer"

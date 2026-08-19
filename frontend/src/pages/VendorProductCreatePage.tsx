@@ -215,6 +215,7 @@ const VendorProductCreatePage: React.FC = () => {
     const [aiProgressMessage, setAiProgressMessage] = useState('');
     const [aiError, setAiError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
     const [mrp, setMrp] = useState(0);
@@ -340,6 +341,30 @@ const VendorProductCreatePage: React.FC = () => {
         }
     };
 
+    const buildProductPayload = (status: 'draft' | 'published') => ({
+        name: title,
+        description,
+        price: discountEnabled ? discountedPrice : mrp,
+        image: imageFiles[0] ?? null,
+        status,
+        ai_generated_title: aiSuggestions?.ai_generated_title || title,
+        ai_generated_description: aiSuggestions?.ai_generated_description || description,
+        tags: productTags,
+        vibe_tags: vibeTags,
+        weather_tags: weatherTags,
+        category: aiSuggestions?.category || '',
+        subcategory: aiSuggestions?.subcategory || '',
+        metadata: aiSuggestions || {},
+        stock_by_size: colorVariants.length > 0 ? {} : stockBySize,
+        stock: colorVariants.length > 0 ? totalVariantStock : totalStock,
+        variants: colorVariants.length > 0 ? colorVariants.map((v) => ({
+            color_name: v.color_name,
+            color_hex: v.color_hex,
+            stock_by_size: v.stock_by_size,
+            images: v.images,
+        })) : undefined,
+    });
+
     const handlePublish = async () => {
         if (!title || !mrp) {
             toast.error('Please fill in title and price');
@@ -351,28 +376,7 @@ const VendorProductCreatePage: React.FC = () => {
         }
         setIsPublishing(true);
         try {
-            const created = await vendorApi.publishProduct({
-                name: title,
-                description,
-                price: discountEnabled ? discountedPrice : mrp,
-                image: imageFiles[0],
-                ai_generated_title: aiSuggestions?.ai_generated_title || title,
-                ai_generated_description: aiSuggestions?.ai_generated_description || description,
-                tags: productTags,
-                vibe_tags: vibeTags,
-                weather_tags: weatherTags,
-                category: aiSuggestions?.category || '',
-                subcategory: aiSuggestions?.subcategory || '',
-                metadata: aiSuggestions || {},
-                stock_by_size: colorVariants.length > 0 ? {} : stockBySize,
-                stock: colorVariants.length > 0 ? totalVariantStock : totalStock,
-                variants: colorVariants.length > 0 ? colorVariants.map((v) => ({
-                    color_name: v.color_name,
-                    color_hex: v.color_hex,
-                    stock_by_size: v.stock_by_size,
-                    images: v.images,
-                })) : undefined,
-            });
+            const created = await vendorApi.publishProduct(buildProductPayload('published'));
             toast.success('Product published successfully!');
             await publishToSocialPlatforms(created?.id);
             navigate('/vendor/products');
@@ -380,6 +384,23 @@ const VendorProductCreatePage: React.FC = () => {
             toast.error(error.response?.data?.error || 'Failed to publish product');
         } finally {
             setIsPublishing(false);
+        }
+    };
+
+    const handleSaveDraft = async () => {
+        if (!title) {
+            toast.error('Give the draft a title first');
+            return;
+        }
+        setIsSavingDraft(true);
+        try {
+            await vendorApi.publishProduct(buildProductPayload('draft'));
+            toast.success('Draft saved — publish it anytime from Products');
+            navigate('/vendor/products');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to save draft');
+        } finally {
+            setIsSavingDraft(false);
         }
     };
 
@@ -474,17 +495,30 @@ const VendorProductCreatePage: React.FC = () => {
                                 Upload a photo and AI fills in the details for you.
                             </p>
                         </div>
-                        <button
-                            onClick={handlePublish}
-                            disabled={isPublishing}
-                            className="flex items-center gap-2 px-7 py-3 rounded-2xl font-bold shadow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
-                            style={{ backgroundColor: themeConfig.buttonBg, color: themeConfig.buttonText, boxShadow: `0 10px 30px -10px ${primaryColor}60` }}
-                        >
-                            <span className="material-symbols-outlined text-[20px]">
-                                {isPublishing ? 'hourglass_empty' : 'rocket_launch'}
-                            </span>
-                            {isPublishing ? 'Publishing…' : 'Publish product'}
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleSaveDraft}
+                                disabled={isSavingDraft || isPublishing}
+                                className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold shadow-sm border transition-all hover:shadow-md disabled:opacity-50"
+                                style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                            >
+                                <span className="material-symbols-outlined text-[20px]" style={{ color: themeConfig.textSecondary }}>
+                                    {isSavingDraft ? 'hourglass_empty' : 'draft'}
+                                </span>
+                                {isSavingDraft ? 'Saving…' : 'Save draft'}
+                            </button>
+                            <button
+                                onClick={handlePublish}
+                                disabled={isPublishing || isSavingDraft}
+                                className="flex items-center gap-2 px-7 py-3 rounded-2xl font-bold shadow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
+                                style={{ backgroundColor: themeConfig.buttonBg, color: themeConfig.buttonText, boxShadow: `0 10px 30px -10px ${primaryColor}60` }}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">
+                                    {isPublishing ? 'hourglass_empty' : 'rocket_launch'}
+                                </span>
+                                {isPublishing ? 'Publishing…' : 'Publish product'}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
