@@ -16,7 +16,8 @@ export interface PublishProductData {
     name: string;
     description: string;
     price: number;
-    image: File;
+    image?: File | null;
+    status?: 'draft' | 'published';
     ai_generated_title?: string;
     ai_generated_description?: string;
     tags?: string[];
@@ -28,6 +29,29 @@ export interface PublishProductData {
     stock_by_size?: Record<string, number>;
     stock?: number;
     variants?: ProductVariantData[];
+}
+
+export interface UpdateProductData {
+    name?: string;
+    description?: string;
+    price?: number;
+    stock?: number;
+    image?: File | null;
+    tags?: string[];
+    vibe_tags?: string[];
+}
+
+export interface SocialSyncResult {
+    post_id: number;
+    platform: string;
+    status: 'updated' | 'skipped' | 'failed';
+    reason?: string;
+    error?: string;
+}
+
+export interface SocialSyncResponse {
+    caption: string;
+    results: SocialSyncResult[];
 }
 
 export interface VendorSignupData {
@@ -102,9 +126,11 @@ export const vendorApi = {
         formData.append('name', productData.name);
         formData.append('description', productData.description);
         formData.append('price', productData.price.toString());
-        formData.append('image', productData.image);
+        if (productData.image) {
+            formData.append('image', productData.image);
+        }
         formData.append('stock', productData.stock?.toString() || '0');
-        formData.append('is_active', 'true');
+        formData.append('status', productData.status || 'published');
 
         if (productData.ai_generated_title) {
             formData.append('ai_generated_title', productData.ai_generated_title);
@@ -166,6 +192,41 @@ export const vendorApi = {
         return response.data;
     },
 
+    publishDraftProduct: async (id: number): Promise<Product> => {
+        const response = await apiClient.post(`/vendor/products/${id}/publish/`);
+        return response.data;
+    },
+
+    updateProduct: async (id: number, data: UpdateProductData): Promise<Product> => {
+        const formData = new FormData();
+        if (data.name !== undefined) formData.append('name', data.name);
+        if (data.description !== undefined) formData.append('description', data.description);
+        if (data.price !== undefined) formData.append('price', data.price.toString());
+        if (data.stock !== undefined) formData.append('stock', data.stock.toString());
+        if (data.image) formData.append('image', data.image);
+        if (data.tags) formData.append('tags', JSON.stringify(data.tags));
+        if (data.vibe_tags) formData.append('vibe_tags', JSON.stringify(data.vibe_tags));
+        const response = await apiClient.patch(`/vendor/products/${id}/`, formData);
+        return response.data;
+    },
+
+    syncProductSocial: async (id: number, caption?: string): Promise<SocialSyncResponse> => {
+        const response = await apiClient.post(
+            `/vendor/products/${id}/sync-social/`,
+            caption ? { caption } : {},
+        );
+        return response.data;
+    },
+
+    archiveProduct: async (id: number): Promise<Product> => {
+        const response = await apiClient.post(`/vendor/products/${id}/archive/`);
+        return response.data;
+    },
+
+    deleteProduct: async (id: number): Promise<void> => {
+        await apiClient.delete(`/vendor/products/${id}/`);
+    },
+
     getProductAnalytics: async (id: string | number, refresh = false): Promise<ProductAnalytics> => {
         const response = await apiClient.get(`/vendor/products/${id}/analytics/`, {
             params: refresh ? { refresh: '1' } : {},
@@ -188,36 +249,6 @@ export const vendorApi = {
         formData.append('image', image);
         const response = await apiClient.post('/vendor/products/draft/', formData);
         return response.data; // { id: number, image_url: string }
-    },
-
-    updateProduct: async (id: number, productData: PublishProductData) => {
-        const formData = new FormData();
-        // ... Same appending logic as publish ...
-        // Refactoring to shared helper would be better but copy-paste for speed now.
-
-        formData.append('name', productData.name);
-        formData.append('description', productData.description);
-        formData.append('price', productData.price.toString());
-        // Image is already uploaded in draft, but if they changed it...
-        if (productData.image) {
-            formData.append('image', productData.image);
-        }
-        formData.append('stock', productData.stock?.toString() || '0');
-        formData.append('is_active', 'true');
-        formData.append('status', 'published'); // Ensure it gets published
-
-        if (productData.ai_generated_title) formData.append('ai_generated_title', productData.ai_generated_title);
-        if (productData.ai_generated_description) formData.append('ai_generated_description', productData.ai_generated_description);
-        if (productData.tags) formData.append('tags', JSON.stringify(productData.tags));
-        if (productData.vibe_tags) formData.append('vibe_tags', JSON.stringify(productData.vibe_tags));
-        if (productData.weather_tags) formData.append('weather_tags', JSON.stringify(productData.weather_tags));
-        if (productData.category) formData.append('category', productData.category);
-        if (productData.subcategory) formData.append('subcategory', productData.subcategory);
-        if (productData.metadata) formData.append('metadata', JSON.stringify(productData.metadata));
-        if (productData.stock_by_size) formData.append('stock_by_size', JSON.stringify(productData.stock_by_size));
-
-        const response = await apiClient.patch(`/vendor/products/${id}/`, formData);
-        return response.data;
     },
 
     getSocialMediaConnections: async () => {

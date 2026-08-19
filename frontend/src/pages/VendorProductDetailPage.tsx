@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import { vendorApi, type ProductAnalytics, type AnalyticsPost } from '../api/vendor';
 import { mediaUrl } from '../api/media';
 
@@ -107,6 +108,8 @@ export default function VendorProductDetailPage() {
     const [loading, setLoading] = useState(true);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [publishing, setPublishing] = useState(false);
+    const [confirmingArchive, setConfirmingArchive] = useState(false);
 
     const load = (refresh = false) => {
         if (!id) return;
@@ -128,6 +131,31 @@ export default function VendorProductDetailPage() {
         load();
     }, [id]);
 
+    const publishDraft = () => {
+        if (!data?.product) return;
+        setPublishing(true);
+        vendorApi.publishDraftProduct(data.product.id)
+            .then(() => {
+                toast.success('Product is now live in your store');
+                load();
+            })
+            .catch(() => toast.error('Could not publish this product'))
+            .finally(() => setPublishing(false));
+    };
+
+    const archiveProduct = () => {
+        if (!data?.product) return;
+        setConfirmingArchive(false);
+        setPublishing(true);
+        vendorApi.archiveProduct(data.product.id)
+            .then(() => {
+                toast.success('Product archived — it is hidden from your store');
+                load();
+            })
+            .catch(() => toast.error('Could not archive this product'))
+            .finally(() => setPublishing(false));
+    };
+
     const product = data?.product;
     const gallery = product
         ? [product.processed_image, product.image, ...(product.images ?? []).map((img) => img.image)]
@@ -139,9 +167,21 @@ export default function VendorProductDetailPage() {
         <VendorShell>
             <div className="overflow-y-auto h-full">
                 <div className="mx-auto max-w-5xl px-4 md:px-6 py-8">
-                    <Link to="/vendor/products" className="text-sm font-semibold" style={{ color: themeConfig.primary }}>
-                        ← All products
-                    </Link>
+                    <div className="flex items-center justify-between gap-3">
+                        <Link to="/vendor/products" className="text-sm font-semibold" style={{ color: themeConfig.primary }}>
+                            ← All products
+                        </Link>
+                        {product && (
+                            <Link
+                                to={`/vendor/products/${product.id}/edit`}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm"
+                                style={{ backgroundColor: `${themeConfig.surface}80`, borderColor: themeConfig.border, color: themeConfig.text }}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                                Edit
+                            </Link>
+                        )}
+                    </div>
                     {loading && (
                         <p className="mt-8 text-sm" style={{ color: themeConfig.textSecondary }}>Loading product…</p>
                     )}
@@ -180,9 +220,49 @@ export default function VendorProductDetailPage() {
                                     )}
                                 </div>
                                 <div>
-                                    <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
-                                        {product.name}
-                                    </h1>
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                                            {product.name}
+                                        </h1>
+                                        {product.status === 'draft' && (
+                                            <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
+                                                Draft
+                                            </span>
+                                        )}
+                                        {product.status === 'archived' && (
+                                            <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wide" style={{ backgroundColor: '#f3f4f6', color: '#4b5563' }}>
+                                                Archived
+                                            </span>
+                                        )}
+                                    </div>
+                                    {(product.status === 'draft' || product.status === 'archived') && (
+                                        <button
+                                            onClick={publishDraft}
+                                            disabled={publishing}
+                                            className="mt-3 flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
+                                            style={{ backgroundColor: themeConfig.primary }}
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">
+                                                {publishing ? 'hourglass_empty' : 'rocket_launch'}
+                                            </span>
+                                            {publishing
+                                                ? 'Working…'
+                                                : product.status === 'draft' ? 'Publish to store' : 'Restore to store'}
+                                        </button>
+                                    )}
+                                    {product.status === 'published' && (
+                                        <button
+                                            onClick={() => setConfirmingArchive(true)}
+                                            disabled={publishing}
+                                            className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm disabled:opacity-50"
+                                            style={{ borderColor: themeConfig.border, color: themeConfig.textSecondary, backgroundColor: `${themeConfig.surface}80` }}
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">
+                                                {publishing ? 'hourglass_empty' : 'inventory_2'}
+                                            </span>
+                                            {publishing ? 'Working…' : 'Archive'}
+                                        </button>
+                                    )}
                                     <p className="text-xl font-bold mt-1" style={{ color: themeConfig.primary }}>
                                         Rs. {Number(product.price).toLocaleString()}
                                     </p>
@@ -265,6 +345,14 @@ export default function VendorProductDetailPage() {
                     )}
                 </div>
             </div>
+            <ConfirmDialog
+                open={confirmingArchive}
+                title={`Archive ${product?.name ?? 'this product'}?`}
+                message="It will be hidden from your store but keeps all its history. You can restore it anytime."
+                confirmLabel="Archive"
+                onConfirm={archiveProduct}
+                onCancel={() => setConfirmingArchive(false)}
+            />
         </VendorShell>
     );
 }

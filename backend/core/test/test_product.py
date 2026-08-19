@@ -30,6 +30,7 @@ class ProductCreationTests(TestCase):
         product_id = response.data['id']
         p = Product.objects.get(id=product_id)
         
-        self.assertEqual(p.status, 'draft')
+        self.assertEqual(p.status, 'published')
+        self.assertTrue(p.is_active)
         self.assertEqual(p.tenant, self.tenant)
         self.assertTrue(bool(p.image))

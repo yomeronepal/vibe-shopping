@@ -873,6 +873,77 @@ class ProductViewSet(viewsets.ModelViewSet):
             from core.tasks import remove_background_task
             remove_background_task.delay(product.id)
 
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish(self, request, pk=None):
+        """Publish a draft or archived product to the storefront."""
+        product = self.get_object()
+        product.status = 'published'
+        product.is_active = True
+        product.save(update_fields=['status', 'is_active'])
+        return Response(ProductSerializer(product).data)
+
+    @action(detail=True, methods=['post'], url_path='sync-social')
+    def sync_social(self, request, pk=None):
+        """Push the product's updated caption to its published Facebook posts.
+
+        Instagram posts are reported as skipped because the Meta API
+        does not support editing published Instagram media.
+        """
+        from socials.models import ConnectedPage
+        from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+
+        product = self.get_object()
+        caption = request.data.get('caption') or product.description or product.name
+        page = ConnectedPage.objects.filter(tenant=product.tenant, status='connected').first()
+        if page is None:
+            return Response(
+                {'error': 'No connected Facebook Page.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        posts = product.social_posts.filter(status='posted').exclude(platform_post_id='')
+        client = MetaGraphClient()
+        results = [self.sync_one_post(client, page, post, caption) for post in posts]
+        return Response({'caption': caption, 'results': results})
+
+    def sync_one_post(self, client, page, post, caption):
+        """Update one published post's caption, or explain why not."""
+        from socials.services.meta_graph import MetaGraphError
+
+        base = {'post_id': post.id, 'platform': post.platform}
+        if post.platform != 'facebook':
+            return {**base, 'status': 'skipped', 'reason': 'Instagram posts cannot be edited via the Meta API.'}
+        if post.post_format == 'story':
+            return {**base, 'status': 'skipped', 'reason': 'Stories cannot be edited.'}
+        if post.platform_post_id.startswith('local-'):
+            return {**base, 'status': 'skipped', 'reason': 'Simulated post.'}
+        try:
+            client.update_page_post_caption(post.platform_post_id, page.get_access_token(), caption)
+        except MetaGraphError as exc:
+            return {**base, 'status': 'failed', 'error': str(exc)}
+        post.caption = caption
+        post.save(update_fields=['caption'])
+        return {**base, 'status': 'updated'}
+
+    @action(detail=True, methods=['post'], url_path='archive')
+    def archive(self, request, pk=None):
+        """Archive a product, hiding it from the storefront."""
+        product = self.get_object()
+        product.status = 'archived'
+        product.is_active = False
+        product.save(update_fields=['status', 'is_active'])
+        return Response(ProductSerializer(product).data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a product, refusing when order history depends on it."""
+        product = self.get_object()
+        if product.orderitem_set.exists():
+            return Response(
+                {'error': 'This product has order history and cannot be deleted. Archive it instead.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        product.social_posts.update(product=None)
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=False, methods=['get'])
     def lookup(self, request):
         """
