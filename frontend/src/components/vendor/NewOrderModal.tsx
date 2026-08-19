@@ -18,13 +18,19 @@ const ORDER_STATES = [
     { value: 'pending_payment', label: 'Payment pending' },
 ];
 
+export interface OrderPrefill {
+    quantities: Record<number, number>;
+    customerName?: string;
+}
+
 interface NewOrderModalProps {
     open: boolean;
     onClose: () => void;
     onCreated: () => void;
+    prefill?: OrderPrefill | null;
 }
 
-export default function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) {
+export default function NewOrderModal({ open, onClose, onCreated, prefill }: NewOrderModalProps) {
     const { config: themeConfig } = useShopTheme();
     const [products, setProducts] = useState<Product[]>([]);
     const [search, setSearch] = useState('');
@@ -34,6 +40,12 @@ export default function NewOrderModal({ open, onClose, onCreated }: NewOrderModa
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [orderStatus, setOrderStatus] = useState('completed');
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (!open || !prefill) return;
+        setQuantities(prefill.quantities);
+        if (prefill.customerName) setCustomerName(prefill.customerName);
+    }, [open, prefill]);
 
     useEffect(() => {
         if (!open) return;

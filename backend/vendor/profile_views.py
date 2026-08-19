@@ -26,6 +26,9 @@ def build_profile_payload(tenant):
         'phone': contact.get('phone', ''),
         'email': contact.get('email', ''),
         'address': contact.get('address', ''),
+        'ai_knowledge': metadata.get('aiKnowledge', ''),
+        'ai_assistant_enabled': bool(metadata.get('aiAssistantEnabled', True)),
+        'ai_auto_suggest': bool(metadata.get('aiAutoSuggest', True)),
     }
 
 
@@ -50,6 +53,12 @@ def apply_profile_fields(tenant, metadata, data):
         metadata['niches'] = [data['category']] if data['category'] else []
     if 'brand_vibes' in data:
         metadata['brandVibe'] = parse_brand_vibes(data['brand_vibes'])
+    if 'ai_knowledge' in data:
+        metadata['aiKnowledge'] = data['ai_knowledge']
+    if 'ai_assistant_enabled' in data:
+        metadata['aiAssistantEnabled'] = data['ai_assistant_enabled']
+    if 'ai_auto_suggest' in data:
+        metadata['aiAutoSuggest'] = data['ai_auto_suggest']
 
 
 def apply_contact_fields(metadata, data):

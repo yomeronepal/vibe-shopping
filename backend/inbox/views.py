@@ -123,3 +123,55 @@ class MessageListView(APIView):
         except ConversationSendError as exc:
             return Response({'error': str(exc)}, status=exc.status_code)
         return Response(MessageSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+class SuggestReplyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        """Draft an AI reply suggestion grounded in the tenant's data."""
+        from inbox.services.assistant import (
+            AssistantError,
+            is_assistant_enabled,
+            suggest_reply,
+        )
+
+        tenant, conversation = get_tenant_conversation(request, conversation_id)
+        if not conversation:
+            return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not is_assistant_enabled(tenant):
+            return Response(
+                {'error': 'The AI assistant is turned off in Settings.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            suggestion = suggest_reply(conversation)
+        except AssistantError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'suggestion': suggestion})
+
+
+class ExtractOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        """Extract a draft order from the conversation with AI."""
+        from inbox.services.assistant import (
+            AssistantError,
+            extract_order,
+            is_assistant_enabled,
+        )
+
+        tenant, conversation = get_tenant_conversation(request, conversation_id)
+        if not conversation:
+            return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not is_assistant_enabled(tenant):
+            return Response(
+                {'error': 'The AI assistant is turned off in Settings.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            extraction = extract_order(conversation)
+        except AssistantError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(extraction)
