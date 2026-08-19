@@ -9,6 +9,11 @@ from core.models import Order, OrderItem, Product, record_stock_change
 logger = logging.getLogger(__name__)
 
 DUPLICATE_WINDOW_MINUTES = 30
+UPDATABLE_ORDER_STATUSES = ('pending_payment', 'pending_delivery')
+
+
+class OrderRevisionError(Exception):
+    """Raised inside the revision transaction to roll everything back."""
 
 
 def find_recent_chat_order(conversation):
@@ -60,6 +65,101 @@ def exceeds_order_cap(tenant, items):
     if cap <= 0:
         return False
     return estimate_order_total(tenant, items) > cap
+
+
+def find_updatable_order(conversation, order_id):
+    """Return the bot order this conversation may still change, or None."""
+    return Order.objects.filter(
+        tenant=conversation.tenant,
+        id=order_id,
+        metadata__source='chat_bot',
+        metadata__conversation_id=conversation.id,
+        status__in=UPDATABLE_ORDER_STATUSES,
+    ).first()
+
+
+def restore_order_stock(order, products):
+    """Give the order's current items their stock back."""
+    for line in order.items.select_related('product'):
+        product = products.get(line.product_id)
+        if product is None:
+            continue
+        product.stock += line.quantity
+        product.save(update_fields=['stock'])
+        record_stock_change(product, line.quantity, 'chat_order', f'Order #{order.id} revised')
+
+
+def add_revised_items(order, items, products):
+    """Create the revised line items; returns the new total."""
+    total = 0
+    for item in items:
+        product = products.get(item['product_id'])
+        if product is None or product.status != 'published' or not product.is_active:
+            continue
+        quantity = min(max(1, int(item['quantity'])), product.stock) if product.stock > 0 else 0
+        if quantity < 1:
+            continue
+        OrderItem.objects.create(
+            order=order, product=product, quantity=quantity, price=product.price,
+            size=item.get('size', ''), color=item.get('color', ''),
+        )
+        product.stock -= quantity
+        product.save(update_fields=['stock'])
+        record_stock_change(product, -quantity, 'chat_order', f'Order #{order.id} revised')
+        total += product.price * quantity
+    if not order.items.exists():
+        raise OrderRevisionError()
+    return total
+
+
+def apply_order_revision(order, conversation, items, collected):
+    """Swap the order's items and details for the revised ones."""
+    ids = {item['product_id'] for item in items}
+    ids.update(order.items.values_list('product_id', flat=True))
+    products = {
+        product.id: product
+        for product in Product.objects.select_for_update().filter(
+            tenant=conversation.tenant, id__in=ids,
+        )
+    }
+    restore_order_stock(order, products)
+    order.items.all().delete()
+    order.total_amount = add_revised_items(order, items, products)
+    name, phone = pick_customer_details(conversation, collected)
+    if name:
+        order.customer_name = name
+    if phone:
+        order.customer_phone = phone
+    metadata = order.metadata or {}
+    merged = dict(metadata.get('collected') or {})
+    merged.update({key: value for key, value in collected.items() if str(value).strip()})
+    metadata['collected'] = merged
+    metadata['updated_via_chat_at'] = timezone.now().isoformat()
+    order.metadata = metadata
+    order.save(update_fields=['total_amount', 'customer_name', 'customer_phone', 'metadata'])
+
+
+def update_chat_order(conversation, order_id, items, collected):
+    """Revise a bot-placed order the customer asked to change.
+
+    Stock from the old lines is restored before the new lines are
+    applied, all within one transaction. Returns the updated Order,
+    or None when the order is not updatable or nothing valid remains.
+    """
+    order = find_updatable_order(conversation, order_id)
+    if order is None or not items:
+        return None
+    try:
+        with transaction.atomic():
+            apply_order_revision(order, conversation, items, collected)
+    except OrderRevisionError:
+        logger.info('Order %s revision produced no valid items; kept as-is', order_id)
+        return None
+    from inbox.services.crm import apply_collected_contact
+
+    apply_collected_contact(conversation.customer, collected)
+    logger.info('Chat bot updated order %s for conversation %s', order.id, conversation.id)
+    return order
 
 
 def create_chat_order(conversation, items, collected):

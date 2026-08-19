@@ -107,9 +107,8 @@ def auto_reply_to_message(message_id):
             )
             logger.info('Order over auto-confirm cap; handing conversation %s to a human', conversation.id)
         else:
-            order = create_chat_order(conversation, outcome['items'], outcome['collected'])
-            if order is not None:
-                reply = f'{reply}\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+            order, note = resolve_ready_order(conversation, outcome)
+            reply = f'{reply}{note}'
     track_order_intent(conversation, outcome, order)
     try:
         send_conversation_text(conversation, reply, sent_by_ai=True)
@@ -119,6 +118,30 @@ def auto_reply_to_message(message_id):
     if not outcome['order_ready']:
         send_recommendation_cards(conversation, outcome)
     return f'sent+order:{order.id}' if order else 'sent'
+
+
+def resolve_ready_order(conversation, outcome):
+    """Place or revise the order; returns (order, reply note)."""
+    from inbox.services.chat_orders import create_chat_order, update_chat_order
+
+    if outcome.get('update_order_id'):
+        order = update_chat_order(
+            conversation, outcome['update_order_id'], outcome['items'], outcome['collected'],
+        )
+        if order is None:
+            from inbox.models import Conversation
+
+            Conversation.objects.filter(pk=conversation.pk).update(ai_paused=True)
+            logger.info('Order revision needs a human; pausing conversation %s', conversation.id)
+            return None, (
+                '\n\nYo change ko lagi hamro team member le tapailai '
+                'chittai contact garnu hunecha. Dhanyabad!'
+            )
+        return order, f'\n\nOrder #{order.id} updated — New total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+    order = create_chat_order(conversation, outcome['items'], outcome['collected'])
+    if order is None:
+        return None, ''
+    return order, f'\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
 
 
 def send_recommendation_cards(conversation, outcome):

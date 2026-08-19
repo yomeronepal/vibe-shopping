@@ -508,6 +508,66 @@ def extract_order(conversation):
     return validate_order_extraction(conversation.tenant, data, conversation)
 
 
+UPDATABLE_ORDER_STATUSES = ('pending_payment', 'pending_delivery')
+RECENT_ORDER_DAYS = 7
+
+
+def format_collected_summary(metadata):
+    """Render the delivery details already on file for an order."""
+    collected = (metadata or {}).get('collected') or {}
+    return ', '.join(f'{key}: {value}' for key, value in list(collected.items())[:6])
+
+
+def format_order_item(item):
+    """Render one order line item with its chosen size and color."""
+    text = f'{item.quantity}× {item.product.name[:40]}'
+    if item.size:
+        text += f' (size {item.size})'
+    if item.color:
+        text += f' ({item.color})'
+    return text
+
+
+def format_recent_order_line(order):
+    """Render one existing order the customer may ask to change."""
+    items = ', '.join(format_order_item(item) for item in order.items.all())
+    changeable = (
+        'can still be changed' if order.status in UPDATABLE_ORDER_STATUSES
+        else 'changes need a human now'
+    )
+    line = (
+        f'- [order {order.id}] {items} — Total Rs. {format_price(order.total_amount)}'
+        f' — status: {order.status} ({changeable})'
+    )
+    details = format_collected_summary(order.metadata)
+    if details:
+        line += f' — info on file: {details}'
+    return line
+
+
+def build_recent_orders_block(conversation):
+    """List this chat's recent bot-placed orders, or empty."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from core.models import Order
+
+    cutoff = timezone.now() - timedelta(days=RECENT_ORDER_DAYS)
+    orders = (
+        Order.objects.filter(
+            tenant=conversation.tenant,
+            created_at__gte=cutoff,
+            metadata__source='chat_bot',
+            metadata__conversation_id=conversation.id,
+        )
+        .exclude(status='cancelled')
+        .prefetch_related('items__product')
+        .order_by('-created_at')[:3]
+    )
+    return '\n'.join(format_recent_order_line(order) for order in orders)
+
+
 def build_order_flow_prompt(conversation):
     """Assemble the combined reply + order-state prompt for the bot."""
     from inbox.services.knowledge import build_knowledge_block
@@ -530,12 +590,15 @@ PRODUCT CATALOG (only these can be ordered; use the exact id; the ONLY source of
 INFORMATION TO COLLECT BEFORE PLACING AN ORDER
 {', '.join(fields)}
 
+THIS CUSTOMER'S RECENT ORDERS IN THIS CHAT
+{build_recent_orders_block(conversation) or '(none)'}
+
 CONVERSATION SO FAR (Customer is the buyer; Business is you)
 {build_history_block(conversation)}
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "update_order_id": <the id from the recent orders list when the customer asks to change that existing order, else null>, "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
@@ -546,11 +609,13 @@ Rules:
 4. Fill collected only with values the customer actually stated anywhere in the conversation; never invent them.
 5. When ordering and fields are missing, the reply must naturally ask for the missing fields (all of them at once) and order_ready is false.
 6. order_ready is true ONLY when ordering is true, items are known, and every field in the list has been collected. Then the reply confirms the items, total price from the catalog, and tells the customer their order is being placed.
+6b. When the customer asks to change a recent order that can still be changed (different size, color, quantity, item, or delivery details), set update_order_id to that order's id, ordering true, and items to the COMPLETE list the order should contain AFTER the change — not just the changed line. Reuse the info on file for collected; only ask for what is genuinely new. order_ready is true once the full updated order is clear, and the reply confirms exactly what changes and the new total.
+6c. When they ask to change an order whose changes need a human, or to cancel any order, set needs_human true instead.
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
 8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY, and put their catalog ids in recommended_product_ids so their photos can be sent. Also fill recommended_product_ids when the customer asks to see a product or its photo. Leave it empty otherwise.
 8b. When the customer quotes a SKU code, match it exactly against the catalog.
 9. sentiment reflects the customer's mood in their recent messages.
-10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
+10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order (except a simple change you can handle via update_order_id), or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
 
 
 def load_recommended_products(tenant, data):
@@ -587,6 +652,10 @@ def advance_order_conversation(conversation):
     sentiment = str(data.get('sentiment', '')).lower()
     if sentiment not in ('positive', 'neutral', 'negative'):
         sentiment = 'neutral'
+    try:
+        update_order_id = int(data.get('update_order_id')) if data.get('update_order_id') else None
+    except (TypeError, ValueError):
+        update_order_id = None
     return {
         'reply': str(data['reply']).strip()[:1500],
         'ordering': bool(data.get('ordering')),
@@ -597,6 +666,7 @@ def advance_order_conversation(conversation):
         'sentiment': sentiment,
         'needs_human': bool(data.get('needs_human')),
         'recommended_products': load_recommended_products(conversation.tenant, data),
+        'update_order_id': update_order_id,
     }
 
 
