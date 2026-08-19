@@ -29,12 +29,10 @@ interface ColorVariant {
 const SIZE_LABELS: Record<string, string> = { S: 'Small', M: 'Medium', L: 'Large', XL: 'X-Large' };
 
 const AI_PROGRESS_STEPS = [
-    { progress: 15, message: 'Uploading image...' },
-    { progress: 30, message: 'AI analyzing product...' },
-    { progress: 50, message: 'Detecting colors & materials...' },
+    { progress: 20, message: 'Reading your description...' },
+    { progress: 45, message: 'Writing the title & description...' },
     { progress: 70, message: 'Generating tags & vibes...' },
-    { progress: 85, message: 'Creating description...' },
-    { progress: 95, message: 'Finalizing details...' },
+    { progress: 90, message: 'Finalizing details...' },
 ];
 
 function describeAiError(error: any): string {
@@ -217,6 +215,7 @@ const VendorProductCreatePage: React.FC = () => {
     const [isPublishing, setIsPublishing] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
+    const [productBrief, setProductBrief] = useState('');
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
     const [mrp, setMrp] = useState(0);
     const [costPrice, setCostPrice] = useState(0);
@@ -240,11 +239,18 @@ const VendorProductCreatePage: React.FC = () => {
         setProductTags(details.tags || []);
         setVibeTags(details.vibe_tags || []);
         setWeatherTags(details.weather_tags || []);
+        if (details.social_caption) {
+            setSocialCaption(String(details.social_caption).slice(0, 280));
+        }
         setAiSuggestions(details);
         toast.success('AI analysis complete!');
     };
 
-    const runAiAnalysis = async (file: File) => {
+    const runAiGeneration = async () => {
+        if (productBrief.trim().length < 10) {
+            toast.error('Describe the product in a sentence or two first');
+            return;
+        }
         setIsAiScanning(true);
         setAiProgress(0);
         setAiError(null);
@@ -257,13 +263,13 @@ const VendorProductCreatePage: React.FC = () => {
             }
         }, 800);
         try {
-            const details = await aiApi.generateProductDetails(file, mrp || undefined);
+            const details = await aiApi.generateProductDetailsFromBrief(productBrief.trim(), mrp || undefined);
             setAiProgress(100);
             setAiProgressMessage('Complete!');
             applyAiDetails(details);
         } catch (error) {
             setAiError(describeAiError(error));
-            toast.error('AI analysis failed - you can still add details manually');
+            toast.error('AI generation failed - you can still add details manually');
         } finally {
             clearInterval(interval);
             window.setTimeout(() => {
@@ -305,10 +311,7 @@ const VendorProductCreatePage: React.FC = () => {
             appendPreview(ready);
         }
         setImageFiles((prev) => [...prev, ...compressed]);
-        if (imageFiles.length === 0) {
-            await runAiAnalysis(compressed[0]);
-        }
-    }, [imageFiles.length, mrp]);
+    }, [imageFiles.length]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -492,7 +495,7 @@ const VendorProductCreatePage: React.FC = () => {
                                 New product
                             </h1>
                             <p className="mt-1 text-sm font-medium" style={{ color: themeConfig.textSecondary }}>
-                                Upload a photo and AI fills in the details for you.
+                                Tell us about the product and AI writes the listing for you.
                             </p>
                         </div>
                         <div className="flex gap-3">
@@ -551,7 +554,7 @@ const VendorProductCreatePage: React.FC = () => {
                                             style={{ backgroundColor: `${accentColor}12`, color: accentColor }}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                                            AI reads your first photo and drafts everything
+                                            Photos for your store & posts — the listing text comes from your description
                                         </p>
                                     </div>
                                 ) : (
@@ -625,13 +628,44 @@ const VendorProductCreatePage: React.FC = () => {
                                         message={aiError}
                                         onRetry={() => {
                                             setAiError(null);
-                                            if (imageFiles[0]) runAiAnalysis(imageFiles[0]);
+                                            runAiGeneration();
                                         }}
                                         onDismiss={() => setAiError(null)}
                                     />
                                 )}
 
                                 <div className="flex flex-col gap-6">
+                                    <div
+                                        className="rounded-2xl p-5 border"
+                                        style={{ background: `linear-gradient(135deg, ${primaryColor}08, ${accentColor}08)`, borderColor: `${primaryColor}25` }}
+                                    >
+                                        <label className="flex items-center gap-2 text-sm font-bold mb-1" style={{ color: themeConfig.text }}>
+                                            <span className="material-symbols-outlined text-[18px]" style={{ color: primaryColor }}>auto_awesome</span>
+                                            Describe your product
+                                        </label>
+                                        <p className="text-xs mb-3" style={{ color: themeConfig.textSecondary }}>
+                                            In your own words — English, Nepali, or mixed. AI writes the title, description, and tags from it.
+                                        </p>
+                                        <textarea
+                                            value={productBrief}
+                                            onChange={(e) => setProductBrief(e.target.value)}
+                                            placeholder="e.g. Kalo cotton polo t-shirt, breathable, sizes M to XL, perfect for summer"
+                                            className="w-full min-h-[90px] border-transparent rounded-xl text-sm leading-relaxed p-3.5 shadow-sm resize-none"
+                                            style={fieldStyle}
+                                        />
+                                        <button
+                                            onClick={runAiGeneration}
+                                            disabled={isAiScanning || productBrief.trim().length < 10}
+                                            className="mt-3 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
+                                            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`, boxShadow: `0 8px 20px -8px ${primaryColor}70` }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[18px] ${isAiScanning ? 'animate-spin' : ''}`}>
+                                                {isAiScanning ? 'progress_activity' : 'auto_awesome'}
+                                            </span>
+                                            {isAiScanning ? 'Generating…' : 'Generate details with AI'}
+                                        </button>
+                                    </div>
+
                                     <div>
                                         <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.text }}>Product title</label>
                                         <input

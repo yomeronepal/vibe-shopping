@@ -35,3 +35,4 @@ cryptography>=42.0.0
 # Development (optional)
 # django-debug-toolbar>=4.2.0
 # ipython>=8.18.0
+anthropic>=0.40.0
