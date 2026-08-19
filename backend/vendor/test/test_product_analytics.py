@@ -83,3 +83,13 @@ class ProductAnalyticsTests(APITestCase):
         foreign = Product.objects.create(tenant=other, name='X', price=1)
         response = self.client.get(f'/api/vendor/products/{foreign.id}/analytics/')
         self.assertEqual(response.status_code, 404)
+
+    @patch('vendor.product_analytics_views.MetaGraphClient')
+    def test_refresh_param_bypasses_cache(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.get_post_engagement.return_value = {'likes': 1, 'comments': 0, 'shares': 0}
+        mock_client.get_instagram_media_engagement.return_value = {'likes': 0, 'comments': 0, 'shares': 0}
+        self.client.get(f'/api/vendor/products/{self.product.id}/analytics/')
+        first_calls = mock_client.get_post_engagement.call_count
+        self.client.get(f'/api/vendor/products/{self.product.id}/analytics/?refresh=1')
+        self.assertGreater(mock_client.get_post_engagement.call_count, first_calls)

@@ -166,8 +166,10 @@ export const vendorApi = {
         return response.data;
     },
 
-    getProductAnalytics: async (id: string | number): Promise<ProductAnalytics> => {
-        const response = await apiClient.get(`/vendor/products/${id}/analytics/`);
+    getProductAnalytics: async (id: string | number, refresh = false): Promise<ProductAnalytics> => {
+        const response = await apiClient.get(`/vendor/products/${id}/analytics/`, {
+            params: refresh ? { refresh: '1' } : {},
+        });
         return response.data;
     },
 

@@ -52,13 +52,14 @@ def fetch_engagement(client, page, post):
         return None
 
 
-def resolve_engagement(client, page, post):
+def resolve_engagement(client, page, post, force_refresh=False):
     """Return engagement for a post using the cache, then Graph."""
     if post.status != 'posted' or not post.platform_post_id or not page:
         return dict(EMPTY_ENGAGEMENT)
-    cached = cached_engagement(post)
-    if cached is not None:
-        return cached
+    if not force_refresh:
+        cached = cached_engagement(post)
+        if cached is not None:
+            return cached
     fetched = fetch_engagement(client, page, post)
     if fetched is None:
         return dict(EMPTY_ENGAGEMENT)
@@ -82,11 +83,12 @@ class ProductAnalyticsView(APIView):
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         page = ConnectedPage.objects.filter(tenant=tenant, status='connected').first()
         client = MetaGraphClient()
+        force_refresh = request.query_params.get('refresh') == '1'
         posts = product.social_posts.order_by('-created_at')
         totals = {'likes': 0, 'comments': 0, 'shares': 0, 'published_posts': 0}
         post_payloads = []
         for post in posts:
-            engagement = resolve_engagement(client, page, post)
+            engagement = resolve_engagement(client, page, post, force_refresh)
             if post.status == 'posted':
                 totals['published_posts'] += 1
                 for key in ('likes', 'comments', 'shares'):

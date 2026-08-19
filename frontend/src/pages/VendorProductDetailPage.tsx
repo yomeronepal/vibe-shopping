@@ -106,18 +106,26 @@ export default function VendorProductDetailPage() {
     const [data, setData] = useState<ProductAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
+    const load = (refresh = false) => {
         if (!id) return;
-        setLoading(true);
-        vendorApi.getProductAnalytics(id)
+        if (refresh) setRefreshing(true);
+        else setLoading(true);
+        vendorApi.getProductAnalytics(id, refresh)
             .then((payload) => {
                 setData(payload);
-                const first = mediaUrl(payload.product.processed_image || payload.product.image);
-                setSelectedImage(first);
+                setSelectedImage((current) => current ?? mediaUrl(payload.product.processed_image || payload.product.image));
             })
             .catch(() => toast.error('Could not load this product. Refresh to retry.'))
-            .finally(() => setLoading(false));
+            .finally(() => {
+                setLoading(false);
+                setRefreshing(false);
+            });
+    };
+
+    useEffect(() => {
+        load();
     }, [id]);
 
     const product = data?.product;
@@ -207,9 +215,20 @@ export default function VendorProductDetailPage() {
                                 </div>
                             </div>
 
-                            <h2 className="mt-10 text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
-                                Social performance
-                            </h2>
+                            <div className="mt-10 flex items-center justify-between gap-3">
+                                <h2 className="text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                                    Social performance
+                                </h2>
+                                <button
+                                    onClick={() => load(true)}
+                                    disabled={refreshing}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold disabled:opacity-50"
+                                    style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                >
+                                    <span className={`material-symbols-outlined text-[18px] ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
+                                    {refreshing ? 'Refreshing…' : 'Refresh'}
+                                </button>
+                            </div>
                             <p className="text-sm mt-1" style={{ color: themeConfig.textSecondary }}>
                                 Engagement from Facebook and Instagram, refreshed every 10 minutes.
                             </p>
