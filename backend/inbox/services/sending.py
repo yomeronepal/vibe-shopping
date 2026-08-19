@@ -106,7 +106,7 @@ def store_card_message(conversation, products, message_id):
     record = Message.objects.create(
         conversation=conversation,
         direction='out',
-        text=f'[Sent product cards: {names}]',
+        text=f'[Sent product photos: {names}]',
         platform_message_id=message_id or f'local-{uuid.uuid4().hex}',
         sent_by_ai=True,
         sent_at=timezone.now(),
@@ -124,18 +124,22 @@ def store_card_message(conversation, products, message_id):
     return record
 
 
-def send_product_cards(conversation, products):
-    """Send photo cards for products after a reply; best-effort, DM only.
+def collect_card_images(products):
+    """Pair each product with its public image URL, skipping imageless ones."""
+    from socials.services.publisher import build_public_image_url
 
-    Comment-origin threads whose one-shot private reply was just used
-    cannot carry attachments, so those are skipped silently.
-    """
-    products = [product for product in products if product][:3]
-    route, target = resolve_reply_route(conversation)
-    if not products or route != 'dm':
-        return None
+    pairs = []
+    for product in products:
+        image_field = product.processed_image or product.image
+        image_url = build_public_image_url(image_field) if image_field else None
+        if image_url:
+            pairs.append((product, image_url))
+    return pairs
+
+
+def send_card_carousel(conversation, page, target, products):
+    """Send rich template cards with tappable product links."""
     elements = [build_product_card(product) for product in products]
-    page = conversation.page
     try:
         message_id = MetaGraphClient().send_generic_template(
             page.page_id, page.get_access_token(), target, elements,
@@ -144,6 +148,43 @@ def send_product_cards(conversation, products):
         logger.info('Product card send skipped for conversation %s: %s', conversation.id, exc)
         return None
     return store_card_message(conversation, products, message_id)
+
+
+def send_card_photos(conversation, page, target, products):
+    """Send native photo messages the customer can open and zoom."""
+    client = MetaGraphClient()
+    message_id = ''
+    sent = []
+    for product, image_url in collect_card_images(products):
+        try:
+            message_id = client.send_image_attachment(
+                page.page_id, page.get_access_token(), target, image_url,
+            ) or message_id
+            sent.append(product)
+        except MetaGraphError as exc:
+            logger.info('Product photo send skipped for conversation %s: %s', conversation.id, exc)
+    if not sent:
+        return None
+    return store_card_message(conversation, sent, message_id)
+
+
+def send_product_cards(conversation, products):
+    """Send product visuals after a reply; best-effort, DM only.
+
+    With a public app URL configured, products go as rich cards whose
+    images and buttons link to the product page. Without one, template
+    images would not be tappable, so native photo messages are sent
+    instead. Comment-origin threads whose one-shot private reply was
+    just used cannot carry attachments, so those are skipped silently.
+    """
+    products = [product for product in products if product][:3]
+    route, target = resolve_reply_route(conversation)
+    if not products or route != 'dm':
+        return None
+    page = conversation.page
+    if build_product_page_url(products[0]):
+        return send_card_carousel(conversation, page, target, products)
+    return send_card_photos(conversation, page, target, products)
 
 
 def send_conversation_text(conversation, text, sent_by_ai=False):

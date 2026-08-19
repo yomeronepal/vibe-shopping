@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -145,9 +146,10 @@ class RecommendedProductTests(RetrievalTestBase):
 
 
 class ProductCardSendTests(RetrievalTestBase):
+    @override_settings(PUBLIC_APP_BASE_URL='https://shop.example')
     @patch('inbox.services.sending.push_inbox_event')
     @patch('socials.services.meta_graph.MetaGraphClient.send_generic_template', return_value='mid-card-1')
-    def test_sends_cards_and_records_message(self, mock_send, mock_push):
+    def test_sends_linked_cards_when_app_url_configured(self, mock_send, mock_push):
         from inbox.services.sending import send_product_cards
 
         self.say('show me caps')
@@ -161,7 +163,41 @@ class ProductCardSendTests(RetrievalTestBase):
         self.assertEqual(elements[0]['title'], 'Denim Cap')
         self.assertIn('Rs. 350', elements[0]['subtitle'])
         self.assertIn(product.product_code, elements[0]['subtitle'])
+        link = f'https://shop.example/product/{product.id}'
+        self.assertEqual(elements[0]['default_action']['url'], link)
+        self.assertEqual(elements[0]['buttons'][0]['url'], link)
         self.assertEqual(record.metadata['product_ids'], [product.id])
+
+    @override_settings(PUBLIC_APP_BASE_URL='', PUBLIC_MEDIA_BASE_URL='https://media.example')
+    @patch('inbox.services.sending.push_inbox_event')
+    @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment', return_value='mid-photo-1')
+    def test_sends_native_photos_without_app_url(self, mock_send, mock_push):
+        from inbox.services.sending import send_product_cards
+
+        self.say('show me caps')
+        product = Product.objects.create(
+            tenant=self.tenant, name='Denim Cap', price=350,
+            stock=9, status='published', is_active=True,
+            image='uploads/mega/products/cap.jpg',
+        )
+        record = send_product_cards(self.convo, [product])
+        self.assertIsNotNone(record)
+        image_url = mock_send.call_args[0][3]
+        self.assertEqual(image_url, 'https://media.example/media/uploads/mega/products/cap.jpg')
+        self.assertEqual(record.metadata['product_ids'], [product.id])
+
+    @override_settings(PUBLIC_APP_BASE_URL='', PUBLIC_MEDIA_BASE_URL='https://media.example')
+    @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment')
+    def test_photo_path_skips_imageless_products(self, mock_send):
+        from inbox.services.sending import send_product_cards
+
+        self.say('show me caps')
+        product = Product.objects.create(
+            tenant=self.tenant, name='Denim Cap', price=350,
+            stock=9, status='published', is_active=True,
+        )
+        self.assertIsNone(send_product_cards(self.convo, [product]))
+        mock_send.assert_not_called()
 
     @patch('socials.services.meta_graph.MetaGraphClient.send_generic_template')
     def test_skips_unanswered_comment_threads(self, mock_send):

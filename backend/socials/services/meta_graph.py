@@ -224,6 +224,21 @@ class MetaGraphClient:
         })
         return payload.get('message_id', '')
 
+    def send_image_attachment(self, page_id, page_token, recipient_id, image_url):
+        """Send a native photo DM Meta re-hosts; returns the message id."""
+        payload = self.post(f'/{page_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'id': recipient_id}),
+            'message': json.dumps({
+                'attachment': {
+                    'type': 'image',
+                    'payload': {'url': image_url, 'is_reusable': True},
+                },
+            }),
+            'messaging_type': 'RESPONSE',
+        })
+        return payload.get('message_id', '')
+
     def send_generic_template(self, page_id, page_token, recipient_id, elements):
         """Send a product card carousel DM; returns the platform message id."""
         payload = self.post(f'/{page_id}/messages', {
