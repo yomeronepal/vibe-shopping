@@ -433,7 +433,9 @@ class AITokenUsage(TimeStampedModel):
     """
     AI_PROVIDER_CHOICES = [
         ('gemini', 'Google Gemini'),
+        ('claude', 'Anthropic Claude'),
         ('openai', 'OpenAI'),
+        ('none', 'Failed (no provider)'),
     ]
 
     OPERATION_TYPE_CHOICES = [
@@ -493,6 +495,9 @@ class AITokenUsage(TimeStampedModel):
         if self.ai_provider == 'gemini':
             input_cost = (self.input_tokens / 1_000_000) * 0.075
             output_cost = (self.output_tokens / 1_000_000) * 0.30
+        elif self.ai_provider == 'claude':
+            input_cost = (self.input_tokens / 1_000_000) * 1.00
+            output_cost = (self.output_tokens / 1_000_000) * 5.00
         elif self.ai_provider == 'openai':
             input_cost = (self.input_tokens / 1_000_000) * 0.15
             output_cost = (self.output_tokens / 1_000_000) * 0.60

@@ -196,7 +196,7 @@ def generate_product_details_from_text(request):
 
     track_ai_usage(
         tenant=tenant,
-        ai_provider='gemini',
+        ai_provider=result.get('ai_provider', 'gemini'),
         operation_type='product_brief',
         input_tokens=estimate_text_tokens(brief),
         output_tokens=estimate_text_tokens(str(result['data'])),
@@ -272,7 +272,7 @@ def generate_social_caption(request):
 
     track_ai_usage(
         tenant=tenant,
-        ai_provider='gemini',
+        ai_provider=result.get('ai_provider', 'gemini'),
         operation_type='caption',
         input_tokens=estimate_text_tokens(context),
         output_tokens=estimate_text_tokens(result['caption']),

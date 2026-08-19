@@ -200,3 +200,48 @@ class ContentGeneratorTests(APITestCase):
         self.assertEqual(kwargs['language'], 'english')
         self.assertIn('Store: Acme', kwargs['brand'])
         self.assertIn('#Chic', kwargs['brand'])
+
+
+class ProviderTrackingTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        self.user = User.objects.create_user(username='owner', password='pass12345')
+        VendorProfile.objects.create(user=self.user, tenant=self.tenant, role='owner')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def test_claude_cost_calculated(self):
+        from core.models import AITokenUsage
+        row = AITokenUsage.objects.create(
+            tenant=self.tenant, ai_provider='claude', operation_type='bot_reply',
+            input_tokens=1_000_000, output_tokens=100_000,
+        )
+        self.assertAlmostEqual(float(row.estimated_cost), 1.0 + 0.5, places=4)
+
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer.generate_from_brief',
+        return_value={'success': True, 'data': {'title': 'X', 'tags': []}, 'ai_provider': 'claude'},
+    )
+    def test_brief_fallback_logged_as_claude(self, mock_generate, mock_init):
+        from core.models import AITokenUsage
+        response = self.client.post('/api/products/generate-details-from-text/', {
+            'brief': 'A perfectly nice cotton kurta for summer',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        row = AITokenUsage.objects.get(tenant=self.tenant)
+        self.assertEqual(row.ai_provider, 'claude')
+
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer.generate_caption',
+        return_value={'success': True, 'caption': 'Nice!', 'ai_provider': 'claude'},
+    )
+    def test_caption_fallback_logged_as_claude(self, mock_caption, mock_init):
+        from core.models import AITokenUsage
+        response = self.client.post('/api/products/generate-caption/', {
+            'context': 'Summer kurta promo',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        row = AITokenUsage.objects.get(tenant=self.tenant)
+        self.assertEqual(row.ai_provider, 'claude')
