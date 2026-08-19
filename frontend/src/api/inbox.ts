@@ -66,3 +66,23 @@ export const suggestReply = async (conversationId: number): Promise<string> => {
     const response = await apiClient.post(`/inbox/conversations/${conversationId}/suggest/`);
     return response.data.suggestion;
 };
+
+export interface ExtractedOrderItem {
+    product_id: number;
+    name: string;
+    price: string;
+    quantity: number;
+    stock: number;
+}
+
+export interface OrderExtraction {
+    order_detected: boolean;
+    items: ExtractedOrderItem[];
+    customer_name: string;
+    note: string;
+}
+
+export const extractOrder = async (conversationId: number): Promise<OrderExtraction> => {
+    const response = await apiClient.post(`/inbox/conversations/${conversationId}/extract-order/`);
+    return response.data;
+};

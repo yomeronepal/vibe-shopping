@@ -137,3 +137,74 @@ class AssistantSettingsTests(AssistantTestBase):
         self.tenant.refresh_from_db()
         self.assertEqual(self.tenant.metadata['aiKnowledge'], 'We ship nationwide.')
         self.assertFalse(self.tenant.metadata['aiAssistantEnabled'])
+
+
+class OrderExtractionTests(AssistantTestBase):
+    def extract(self, conversation_id=None):
+        return self.client.post(
+            f'/api/inbox/conversations/{conversation_id or self.convo.id}/extract-order/'
+        )
+
+    @patch(
+        'inbox.services.assistant.call_gemini',
+        return_value='{"order_detected": true, "items": [{"product_id": %d, "quantity": 2}], "customer_name": "Ram", "note": "Wants two shirts"}',
+    )
+    def test_extracts_validated_order(self, mock_call):
+        product = Product.objects.get(name='Linen Shirt')
+        mock_call.return_value = mock_call.return_value % product.id
+        response = self.extract()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['order_detected'])
+        item = response.data['items'][0]
+        self.assertEqual(item['product_id'], product.id)
+        self.assertEqual(item['quantity'], 2)
+        self.assertEqual(item['price'], '1200')
+        self.assertEqual(item['stock'], 4)
+        self.assertEqual(response.data['customer_name'], 'Ram')
+        self.assertIn(f'[id {product.id}] Linen Shirt', mock_call.call_args[0][0])
+
+    @patch(
+        'inbox.services.assistant.call_gemini',
+        return_value='```json\n{"order_detected": false, "items": [], "customer_name": "", "note": "Just asking"}\n```',
+    )
+    def test_handles_no_order_and_code_fences(self, mock_call):
+        response = self.extract()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['order_detected'])
+        self.assertEqual(response.data['items'], [])
+        self.assertEqual(response.data['customer_name'], 'Sita')
+
+    @patch(
+        'inbox.services.assistant.call_gemini',
+        return_value='{"order_detected": true, "items": [{"product_id": 999999, "quantity": 1}], "customer_name": "", "note": ""}',
+    )
+    def test_drops_unknown_products_and_downgrades_detection(self, mock_call):
+        response = self.extract()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['order_detected'])
+        self.assertEqual(response.data['items'], [])
+
+    @patch('inbox.services.assistant.call_gemini', return_value='this is not json at all')
+    def test_reports_unparseable_answer(self, mock_call):
+        response = self.extract()
+        self.assertEqual(response.status_code, 502)
+
+    def test_extract_respects_disabled_assistant(self):
+        self.tenant.metadata['aiAssistantEnabled'] = False
+        self.tenant.save()
+        response = self.extract()
+        self.assertEqual(response.status_code, 400)
+
+
+class AutoSuggestSettingTests(AssistantTestBase):
+    def test_profile_returns_auto_suggest_default_on(self):
+        response = self.client.get('/api/vendor/profile/')
+        self.assertTrue(response.data['ai_auto_suggest'])
+
+    def test_profile_updates_auto_suggest(self):
+        response = self.client.patch(
+            '/api/vendor/profile/', {'ai_auto_suggest': False}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.tenant.refresh_from_db()
+        self.assertFalse(self.tenant.metadata['aiAutoSuggest'])

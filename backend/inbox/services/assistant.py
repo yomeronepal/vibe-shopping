@@ -123,3 +123,108 @@ def call_gemini(prompt):
 def suggest_reply(conversation):
     """Return an AI-drafted reply for the conversation."""
     return call_gemini(build_suggestion_prompt(conversation))
+
+
+def is_auto_suggest_enabled(tenant):
+    """Return whether drafts should be generated automatically."""
+    metadata = tenant.metadata or {}
+    return bool(metadata.get('aiAutoSuggest', True))
+
+
+def format_order_product_line(product):
+    """Render one catalog line with the id the model must reference."""
+    stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
+    return f'- [id {product.id}] {product.name} — Rs. {format_price(product.price)} — {stock}'
+
+
+def build_order_catalog_block(tenant):
+    """List purchasable products with their database ids."""
+    products = Product.objects.filter(
+        tenant=tenant, status='published', is_active=True,
+    ).order_by('-created_at')[:MAX_PRODUCTS]
+    lines = [format_order_product_line(product) for product in products]
+    return '\n'.join(lines) if lines else '(no products published yet)'
+
+
+def build_order_prompt(conversation):
+    """Assemble the JSON-extraction prompt for order capture."""
+    tenant = conversation.tenant
+    return f"""You extract purchase orders from a shop's customer chat.
+
+PRODUCT CATALOG (only these products can be ordered; use the exact id)
+{build_order_catalog_block(tenant)}
+
+CONVERSATION (Customer is the buyer; Business is the shop)
+{build_history_block(conversation)}
+
+TASK
+Decide whether the customer has clearly asked to buy something. Respond with ONLY a JSON object, no markdown, in this exact shape:
+{{"order_detected": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>}}], "customer_name": "<name if the customer stated one, else empty string>", "note": "<one short sentence explaining your decision>"}}
+
+Rules:
+1. order_detected is true only when the customer explicitly wants to buy, not when they are just asking questions.
+2. Only use product ids from the catalog. If the requested product is not in the catalog, leave it out.
+3. Default quantity to 1 when the customer wants an item but gave no number."""
+
+
+def parse_model_json(text):
+    """Parse the model's JSON reply, tolerating code fences."""
+    import json
+
+    cleaned = text.strip()
+    if cleaned.startswith('```'):
+        cleaned = cleaned.strip('`')
+        if cleaned.startswith('json'):
+            cleaned = cleaned[4:]
+    try:
+        return json.loads(cleaned.strip())
+    except ValueError:
+        raise AssistantError('The AI returned an unreadable answer. Try again.')
+
+
+def coerce_extracted_item(item, products):
+    """Validate one extracted line against the catalog; None if invalid."""
+    if not isinstance(item, dict):
+        return None
+    product = products.get(item.get('product_id'))
+    if product is None:
+        return None
+    try:
+        quantity = max(1, int(item.get('quantity', 1)))
+    except (TypeError, ValueError):
+        quantity = 1
+    return {
+        'product_id': product.id,
+        'name': product.name,
+        'price': format_price(product.price),
+        'quantity': quantity,
+        'stock': product.stock,
+    }
+
+
+def validate_order_extraction(tenant, data, conversation):
+    """Ground the model's extraction in the real catalog."""
+    products = {
+        product.id: product
+        for product in Product.objects.filter(tenant=tenant, status='published', is_active=True)
+    }
+    raw_items = data.get('items') if isinstance(data.get('items'), list) else []
+    items = [entry for entry in (coerce_extracted_item(item, products) for item in raw_items) if entry]
+    customer_name = str(data.get('customer_name') or '').strip()[:100]
+    if not customer_name and conversation.customer.name:
+        customer_name = conversation.customer.name
+    return {
+        'order_detected': bool(data.get('order_detected')) and bool(items),
+        'items': items,
+        'customer_name': customer_name,
+        'note': str(data.get('note') or '').strip()[:300],
+    }
+
+
+def extract_order(conversation):
+    """Return a catalog-validated order extraction for the conversation."""
+    raw = call_gemini(build_order_prompt(conversation))
+    data = parse_model_json(raw)
+    if not isinstance(data, dict):
+        raise AssistantError('The AI returned an unreadable answer. Try again.')
+    return validate_order_extraction(conversation.tenant, data, conversation)

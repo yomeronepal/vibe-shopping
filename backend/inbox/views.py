@@ -149,3 +149,29 @@ class SuggestReplyView(APIView):
         except AssistantError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({'suggestion': suggestion})
+
+
+class ExtractOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        """Extract a draft order from the conversation with AI."""
+        from inbox.services.assistant import (
+            AssistantError,
+            extract_order,
+            is_assistant_enabled,
+        )
+
+        tenant, conversation = get_tenant_conversation(request, conversation_id)
+        if not conversation:
+            return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not is_assistant_enabled(tenant):
+            return Response(
+                {'error': 'The AI assistant is turned off in Settings.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            extraction = extract_order(conversation)
+        except AssistantError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(extraction)

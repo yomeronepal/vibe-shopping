@@ -12,7 +12,9 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import { suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { extractOrder, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { getStoreProfile } from '@/api/vendor';
+import NewOrderModal, { type OrderPrefill } from '../components/vendor/NewOrderModal';
 import toast from 'react-hot-toast';
 
 const FILTERS = [
@@ -169,6 +171,11 @@ export default function InboxPage() {
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
+    const [autoSuggestOn, setAutoSuggestOn] = useState(false);
+    const [extracting, setExtracting] = useState(false);
+    const [orderModalOpen, setOrderModalOpen] = useState(false);
+    const [orderPrefill, setOrderPrefill] = useState<OrderPrefill | null>(null);
+    const autoKeyRef = useRef<string | null>(null);
     const threadEndRef = useRef<HTMLDivElement | null>(null);
     useInboxSocket();
 
@@ -204,7 +211,7 @@ export default function InboxPage() {
         }
     };
 
-    const handleSuggest = async () => {
+    const handleSuggest = async (auto = false) => {
         if (!active || suggesting) return;
         setSuggesting(true);
         try {
@@ -212,11 +219,49 @@ export default function InboxPage() {
             setDraft(suggestion);
             setDraftFromAi(true);
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Could not draft a reply. Try again.');
+            if (!auto) toast.error(error.response?.data?.error || 'Could not draft a reply. Try again.');
         } finally {
             setSuggesting(false);
         }
     };
+
+    const handleExtractOrder = async () => {
+        if (!active || extracting) return;
+        setExtracting(true);
+        try {
+            const extraction = await extractOrder(active.id);
+            const quantities: Record<number, number> = {};
+            extraction.items.forEach((item) => {
+                quantities[item.product_id] = item.stock > 0 ? Math.min(item.quantity, item.stock) : item.quantity;
+            });
+            setOrderPrefill({ quantities, customerName: extraction.customer_name });
+            setOrderModalOpen(true);
+            if (!extraction.order_detected) {
+                toast('No clear order in this chat yet — starting a blank one.', { icon: 'ℹ️' });
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not read an order from this chat.');
+        } finally {
+            setExtracting(false);
+        }
+    };
+
+    useEffect(() => {
+        getStoreProfile()
+            .then((profile) => setAutoSuggestOn(profile.ai_assistant_enabled && profile.ai_auto_suggest))
+            .catch(() => setAutoSuggestOn(false));
+    }, []);
+
+    useEffect(() => {
+        if (!autoSuggestOn || !active || suggesting || messages.length === 0) return;
+        const last = messages[messages.length - 1];
+        if (last.direction !== 'in') return;
+        const key = `${active.id}:${last.platform_message_id}`;
+        if (autoKeyRef.current === key) return;
+        if (draft.trim() && !draftFromAi) return;
+        autoKeyRef.current = key;
+        handleSuggest(true);
+    }, [autoSuggestOn, active?.id, messages]);
 
     const toggleResolve = () => {
         if (!active) return;
@@ -308,6 +353,19 @@ export default function InboxPage() {
                                             </span>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleExtractOrder}
+                                            disabled={extracting}
+                                            title="Create an order from this chat with AI"
+                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                            style={{ background: `linear-gradient(135deg, ${primaryColor}15, ${themeConfig.accent}15)`, color: primaryColor, border: `1px solid ${primaryColor}30` }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[16px] ${extracting ? 'animate-spin' : ''}`}>
+                                                {extracting ? 'progress_activity' : 'shopping_cart'}
+                                            </span>
+                                            {extracting ? 'Reading…' : 'Create order'}
+                                        </button>
                                     <button
                                         onClick={toggleResolve}
                                         className="text-sm font-semibold px-3 py-1.5 rounded-full"
@@ -315,6 +373,7 @@ export default function InboxPage() {
                                     >
                                         {active.status === 'resolved' ? 'Reopen' : 'Mark resolved'}
                                     </button>
+                                    </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                                     {messages.map((message) => (
@@ -338,7 +397,7 @@ export default function InboxPage() {
                                     )}
                                     <div className="flex gap-3">
                                         <button
-                                            onClick={handleSuggest}
+                                            onClick={() => handleSuggest()}
                                             disabled={suggesting}
                                             title="Draft a reply with AI"
                                             className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition-all hover:shadow-sm disabled:opacity-50"
@@ -395,6 +454,12 @@ export default function InboxPage() {
                     </div>
                 </div>
             </div>
+            <NewOrderModal
+                open={orderModalOpen}
+                prefill={orderPrefill}
+                onClose={() => setOrderModalOpen(false)}
+                onCreated={() => setOrderModalOpen(false)}
+            />
         </VendorShell>
     );
 }
