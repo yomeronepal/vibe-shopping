@@ -136,10 +136,10 @@ def suggest_reply(conversation):
     return call_gemini(build_suggestion_prompt(conversation))
 
 
-def is_auto_suggest_enabled(tenant):
-    """Return whether drafts should be generated automatically."""
+def is_auto_reply_enabled(tenant):
+    """Return whether the tenant lets the bot answer customers itself."""
     metadata = tenant.metadata or {}
-    return bool(metadata.get('aiAutoSuggest', True))
+    return is_assistant_enabled(tenant) and bool(metadata.get('aiAutoReply', False))
 
 
 def format_order_product_line(product):

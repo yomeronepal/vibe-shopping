@@ -131,7 +131,22 @@ def store_message(page, platform, messaging_event):
         })
     except Exception:
         logger.warning('Inbox push failed for message %s', record.id, exc_info=True)
+    if direction == 'in':
+        queue_auto_reply(record, page.tenant)
     return record
+
+
+def queue_auto_reply(record, tenant):
+    """Queue the bot's reply when the tenant has auto-reply switched on."""
+    from inbox.services.assistant import is_auto_reply_enabled
+    from inbox.tasks import auto_reply_to_message
+
+    if record.conversation.ai_paused or not is_auto_reply_enabled(tenant):
+        return
+    try:
+        auto_reply_to_message.delay(record.id)
+    except Exception:
+        logger.warning('Could not queue auto-reply for message %s', record.id, exc_info=True)
 
 
 def ingest_webhook_event(event):

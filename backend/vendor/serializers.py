@@ -53,4 +53,4 @@ class StoreProfileSerializer(serializers.Serializer):
     logo = serializers.ImageField(required=False)
     ai_knowledge = serializers.CharField(max_length=6000, required=False, allow_blank=True)
     ai_assistant_enabled = serializers.BooleanField(required=False)
-    ai_auto_suggest = serializers.BooleanField(required=False)
+    ai_auto_reply = serializers.BooleanField(required=False)

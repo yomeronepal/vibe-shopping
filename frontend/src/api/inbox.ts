@@ -13,6 +13,7 @@ export interface InboxConversation {
     platform: 'facebook' | 'instagram';
     status: string;
     unread_count: number;
+    ai_paused: boolean;
     last_message_at: string | null;
     last_message_preview: string;
     customer: InboxCustomer;
@@ -31,6 +32,7 @@ export interface InboxMessage {
     attachments: InboxAttachment[];
     platform_message_id: string;
     sent_at: string;
+    sent_by_ai: boolean;
 }
 
 export const listConversations = async (status?: string): Promise<InboxConversation[]> => {
@@ -84,5 +86,10 @@ export interface OrderExtraction {
 
 export const extractOrder = async (conversationId: number): Promise<OrderExtraction> => {
     const response = await apiClient.post(`/inbox/conversations/${conversationId}/extract-order/`);
+    return response.data;
+};
+
+export const setConversationAiPaused = async (conversationId: number, paused: boolean): Promise<InboxConversation> => {
+    const response = await apiClient.patch(`/inbox/conversations/${conversationId}/`, { ai_paused: paused });
     return response.data;
 };

@@ -12,7 +12,7 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import { extractOrder, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { extractOrder, setConversationAiPaused, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
 import { getStoreProfile } from '@/api/vendor';
 import NewOrderModal, { type OrderPrefill } from '../components/vendor/NewOrderModal';
 import toast from 'react-hot-toast';
@@ -140,6 +140,14 @@ function MessageBubble({ message, primaryColor }: { message: InboxMessage; prima
                         : { backgroundColor: themeConfig.surface, color: themeConfig.text, border: `1px solid ${themeConfig.border}60` }
                 }
             >
+                {message.sent_by_ai && (
+                    <span
+                        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80"
+                    >
+                        <span className="material-symbols-outlined text-[12px]">smart_toy</span>
+                        AI
+                    </span>
+                )}
                 {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
                 {message.attachments.map((attachment, index) => (
                     <a
@@ -171,11 +179,11 @@ export default function InboxPage() {
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
-    const [autoSuggestOn, setAutoSuggestOn] = useState(false);
+    const [autoReplyOn, setAutoReplyOn] = useState(false);
+    const [botToggling, setBotToggling] = useState(false);
     const [extracting, setExtracting] = useState(false);
     const [orderModalOpen, setOrderModalOpen] = useState(false);
     const [orderPrefill, setOrderPrefill] = useState<OrderPrefill | null>(null);
-    const autoKeyRef = useRef<string | null>(null);
     const threadEndRef = useRef<HTMLDivElement | null>(null);
     useInboxSocket();
 
@@ -211,7 +219,7 @@ export default function InboxPage() {
         }
     };
 
-    const handleSuggest = async (auto = false) => {
+    const handleSuggest = async () => {
         if (!active || suggesting) return;
         setSuggesting(true);
         try {
@@ -219,7 +227,7 @@ export default function InboxPage() {
             setDraft(suggestion);
             setDraftFromAi(true);
         } catch (error: any) {
-            if (!auto) toast.error(error.response?.data?.error || 'Could not draft a reply. Try again.');
+            toast.error(error.response?.data?.error || 'Could not draft a reply. Try again.');
         } finally {
             setSuggesting(false);
         }
@@ -248,20 +256,23 @@ export default function InboxPage() {
 
     useEffect(() => {
         getStoreProfile()
-            .then((profile) => setAutoSuggestOn(profile.ai_assistant_enabled && profile.ai_auto_suggest))
-            .catch(() => setAutoSuggestOn(false));
+            .then((profile) => setAutoReplyOn(profile.ai_assistant_enabled && profile.ai_auto_reply))
+            .catch(() => setAutoReplyOn(false));
     }, []);
 
-    useEffect(() => {
-        if (!autoSuggestOn || !active || suggesting || messages.length === 0) return;
-        const last = messages[messages.length - 1];
-        if (last.direction !== 'in') return;
-        const key = `${active.id}:${last.platform_message_id}`;
-        if (autoKeyRef.current === key) return;
-        if (draft.trim() && !draftFromAi) return;
-        autoKeyRef.current = key;
-        handleSuggest(true);
-    }, [autoSuggestOn, active?.id, messages]);
+    const toggleBotPause = async () => {
+        if (!active || botToggling) return;
+        setBotToggling(true);
+        try {
+            await setConversationAiPaused(active.id, !active.ai_paused);
+            toast.success(active.ai_paused ? 'Bot resumed for this chat' : 'Bot paused for this chat');
+        } catch {
+            toast.error('Could not update the bot for this chat');
+        } finally {
+            setBotToggling(false);
+        }
+    };
+
 
     const toggleResolve = () => {
         if (!active) return;
@@ -354,6 +365,22 @@ export default function InboxPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {autoReplyOn && (
+                                            <button
+                                                onClick={toggleBotPause}
+                                                disabled={botToggling}
+                                                title={active.ai_paused ? 'The bot is paused here — resume auto-replies' : 'The bot replies automatically here — pause it'}
+                                                className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                                style={active.ai_paused
+                                                    ? { backgroundColor: '#fef3c7', color: '#b45309' }
+                                                    : { backgroundColor: '#dcfce7', color: '#15803d' }}
+                                            >
+                                                <span className="material-symbols-outlined text-[16px]">
+                                                    {active.ai_paused ? 'pause_circle' : 'smart_toy'}
+                                                </span>
+                                                {active.ai_paused ? 'Bot paused' : 'Bot on'}
+                                            </button>
+                                        )}
                                         <button
                                             onClick={handleExtractOrder}
                                             disabled={extracting}
