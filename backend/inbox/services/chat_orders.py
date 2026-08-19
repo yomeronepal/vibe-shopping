@@ -34,6 +34,34 @@ def pick_customer_details(conversation, collected):
     return name[:255], phone[:20]
 
 
+def order_value_cap(tenant):
+    """Return the max order value the bot may auto-confirm (0 = no cap)."""
+    try:
+        return float((tenant.metadata or {}).get('maxAutoOrderValue') or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def estimate_order_total(tenant, items):
+    """Price the extracted items against the live catalog."""
+    ids = [item['product_id'] for item in items]
+    products = {p.id: p for p in Product.objects.filter(tenant=tenant, id__in=ids)}
+    total = 0
+    for item in items:
+        product = products.get(item['product_id'])
+        if product:
+            total += float(product.price) * max(1, int(item['quantity']))
+    return total
+
+
+def exceeds_order_cap(tenant, items):
+    """Whether this order needs human approval due to its value."""
+    cap = order_value_cap(tenant)
+    if cap <= 0:
+        return False
+    return estimate_order_total(tenant, items) > cap
+
+
 def create_chat_order(conversation, items, collected):
     """Create an order from bot-gathered chat details.
 

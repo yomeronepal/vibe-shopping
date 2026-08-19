@@ -375,14 +375,14 @@ Businesses should always be able to control the AI.
 - [x] Prevent AI hallucinated product information
 - [x] Product availability validation
 - [x] Price validation (extracted orders validated against the catalog)
-- [ ] Discount limits
-- [ ] Maximum order value for automatic confirmation
-- [ ] Human approval for refunds
-- [ ] Human approval for high-value orders
+- [x] Discount limits (0 = never; otherwise a hard % ceiling in every prompt)
+- [x] Maximum order value for automatic confirmation
+- [x] Human approval for refunds (bot hands off refund/return requests)
+- [x] Human approval for high-value orders (over-cap orders pause the bot)
 - [x] Restricted topics
 - [x] Brand-specific instructions (brand voice from the store profile)
-- [ ] AI response logs
-- [ ] AI error monitoring
+- [x] AI response logs (every generation recorded per provider and operation)
+- [x] AI error monitoring (failed generations recorded with the error)
 
 ---
 
@@ -417,8 +417,8 @@ Businesses should always be able to control the AI.
 - [ ] Human handoff rate
 - [x] AI-generated orders (Chat bot badge + collected fields on the Orders page)
 - [ ] AI conversion rate
-- [ ] AI usage
-- [ ] AI cost tracking
+- [x] AI usage
+- [x] AI cost tracking
 
 ---
 
@@ -575,7 +575,7 @@ Businesses should always be able to control the AI.
 - [ ] Product recommendations
 - [x] AI sales agent (chat → info gathering → order)
 - [x] Business knowledge base
-- [ ] Advanced AI controls
+- [x] Advanced AI controls
 
 ## Phase 4 — Commerce Infrastructure
 

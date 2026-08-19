@@ -156,7 +156,7 @@ Write the Business's next reply. Rules:
 5. If the customer wants to buy, confirm the item, quantity, and total price from the catalog, then collect what is still missing from this list: {order_fields}.
 6. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 
-Return ONLY the reply text, nothing else.{get_restricted_rule(tenant)}"""
+Return ONLY the reply text, nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
 
 
 def call_claude_fallback(prompt):
@@ -170,31 +170,61 @@ def call_claude_fallback(prompt):
         raise AssistantError('The AI could not draft a reply right now. Try again.')
 
 
-def call_gemini(prompt):
-    """Generate text with Gemini, falling back to Claude on failure."""
+def log_ai_usage(tenant, provider, operation, prompt, output, success, error=''):
+    """Record the AI call for cost logs and error monitoring; never raises."""
+    if tenant is None:
+        return
+    try:
+        from core.utils.ai_tracker import estimate_text_tokens, track_ai_usage
+
+        track_ai_usage(
+            tenant=tenant,
+            ai_provider=provider,
+            operation_type=operation,
+            input_tokens=estimate_text_tokens(prompt),
+            output_tokens=estimate_text_tokens(output) if output else 0,
+            success=success,
+            error_message=error[:255],
+        )
+    except Exception:
+        logger.warning('AI usage tracking failed', exc_info=True)
+
+
+def call_gemini(prompt, tenant=None, operation='assistant'):
+    """Generate text with Gemini, falling back to Claude on failure.
+
+    Every call is recorded per provider (including failures) when a
+    tenant is given, powering AI response logs and error monitoring.
+    """
     from google import genai
 
+    text = ''
+    provider = 'gemini'
     api_key = settings.GOOGLE_AI_API_KEY
-    if not api_key:
-        return call_claude_fallback(prompt)
-    try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=settings.GEMINI_ASSISTANT_MODEL,
-            contents=prompt,
-        )
-        text = (getattr(response, 'text', None) or '').strip()
-    except Exception as exc:
-        logger.warning('Gemini generation failed, trying Claude: %s', exc)
-        return call_claude_fallback(prompt)
+    if api_key:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=settings.GEMINI_ASSISTANT_MODEL,
+                contents=prompt,
+            )
+            text = (getattr(response, 'text', None) or '').strip()
+        except Exception as exc:
+            logger.warning('Gemini generation failed, trying Claude: %s', exc)
     if not text:
-        return call_claude_fallback(prompt)
+        provider = 'claude'
+        try:
+            text = call_claude_fallback(prompt)
+        except AssistantError as exc:
+            log_ai_usage(tenant, 'none', operation, prompt, '', False, str(exc))
+            raise
+    log_ai_usage(tenant, provider, operation, prompt, text, True)
     return text
 
 
 def suggest_reply(conversation):
     """Return an AI-drafted reply for the conversation."""
-    return call_gemini(build_suggestion_prompt(conversation))
+    return call_gemini(build_suggestion_prompt(conversation), conversation.tenant, 'reply_suggestion')
 
 
 ASSISTANT_TONES = {
@@ -207,6 +237,20 @@ ASSISTANT_LANGUAGES = {
     'nepali': 'Always reply in Nepali written in Latin script (romanized Nepali).',
     'mixed': 'Always reply in the natural English + romanized Nepali mix used by Nepali online shops.',
 }
+
+
+def get_discount_rule(tenant):
+    """Return the discount policy rule for the assistant prompts."""
+    try:
+        limit = int((tenant.metadata or {}).get('aiMaxDiscount') or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    if limit <= 0:
+        return '\nDISCOUNTS: Never offer or agree to any discount. Prices are fixed.'
+    return (
+        f'\nDISCOUNTS: You may offer at most {limit}% off, and only when the customer asks. '
+        'Never exceed that, and never stack discounts.'
+    )
 
 
 def get_restricted_rule(tenant):
@@ -340,7 +384,7 @@ def validate_order_extraction(tenant, data, conversation):
 
 def extract_order(conversation):
     """Return a catalog-validated order extraction for the conversation."""
-    raw = call_gemini(build_order_prompt(conversation))
+    raw = call_gemini(build_order_prompt(conversation), conversation.tenant, 'order_extraction')
     data = parse_model_json(raw)
     if not isinstance(data, dict):
         raise AssistantError('The AI returned an unreadable answer. Try again.')
@@ -388,12 +432,12 @@ Rules:
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
 8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
 9. sentiment reflects the customer's mood in their recent messages.
-10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}"""
+10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
 
 
 def advance_order_conversation(conversation):
     """Return the bot's reply plus validated order state for the thread."""
-    raw = call_gemini(build_order_flow_prompt(conversation))
+    raw = call_gemini(build_order_flow_prompt(conversation), conversation.tenant, 'bot_reply')
     data = parse_model_json(raw)
     if not isinstance(data, dict) or not str(data.get('reply', '')).strip():
         raise AssistantError('The AI returned an unreadable answer. Try again.')
@@ -429,4 +473,4 @@ Write 3-5 short bullet lines covering: who the customer is and what they want, a
 
 def summarize_conversation(conversation):
     """Return a short AI summary of the conversation."""
-    return call_gemini(build_summary_prompt(conversation))
+    return call_gemini(build_summary_prompt(conversation), conversation.tenant, 'summary')

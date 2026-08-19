@@ -24,6 +24,8 @@ export default function VendorAssistantSettingsPage() {
     const [followupHours, setFollowupHours] = useState(6);
     const [followupMessage, setFollowupMessage] = useState('');
     const [restrictedTopics, setRestrictedTopics] = useState<string[]>([]);
+    const [maxDiscount, setMaxDiscount] = useState(0);
+    const [maxOrderValue, setMaxOrderValue] = useState(0);
     const [docs, setDocs] = useState<{ name: string; chars: number }[]>([]);
     const [website, setWebsite] = useState<{ url: string; chars: number }>({ url: '', chars: 0 });
     const [websiteInput, setWebsiteInput] = useState('');
@@ -43,6 +45,8 @@ export default function VendorAssistantSettingsPage() {
                 setFollowupHours(profile.followup_hours);
                 setFollowupMessage(profile.followup_message);
                 setRestrictedTopics(profile.restricted_topics);
+                setMaxDiscount(profile.ai_max_discount);
+                setMaxOrderValue(profile.max_auto_order_value);
                 setDocs(profile.knowledge_docs);
                 setWebsite(profile.website_knowledge);
                 setWebsiteInput(profile.website_knowledge.url);
@@ -98,7 +102,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage, restrictedTopics);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage, restrictedTopics, maxDiscount, maxOrderValue);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -357,6 +361,41 @@ export default function VendorAssistantSettingsPage() {
                                         <button onClick={handleRemoveWebsite} className="font-bold underline" style={{ color: '#dc2626' }}>remove</button>
                                     </p>
                                 )}
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Business rules</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    Hard limits the AI can never cross.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Max discount % (0 = never offer discounts)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={90}
+                                            value={maxDiscount}
+                                            onChange={(e) => setMaxDiscount(Math.min(90, Math.max(0, parseInt(e.target.value) || 0)))}
+                                            className="w-full rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Max auto-order value Rs. (0 = no limit)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={maxOrderValue}
+                                            onChange={(e) => setMaxOrderValue(Math.max(0, parseInt(e.target.value) || 0))}
+                                            className="w-full rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        />
+                                        <p className="text-[11px] mt-1 ml-1" style={{ color: themeConfig.textSecondary }}>
+                                            Bigger orders pause the bot and wait for you to confirm.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>

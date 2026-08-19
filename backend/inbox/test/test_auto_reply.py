@@ -346,3 +346,80 @@ class HumanTakeoverTests(AutoReplyTestBase):
             {'text': 'Still me.'}, format='json',
         )
         self.assertFalse(response.data['human_takeover'])
+
+
+class SafetyRuleTests(AutoReplyTestBase):
+    def ready_outcome(self):
+        product = Product.objects.get(name='Linen Shirt')
+        return outcome(
+            reply='Order confirm gardai chhu!',
+            ordering=True,
+            order_ready=True,
+            items=[{'product_id': product.id, 'quantity': 2}],
+            collected={'Full name': 'Sita', 'Phone number': '98', 'Delivery address': 'KTM'},
+        )
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-cap-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_order_over_cap_needs_human(self, mock_advance, mock_deliver):
+        self.tenant.metadata['maxAutoOrderValue'] = 2000
+        self.tenant.save()
+        mock_advance.return_value = self.ready_outcome()
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertEqual(result, 'sent')
+        self.assertEqual(Order.objects.count(), 0)
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('team member', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-cap-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_order_under_cap_proceeds(self, mock_advance, mock_deliver):
+        self.tenant.metadata['maxAutoOrderValue'] = 5000
+        self.tenant.save()
+        mock_advance.return_value = self.ready_outcome()
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertIn('sent+order:', result)
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_discount_rule_in_prompts(self):
+        from inbox.services.assistant import build_order_flow_prompt, build_suggestion_prompt
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('Never offer or agree to any discount', prompt)
+        self.tenant.metadata['aiMaxDiscount'] = 10
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        prompt = build_order_flow_prompt(self.convo)
+        self.assertIn('at most 10% off', prompt)
+
+    @patch('inbox.services.assistant.log_ai_usage')
+    @patch('google.genai.Client')
+    def test_ai_usage_logged_on_success(self, mock_client, mock_log):
+        mock_client.return_value.models.generate_content.return_value.text = 'Namaste!'
+        from inbox.services.assistant import suggest_reply
+        with patch('inbox.services.assistant.settings') as mock_settings:
+            mock_settings.GOOGLE_AI_API_KEY = 'key'
+            mock_settings.GEMINI_ASSISTANT_MODEL = 'm'
+            suggest_reply(self.convo)
+        args = mock_log.call_args[0]
+        self.assertEqual(args[1], 'gemini')
+        self.assertEqual(args[2], 'reply_suggestion')
+        self.assertTrue(args[5])
+
+    @patch('inbox.services.assistant.log_ai_usage')
+    @patch('core.services.claude_service.generate_text')
+    @patch('google.genai.Client')
+    def test_ai_failure_logged(self, mock_client, mock_claude, mock_log):
+        from core.services.claude_service import ClaudeError
+        from inbox.services.assistant import AssistantError, suggest_reply
+        mock_client.return_value.models.generate_content.side_effect = Exception('down')
+        mock_claude.side_effect = ClaudeError('also down')
+        with patch('inbox.services.assistant.settings') as mock_settings:
+            mock_settings.GOOGLE_AI_API_KEY = 'key'
+            mock_settings.GEMINI_ASSISTANT_MODEL = 'm'
+            with self.assertRaises(AssistantError):
+                suggest_reply(self.convo)
+        args = mock_log.call_args[0]
+        self.assertEqual(args[1], 'none')
+        self.assertFalse(args[5])

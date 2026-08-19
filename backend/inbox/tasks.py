@@ -95,9 +95,21 @@ def auto_reply_to_message(message_id):
     reply = outcome['reply']
     order = None
     if outcome['order_ready']:
-        order = create_chat_order(conversation, outcome['items'], outcome['collected'])
-        if order is not None:
-            reply = f'{reply}\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+        from inbox.services.chat_orders import exceeds_order_cap
+
+        if exceeds_order_cap(conversation.tenant, outcome['items']):
+            from inbox.models import Conversation
+
+            Conversation.objects.filter(pk=conversation.pk).update(ai_paused=True)
+            reply = (
+                f'{reply}\n\nYo order thulo bhayeko le hamro team member le '
+                'chittai confirm garna tapailai contact garnu hunecha. Dhanyabad!'
+            )
+            logger.info('Order over auto-confirm cap; handing conversation %s to a human', conversation.id)
+        else:
+            order = create_chat_order(conversation, outcome['items'], outcome['collected'])
+            if order is not None:
+                reply = f'{reply}\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
     track_order_intent(conversation, outcome, order)
     try:
         send_conversation_text(conversation, reply, sent_by_ai=True)

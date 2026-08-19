@@ -60,3 +60,5 @@ class StoreProfileSerializer(serializers.Serializer):
     followup_hours = serializers.IntegerField(required=False, min_value=1, max_value=48)
     followup_message = serializers.CharField(max_length=500, required=False, allow_blank=True)
     restricted_topics = serializers.CharField(required=False, allow_blank=True)
+    ai_max_discount = serializers.IntegerField(required=False, min_value=0, max_value=90)
+    max_auto_order_value = serializers.IntegerField(required=False, min_value=0)

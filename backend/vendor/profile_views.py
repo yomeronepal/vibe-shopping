@@ -35,6 +35,8 @@ def build_profile_payload(tenant):
         'followup_hours': int(metadata.get('followupHours') or 6),
         'followup_message': metadata.get('followupMessage', ''),
         'restricted_topics': metadata.get('restrictedTopics') or [],
+        'ai_max_discount': int(metadata.get('aiMaxDiscount') or 0),
+        'max_auto_order_value': int(metadata.get('maxAutoOrderValue') or 0),
         'knowledge_docs': [
             {'name': doc.get('name', ''), 'chars': len(doc.get('text', ''))}
             for doc in (metadata.get('knowledgeDocs') or [])
@@ -85,6 +87,10 @@ def apply_profile_fields(tenant, metadata, data):
         metadata['followupMessage'] = data['followup_message']
     if 'restricted_topics' in data:
         metadata['restrictedTopics'] = parse_string_list(data['restricted_topics'])[:10]
+    if 'ai_max_discount' in data:
+        metadata['aiMaxDiscount'] = data['ai_max_discount']
+    if 'max_auto_order_value' in data:
+        metadata['maxAutoOrderValue'] = data['max_auto_order_value']
 
 
 def apply_contact_fields(metadata, data):

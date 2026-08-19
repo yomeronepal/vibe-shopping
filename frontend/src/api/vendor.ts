@@ -409,6 +409,8 @@ export interface StoreProfile {
     followup_hours: number;
     followup_message: string;
     restricted_topics: string[];
+    ai_max_discount: number;
+    max_auto_order_value: number;
     knowledge_docs: { name: string; chars: number }[];
     website_knowledge: { url: string; chars: number };
 }
@@ -460,6 +462,8 @@ export const updateAssistantSettings = async (
     followupHours: number,
     followupMessage: string,
     restrictedTopics: string[],
+    maxDiscount: number,
+    maxAutoOrderValue: number,
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
@@ -471,6 +475,8 @@ export const updateAssistantSettings = async (
         followup_hours: followupHours,
         followup_message: followupMessage,
         restricted_topics: JSON.stringify(restrictedTopics),
+        ai_max_discount: maxDiscount,
+        max_auto_order_value: maxAutoOrderValue,
     });
     return response.data;
 };
