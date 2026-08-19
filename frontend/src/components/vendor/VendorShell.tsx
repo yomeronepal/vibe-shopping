@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../../contexts/ShopThemeContext';
 import { authApi } from '../../api/auth';
+import { listConversations } from '../../api/inbox';
 import { vendorApi } from '../../api/vendor';
 
 interface VendorProfileInfo {
@@ -25,9 +26,23 @@ export default function VendorShell({ children }: { children: ReactNode }) {
     const location = useLocation();
     const { config: themeConfig } = useShopTheme();
     const [profile, setProfile] = useState<VendorProfileInfo>({});
+    const [unreadCount, setUnreadCount] = useState(0);
 
     const primaryColor = themeConfig.primary;
     const accentColor = themeConfig.accent;
+
+    useEffect(() => {
+        const loadUnread = () => {
+            listConversations()
+                .then((conversations) => {
+                    setUnreadCount(conversations.reduce((total, convo) => total + (convo.unread_count || 0), 0));
+                })
+                .catch(() => {});
+        };
+        loadUnread();
+        const interval = window.setInterval(loadUnread, 30000);
+        return () => window.clearInterval(interval);
+    }, [location.pathname]);
 
     useEffect(() => {
         vendorApi.getVendorProfile()
@@ -89,6 +104,14 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                                     >
                                         <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                                         <span className="text-sm">{item.label}</span>
+                                        {item.to === '/vendor/inbox' && unreadCount > 0 && (
+                                            <span
+                                                className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-white text-[11px] font-bold flex items-center justify-center"
+                                                style={{ backgroundColor: accentColor }}
+                                            >
+                                                {unreadCount > 99 ? '99+' : unreadCount}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}
@@ -120,7 +143,17 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                             className="flex flex-col items-center gap-0.5 px-3 py-1"
                             style={{ color: active ? primaryColor : themeConfig.textSecondary }}
                         >
-                            <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                            <span className="relative material-symbols-outlined text-[22px]">
+                                {item.icon}
+                                {item.to === '/vendor/inbox' && unreadCount > 0 && (
+                                    <span
+                                        className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                                        style={{ backgroundColor: accentColor }}
+                                    >
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </span>
                             <span className={`text-[10px] ${active ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
                         </Link>
                     );
