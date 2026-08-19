@@ -387,19 +387,17 @@ const VendorProductListPage: React.FC = () => {
                                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute inset-0 flex items-center justify-center gap-2 bg-black/20 backdrop-blur-[2px]">
-                                            {product.status === 'published' && (
-                                                <button
-                                                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                                    style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
-                                                    title="View in store"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(`/product/${product.id}`);
-                                                    }}
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">visibility</span>
-                                                </button>
-                                            )}
+                                            <button
+                                                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                                style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}
+                                                title="Details & social performance"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/vendor/products/${product.id}`);
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined text-[20px]">visibility</span>
+                                            </button>
                                             <button
                                                 className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110"
                                                 style={{ backgroundColor: themeConfig.surface, color: themeConfig.text }}

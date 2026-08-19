@@ -172,14 +172,28 @@ export default function VendorProductDetailPage() {
                             ← All products
                         </Link>
                         {product && (
-                            <Link
-                                to={`/vendor/products/${product.id}/edit`}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm"
-                                style={{ backgroundColor: `${themeConfig.surface}80`, borderColor: themeConfig.border, color: themeConfig.text }}
-                            >
-                                <span className="material-symbols-outlined text-[18px]">edit</span>
-                                Edit
-                            </Link>
+                            <div className="flex items-center gap-2">
+                                {product.status === 'published' && (
+                                    <a
+                                        href={`/product/${product.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm"
+                                        style={{ backgroundColor: `${themeConfig.surface}80`, borderColor: themeConfig.border, color: themeConfig.textSecondary }}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                                        View in store
+                                    </a>
+                                )}
+                                <Link
+                                    to={`/vendor/products/${product.id}/edit`}
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:shadow-sm"
+                                    style={{ backgroundColor: `${themeConfig.surface}80`, borderColor: themeConfig.border, color: themeConfig.text }}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                    Edit
+                                </Link>
+                            </div>
                         )}
                     </div>
                     {loading && (
