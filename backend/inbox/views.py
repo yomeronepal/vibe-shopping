@@ -264,3 +264,30 @@ class CustomerDetailView(APIView):
             return Response({'error': 'Nothing to update'}, status=status.HTTP_400_BAD_REQUEST)
         customer.save(update_fields=updates)
         return Response(build_customer_card(customer))
+
+
+class CustomerListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """List the tenant's customers with CRM metrics.
+
+        Supports ?q= matching name, phone, email, or location.
+        """
+        from django.db.models import Q
+        from inbox.models import Customer
+        from inbox.services.crm import build_customer_card
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        customers = Customer.objects.filter(tenant=tenant).order_by('-created_at')
+        search = (request.query_params.get('q') or '').strip()
+        if search:
+            customers = customers.filter(
+                Q(name__icontains=search)
+                | Q(phone__icontains=search)
+                | Q(email__icontains=search)
+                | Q(location__icontains=search)
+            )
+        return Response([build_customer_card(customer) for customer in customers[:100]])

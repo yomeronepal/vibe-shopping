@@ -116,3 +116,35 @@ class AutoPopulateTests(CrmTestBase):
         apply_collected_contact(self.customer, {'Phone number': '9822222222'})
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.phone, '9811111111')
+
+
+class CustomerListTests(CrmTestBase):
+    def setUp(self):
+        super().setUp()
+        Customer.objects.create(
+            tenant=self.tenant, platform='facebook', platform_user_id='psid2',
+            name='Ram Thapa', phone='9811111111', location='Pokhara',
+        )
+
+    def test_lists_customers_with_metrics(self):
+        self.make_order(3500)
+        response = self.client.get('/api/inbox/customers/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+        sita = next(c for c in response.data if c['name'] == 'Sita')
+        self.assertEqual(sita['total_spent'], 3500.0)
+        self.assertEqual(len(sita['recent_orders']), 1)
+        self.assertIn('Pashmina', sita['recent_orders'][0]['summary'])
+
+    def test_search_by_phone_and_location(self):
+        response = self.client.get('/api/inbox/customers/?q=9811')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], 'Ram Thapa')
+        response = self.client.get('/api/inbox/customers/?q=pokhara')
+        self.assertEqual(len(response.data), 1)
+
+    def test_tenant_scoped_list(self):
+        other = Tenant.objects.create(name='Other', subdomain='other')
+        Customer.objects.create(tenant=other, platform='facebook', platform_user_id='x1')
+        response = self.client.get('/api/inbox/customers/')
+        self.assertEqual(len(response.data), 2)

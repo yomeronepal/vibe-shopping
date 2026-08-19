@@ -126,7 +126,14 @@ export interface CustomerCard {
     last_purchase_at: string | null;
     product_interests: string[];
     last_active_at: string | null;
+    recent_orders: { id: number; total_amount: string; status: string; created_at: string; summary: string }[];
 }
+
+export const listCustomers = async (q?: string): Promise<CustomerCard[]> => {
+    const params = q && q.trim() ? { q: q.trim() } : {};
+    const response = await apiClient.get('/inbox/customers/', { params });
+    return response.data;
+};
 
 export const getCustomerCard = async (customerId: number): Promise<CustomerCard> => {
     const response = await apiClient.get(`/inbox/customers/${customerId}/`);

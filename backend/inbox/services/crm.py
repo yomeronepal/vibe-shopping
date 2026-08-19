@@ -40,6 +40,18 @@ def build_customer_card(customer):
     last_message = customer.conversations.order_by('-last_message_at').values_list(
         'last_message_at', flat=True
     ).first()
+    recent_orders = [
+        {
+            'id': order.id,
+            'total_amount': str(order.total_amount),
+            'status': order.status,
+            'created_at': order.created_at,
+            'summary': ', '.join(
+                f'{item.quantity}× {item.product.name[:30]}' for item in order.items.all()
+            )[:120],
+        }
+        for order in orders[:8]
+    ]
     return {
         'id': customer.id,
         'platform': customer.platform,
@@ -57,6 +69,7 @@ def build_customer_card(customer):
         'last_purchase_at': last_order.created_at if last_order else None,
         'product_interests': interests[:6],
         'last_active_at': last_message,
+        'recent_orders': recent_orders,
     }
 
 
