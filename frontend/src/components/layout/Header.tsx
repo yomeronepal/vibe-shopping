@@ -17,7 +17,7 @@ export default function Header() {
                             <span className="text-white font-bold text-xl">V</span>
                         </div>
                         <span className="text-2xl font-display font-bold text-gradient">
-                            Vibe Shopping
+                            BizAlly
                         </span>
                     </Link>
 

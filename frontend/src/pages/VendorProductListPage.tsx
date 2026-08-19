@@ -71,7 +71,7 @@ const VendorProductListPage: React.FC = () => {
         try {
             const profile = await vendorApi.getVendorProfile();
             setVendorProfile({
-                store_name: profile.store_name || 'Vibe Shop',
+                store_name: profile.store_name || 'BizAlly',
                 logo: profile.logo || null
             });
         } catch (error) {

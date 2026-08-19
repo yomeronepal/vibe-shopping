@@ -150,7 +150,7 @@ export default function VendorDashboardPage() {
             listConnectedPages(),
             listPosts(from, to),
         ]).then(([profile, productsRes, ordersRes, convosRes, pagesRes, postsRes]) => {
-            if (profile.status === 'fulfilled') setStoreName(profile.value.store_name || 'Vibe Shop');
+            if (profile.status === 'fulfilled') setStoreName(profile.value.store_name || 'BizAlly');
             if (productsRes.status === 'fulfilled') {
                 const data: any = productsRes.value;
                 setProducts(Array.isArray(data) ? data : data?.results ?? []);

@@ -1017,7 +1017,7 @@ class DraftProductView(generics.CreateAPIView):
 
 class AnalyticsViewSet(viewsets.ViewSet):
     """
-    Analytics for Vibe Shopping (BE-09).
+    Analytics for BizAlly (BE-09).
     """
     def get_permissions(self):
         if self.action == 'track':

@@ -54,7 +54,7 @@ const HomePage: React.FC = () => {
                             <div className="size-8 bg-black rounded-full flex items-center justify-center text-[#f9f506]">
                                 <span className="material-symbols-outlined text-[20px]">bolt</span>
                             </div>
-                            <span className="font-bold text-lg tracking-tight">Vibe Shop</span>
+                            <span className="font-bold text-lg tracking-tight">BizAlly</span>
                         </div>
                         <div className="hidden md:flex items-center gap-1">
                             <a className="px-5 py-2 text-sm font-medium hover:bg-black/5 rounded-full transition-colors" href="#">Features</a>
@@ -300,7 +300,7 @@ const HomePage: React.FC = () => {
                     <footer className="flex flex-col md:flex-row justify-between items-center gap-6 py-8 border-t border-black/5 text-sm text-gray-500">
                         <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-black">bolt</span>
-                            <span className="font-bold text-black">Vibe Shop</span>
+                            <span className="font-bold text-black">BizAlly</span>
                             <span className="ml-2">© 2024</span>
                         </div>
                         <div className="flex gap-6 font-medium">

@@ -90,7 +90,7 @@ const VendorLoginPage: React.FC = () => {
                             <div className="w-8 h-8 rounded-full bg-[#8a2ce2] flex items-center justify-center text-white">
                                 <span className="material-symbols-outlined text-[18px]">shutter_speed</span>
                             </div>
-                            <span className="font-bold text-xl tracking-tight">Vibe Shop</span>
+                            <span className="font-bold text-xl tracking-tight">BizAlly</span>
                         </Link>
 
                         {/* Gallery Grid */}
@@ -126,13 +126,13 @@ const VendorLoginPage: React.FC = () => {
                             <div className="w-8 h-8 rounded-full bg-[#8a2ce2] flex items-center justify-center text-white">
                                 <span className="material-symbols-outlined text-[18px]">shutter_speed</span>
                             </div>
-                            <span className="font-bold text-xl tracking-tight">Vibe Shop</span>
+                            <span className="font-bold text-xl tracking-tight">BizAlly</span>
                         </Link>
 
                         <div className="w-full max-w-[420px] flex flex-col gap-6">
                             {/* Header */}
                             <div className="text-left mb-2">
-                                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2 tracking-tight">Log in to Vibe Shop</h1>
+                                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2 tracking-tight">Log in to BizAlly</h1>
                                 <p className="text-slate-500 text-base">Manage your social storefront effortlessly.</p>
                             </div>
 
@@ -149,7 +149,7 @@ const VendorLoginPage: React.FC = () => {
                                             className="w-full pl-11 pr-4 py-3.5 bg-slate-100 border-transparent focus:border-[#8a2ce2] focus:bg-white focus:ring-0 rounded-xl text-slate-900 placeholder-slate-400 transition-all duration-300 font-medium"
                                             id="username"
                                             name="username"
-                                            placeholder="vendor@vibeshop.com"
+                                            placeholder="vendor@bizally.com"
                                             type="text"
                                             required
                                             value={formData.username}
@@ -237,7 +237,7 @@ const VendorLoginPage: React.FC = () => {
 
                         {/* Legal */}
                         <div className="absolute bottom-4 text-xs text-slate-400 opacity-60">
-                            © 2024 Vibe Shop Inc.
+                            © 2026 BizAlly
                         </div>
                     </div>
                 </div>

@@ -112,7 +112,7 @@ export default function VendorOrderInvoicePage() {
             .then(([orderRes, profileRes]) => {
                 if (orderRes.status === 'fulfilled') setOrder(orderRes.value);
                 if (profileRes.status === 'fulfilled') {
-                    setStoreName(profileRes.value.store_name || 'Vibe Shop');
+                    setStoreName(profileRes.value.store_name || 'BizAlly');
                     setStoreLogo(mediaUrl(profileRes.value.logo));
                 }
             })

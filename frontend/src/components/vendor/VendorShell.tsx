@@ -31,8 +31,8 @@ export default function VendorShell({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         vendorApi.getVendorProfile()
-            .then((data) => setProfile({ store_name: data.store_name || 'Vibe Shop', logo: data.logo || null }))
-            .catch(() => setProfile({ store_name: 'Vibe Shop', logo: null }));
+            .then((data) => setProfile({ store_name: data.store_name || 'BizAlly', logo: data.logo || null }))
+            .catch(() => setProfile({ store_name: 'BizAlly', logo: null }));
     }, []);
 
     const handleLogout = async () => {
@@ -69,7 +69,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                             </div>
                             <div>
                                 <h1 className="text-base font-bold leading-tight" style={{ color: themeConfig.text }}>
-                                    {profile.store_name || 'Vibe Shop'}
+                                    {profile.store_name || 'BizAlly'}
                                 </h1>
                                 <p className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>Vendor Portal</p>
                             </div>

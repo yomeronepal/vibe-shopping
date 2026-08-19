@@ -19,7 +19,7 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({ children, currentSt
                     <div className="size-10 bg-vibe-purple/10 rounded-xl flex items-center justify-center text-vibe-purple">
                         <span className="material-symbols-outlined text-2xl">auto_awesome</span>
                     </div>
-                    <h2 className="text-xl font-bold tracking-tight">Vibe Shop</h2>
+                    <h2 className="text-xl font-bold tracking-tight">BizAlly</h2>
                 </div>
 
                 {/* Progress Steps (Desktop) */}

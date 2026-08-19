@@ -18,7 +18,7 @@ def health_check(request):
     """Health check endpoint"""
     return Response({
         'status': 'healthy',
-        'message': 'Vibe Shopping API is running'
+        'message': 'BizAlly API is running'
     })
 
 @api_view(['POST'])
