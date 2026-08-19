@@ -75,6 +75,20 @@ function CustomerAvatar({ conversation, size }: { conversation: InboxConversatio
     );
 }
 
+function SentimentIcon({ sentiment, size = 15 }: { sentiment: string; size?: number }) {
+    if (sentiment !== 'negative' && sentiment !== 'positive') return null;
+    const negative = sentiment === 'negative';
+    return (
+        <span
+            title={negative ? 'Customer seems upset' : 'Customer seems happy'}
+            className="material-symbols-outlined shrink-0"
+            style={{ color: negative ? '#dc2626' : '#16a34a', fontSize: size }}
+        >
+            {negative ? 'sentiment_dissatisfied' : 'sentiment_satisfied'}
+        </span>
+    );
+}
+
 function ConversationRow({
     conversation,
     active,
@@ -103,15 +117,7 @@ function ConversationRow({
                             <span className="font-semibold truncate text-sm" style={{ color: themeConfig.text }}>
                                 {displayName(conversation)}
                             </span>
-                            {conversation.sentiment === 'negative' && (
-                                <span
-                                    title="Customer seems upset"
-                                    className="material-symbols-outlined text-[15px] shrink-0"
-                                    style={{ color: '#dc2626' }}
-                                >
-                                    sentiment_dissatisfied
-                                </span>
-                            )}
+                            <SentimentIcon sentiment={conversation.sentiment} />
                         </div>
                         <span className="text-[11px] shrink-0" style={{ color: themeConfig.textSecondary }}>
                             {relativeTime(conversation.last_message_at)}
@@ -454,8 +460,12 @@ export default function InboxPage() {
                                                 </span>
                                                 <PlatformBadge platform={active.platform} />
                                             </div>
-                                            <span className="text-xs" style={{ color: themeConfig.textSecondary }}>
+                                            <span className="flex items-center gap-1.5 text-xs" style={{ color: themeConfig.textSecondary }}>
                                                 {active.status.replace('_', ' ')}
+                                                <SentimentIcon sentiment={active.sentiment} size={14} />
+                                                {active.sentiment === 'negative' && (
+                                                    <span className="font-semibold" style={{ color: '#dc2626' }}>customer upset</span>
+                                                )}
                                             </span>
                                         </div>
                                     </div>
