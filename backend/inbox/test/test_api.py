@@ -59,7 +59,7 @@ class InboxApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]['text'], 'hello')
 
-    @patch('inbox.views.MetaGraphClient')
+    @patch('inbox.services.sending.MetaGraphClient')
     def test_send_reply(self, mock_client_cls):
         mock_client_cls.return_value.send_message.return_value = 'mid-out-1'
         response = self.client.post(
@@ -76,8 +76,8 @@ class InboxApiTests(APITestCase):
             'p1', 'pt1', 'psid1', 'thanks!'
         )
 
-    @patch('inbox.views.push_inbox_event', side_effect=Exception('redis down'))
-    @patch('inbox.views.MetaGraphClient')
+    @patch('inbox.services.sending.push_inbox_event', side_effect=Exception('redis down'))
+    @patch('inbox.services.sending.MetaGraphClient')
     def test_send_reply_survives_push_failure(self, mock_client_cls, mock_push):
         mock_client_cls.return_value.send_message.return_value = 'mid-out-2'
         response = self.client.post(
@@ -87,7 +87,7 @@ class InboxApiTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertTrue(Message.objects.filter(text='still works').exists())
 
-    @patch('inbox.views.MetaGraphClient')
+    @patch('inbox.services.sending.MetaGraphClient')
     def test_send_reply_window_closed(self, mock_client_cls):
         mock_client_cls.return_value.send_message.side_effect = MetaGraphError('window', code=10)
         response = self.client.post(

@@ -14,6 +14,7 @@ export interface VendorOrder {
     payment_method: string;
     customer_name: string;
     customer_phone: string;
+    customer_email?: string;
     created_at: string;
     items: VendorOrderItem[];
 }
@@ -35,5 +36,40 @@ export const listVendorOrders = async (): Promise<VendorOrder[]> => {
 
 export const updateVendorOrderStatus = async (orderId: number, status: string): Promise<VendorOrder> => {
     const response = await apiClient.patch(`/vendor/orders/${orderId}/`, { status });
+    return response.data;
+};
+
+export interface CreateOrderItem {
+    product_id: number;
+    quantity: number;
+}
+
+export interface CreateOrderPayload {
+    items: CreateOrderItem[];
+    customer_name: string;
+    customer_phone?: string;
+    customer_email?: string;
+    payment_method: string;
+    status?: string;
+}
+
+export interface SendInvoiceResponse {
+    sent: boolean;
+    message_id: number;
+    text: string;
+}
+
+export const createVendorOrder = async (payload: CreateOrderPayload): Promise<{ order_id: number }> => {
+    const response = await apiClient.post('/vendor/orders/pos/', { ...payload, order_type: 'pos' });
+    return response.data;
+};
+
+export const getVendorOrder = async (orderId: number | string): Promise<VendorOrder> => {
+    const response = await apiClient.get(`/vendor/orders/${orderId}/`);
+    return response.data;
+};
+
+export const sendOrderInvoice = async (orderId: number | string, conversationId: number): Promise<SendInvoiceResponse> => {
+    const response = await apiClient.post(`/vendor/orders/${orderId}/send-invoice/`, { conversation_id: conversationId });
     return response.data;
 };

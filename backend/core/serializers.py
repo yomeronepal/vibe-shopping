@@ -77,6 +77,11 @@ class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemSerializer(many=True)
     order_type = serializers.ChoiceField(choices=['online', 'pos'], default='online')
     payment_method = serializers.CharField(max_length=50, required=False, default='credit_card')
+    status = serializers.ChoiceField(
+        choices=['pending_payment', 'pending_delivery', 'shipped', 'delivered', 'completed'],
+        required=False,
+        default='completed',
+    )
     
     # POS customer info (optional for online orders)
     customer_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
