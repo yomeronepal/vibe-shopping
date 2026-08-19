@@ -392,31 +392,31 @@ Businesses should always be able to control the AI.
 
 - [x] Total orders (dashboard)
 - [x] Total revenue (dashboard)
-- [ ] Average order value
-- [ ] Conversion rate
-- [ ] Best-selling products
-- [ ] Repeat customers
-- [ ] Cancelled orders
-- [ ] Returned orders
+- [x] Average order value
+- [x] Conversion rate (conversations → orders)
+- [x] Best-selling products
+- [x] Repeat customers
+- [x] Cancelled orders
+- [x] Returned orders
 
 ### Social Analytics
 
-- [ ] Messages received
-- [ ] Response time
-- [ ] Comments
+- [x] Messages received
+- [x] Response time (average reply delay)
+- [x] Comments
 - [x] Engagement (per-product likes/comments/shares, auto-refreshed)
-- [ ] Followers
+- [x] Followers (live FB/IG counts)
 - [x] Post performance (per-post engagement on the product analytics page)
-- [ ] Best-performing posts
-- [ ] Best-performing products
+- [x] Best-performing posts
+- [x] Best-performing products (by engagement)
 
 ### AI Analytics
 
-- [ ] AI conversations
-- [ ] AI resolution rate
-- [ ] Human handoff rate
+- [x] AI conversations
+- [x] AI resolution rate
+- [x] Human handoff rate
 - [x] AI-generated orders (Chat bot badge + collected fields on the Orders page)
-- [ ] AI conversion rate
+- [x] AI conversion rate
 - [x] AI usage
 - [x] AI cost tracking
 
@@ -510,7 +510,7 @@ Businesses should always be able to control the AI.
 - [ ] AI order creation
 - [x] Product catalog
 - [ ] CRM
-- [ ] Analytics
+- [x] Analytics
 - [ ] Content generation
 
 ### Pro

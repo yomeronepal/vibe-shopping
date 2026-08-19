@@ -14,6 +14,7 @@ const NAV_ITEMS = [
     { to: '/vendor/inbox', label: 'Inbox', icon: 'chat', exact: false },
     { to: '/vendor/orders', label: 'Orders', icon: 'shopping_bag', exact: false },
     { to: '/vendor/customers', label: 'Customers', icon: 'group', exact: false },
+    { to: '/vendor/analytics', label: 'Analytics', icon: 'bar_chart', exact: false },
     { to: '/vendor/calendar', label: 'Publishing', icon: 'calendar_month', exact: false },
     { to: '/vendor/products', label: 'Products', icon: 'sell', exact: false },
     { to: '/vendor/settings/profile', label: 'Settings', icon: 'tune', exact: false, match: '/vendor/settings' },

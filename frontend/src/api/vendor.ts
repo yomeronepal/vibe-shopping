@@ -494,3 +494,41 @@ export const updateStoreProfile = async (data: UpdateStoreProfileData): Promise<
     const response = await apiClient.patch('/vendor/profile/', formData);
     return response.data;
 };
+
+export interface AnalyticsSummary {
+    days: number;
+    sales: {
+        total_orders: number;
+        revenue: number;
+        average_order_value: number;
+        cancelled_orders: number;
+        returned_orders: number;
+        repeat_customers: number;
+        conversion_rate: number;
+        conversations: number;
+        best_sellers: { name: string; units: number; revenue: number }[];
+    };
+    social: {
+        messages_received: number;
+        comments_received: number;
+        average_response_minutes: number | null;
+        followers: { facebook: number | null; instagram: number | null };
+        best_posts: { caption: string; platform: string; engagement: number; post_url: string | null }[];
+        best_products: { name: string; engagement: number }[];
+    };
+    ai: {
+        ai_conversations: number;
+        handoff_rate: number;
+        resolution_rate: number;
+        ai_orders: number;
+        ai_order_revenue: number;
+        ai_conversion_rate: number;
+        usage: { provider: string; calls: number; tokens: number; cost_usd: number }[];
+        failed_calls: number;
+    };
+}
+
+export const getAnalyticsSummary = async (days = 30): Promise<AnalyticsSummary> => {
+    const response = await apiClient.get('/vendor/analytics/summary/', { params: { days } });
+    return response.data;
+};
