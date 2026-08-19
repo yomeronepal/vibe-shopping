@@ -150,7 +150,7 @@ def ai_summary(tenant, since):
     ai_order_count = ai_orders.count()
     usage = AITokenUsage.objects.filter(tenant=tenant, created_at__gte=since)
     by_provider = list(
-        usage.values('ai_provider')
+        usage.filter(success=True).values('ai_provider')
         .annotate(calls=Count('id'), tokens=Sum('total_tokens'), cost=Sum('estimated_cost'))
         .order_by('-calls')
     )
