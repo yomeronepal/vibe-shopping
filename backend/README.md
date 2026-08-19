@@ -179,6 +179,20 @@ The project includes sample Celery tasks in `backend/core/tasks.py`:
 - `cleanup_old_data` - Scheduled daily cleanup (2:00 AM)
 - `generate_report_task` - Generate various reports
 
+### Scheduled Social Media Publishing
+
+Post scheduling is powered by `django_celery_beat`'s `DatabaseScheduler`, backed by two tasks in `socials/tasks.py`:
+
+- `publish_due_posts` - runs every 60 seconds via the `Publish due social posts` `PeriodicTask` (seeded by the `socials.0002_publish_due_schedule` data migration). It claims `SocialMediaPost` rows with `status='scheduled'` and `scheduled_for <= now` using `select_for_update(skip_locked=True)`, flips them to `pending`, and queues `publish_scheduled_post` for each claimed row.
+- `publish_scheduled_post(post_id)` - publishes one claimed post via `socials.services.publisher.publish_post_record`. Transient network failures (`TransientPublishError`) are retried up to twice with a 60 second delay; once retries are exhausted the post is marked `failed` with the error recorded on it.
+
+`django_celery_beat` must be listed in `INSTALLED_APPS` and its tables migrated for the schedule to load:
+
+```bash
+docker-compose exec web python manage.py migrate django_celery_beat
+docker-compose exec web python manage.py migrate socials
+```
+
 ### Testing Celery Tasks
 
 ```bash

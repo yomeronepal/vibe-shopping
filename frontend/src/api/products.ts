@@ -7,6 +7,11 @@ export interface Product {
     description: string;
     price: string; // Django DecimalField returns string usually, or number if float. Checking usages.
     image?: string;
+    processed_image?: string | null;
+    images?: { id: number; image: string }[];
+    category?: string;
+    subcategory?: string;
+    vibe_tags?: string[];
     stock: number;
     is_active: boolean;
     ai_generated_title?: string;
@@ -36,8 +41,11 @@ export const productsApi = {
 
 export const publicApi = {
     getProducts: async (params?: any): Promise<Product[]> => {
-        // Using public endpoint
         const response = await apiClient.get<Product[]>('/public/products/', { params });
+        return response.data;
+    },
+    getProduct: async (id: string | number): Promise<Product> => {
+        const response = await apiClient.get<Product>(`/public/products/${id}/`);
         return response.data;
     }
 };

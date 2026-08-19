@@ -17,8 +17,10 @@ router.register(r'onboarding', OnboardingViewSet, basename='vendor-onboarding')
 router.register(r'themes', ThemeViewSet, basename='vendor-themes')
 
 from vendor.order_views import VendorOrderDetailView, VendorOrderListView
+from vendor.product_analytics_views import ProductAnalyticsView
 
 urlpatterns = [
+    path('products/<int:product_id>/analytics/', ProductAnalyticsView.as_view(), name='vendor-product-analytics'),
     path('orders/', VendorOrderListView.as_view(), name='vendor-orders'),
     path('orders/<int:order_id>/', VendorOrderDetailView.as_view(), name='vendor-order-detail'),
     path('signup/', VendorSignupView.as_view(), name='vendor-signup'),

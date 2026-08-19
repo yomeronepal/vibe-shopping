@@ -223,3 +223,58 @@ class MetaGraphClient:
             'messaging_type': 'RESPONSE',
         })
         return payload.get('message_id', '')
+
+    def publish_page_story(self, page_id, page_token, image_file):
+        """Publish a photo story to a Page; returns story id and URL."""
+        photo = self.post(
+            f'/{page_id}/photos',
+            {'access_token': page_token, 'published': 'false'},
+            files={'source': image_file},
+        )
+        story = self.post(f'/{page_id}/photo_stories', {
+            'access_token': page_token,
+            'photo_id': photo.get('id', ''),
+        })
+        post_id = story.get('post_id', '')
+        return {'post_id': post_id, 'post_url': f'https://www.facebook.com/{post_id}' if post_id else ''}
+
+    def publish_instagram_story(self, ig_user_id, page_token, image_url):
+        """Publish an Instagram story; returns media id and permalink."""
+        creation = self.post(f'/{ig_user_id}/media', {
+            'access_token': page_token,
+            'media_type': 'STORIES',
+            'image_url': image_url,
+        })
+        published = self.post(f'/{ig_user_id}/media_publish', {
+            'access_token': page_token,
+            'creation_id': creation['id'],
+        })
+        media_id = published.get('id', '')
+        return {
+            'post_id': media_id,
+            'post_url': self.get_instagram_permalink(media_id, page_token),
+        }
+
+    def get_post_engagement(self, post_id, page_token):
+        """Return likes, comments, and shares for a Page post."""
+        payload = self.get(f'/{post_id}', {
+            'access_token': page_token,
+            'fields': 'reactions.summary(true),comments.summary(true),shares',
+        })
+        return {
+            'likes': (payload.get('reactions') or {}).get('summary', {}).get('total_count', 0),
+            'comments': (payload.get('comments') or {}).get('summary', {}).get('total_count', 0),
+            'shares': (payload.get('shares') or {}).get('count', 0),
+        }
+
+    def get_instagram_media_engagement(self, media_id, page_token):
+        """Return likes and comments for an IG media object."""
+        payload = self.get(f'/{media_id}', {
+            'access_token': page_token,
+            'fields': 'like_count,comments_count',
+        })
+        return {
+            'likes': payload.get('like_count', 0),
+            'comments': payload.get('comments_count', 0),
+            'shares': 0,
+        }

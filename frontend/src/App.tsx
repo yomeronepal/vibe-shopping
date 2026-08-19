@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
@@ -17,6 +17,8 @@ import ConnectedAccountsPage from './pages/ConnectedAccountsPage';
 import MetaCallbackPage from './pages/MetaCallbackPage';
 import InboxPage from './pages/InboxPage';
 import VendorOrdersPage from './pages/VendorOrdersPage';
+import VendorProductDetailPage from './pages/VendorProductDetailPage';
+import PublishingCalendarPage from './pages/PublishingCalendarPage';
 import VendorSignupPage from './pages/VendorSignupPage';
 import VendorOnboardingPage from './pages/VendorOnboardingPage';
 import VendorOnboardingSuccessPage from './pages/VendorOnboardingSuccessPage';
@@ -46,10 +48,12 @@ function App() {
               <Route path="/vendor" element={<VendorDashboardPage />} />
               <Route path="/vendor/products" element={<VendorProductListPage />} />
               <Route path="/vendor/products/new" element={<VendorProductCreatePage />} />
+              <Route path="/vendor/products/:id" element={<VendorProductDetailPage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
               <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
               <Route path="/vendor/inbox" element={<InboxPage />} />
               <Route path="/vendor/orders" element={<VendorOrdersPage />} />
+              <Route path="/vendor/calendar" element={<PublishingCalendarPage />} />
 
               {/* Main App Layout (with Header/Footer) */}
               <Route element={<Layout><Outlet /></Layout>}>
@@ -61,6 +65,8 @@ function App() {
 
                 <Route path="/store/:subdomain" element={<PublicStorePage />} />
               </Route>
+              <Route path="/dashboard" element={<Navigate to="/vendor" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <ThemePickerButton />
             <Toaster

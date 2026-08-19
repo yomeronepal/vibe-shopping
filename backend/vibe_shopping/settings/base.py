@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken', # Added for Token Auth
     'django_filters', # Added by user instruction
+    'django_celery_beat',
     'corsheaders',
     
     # Local apps

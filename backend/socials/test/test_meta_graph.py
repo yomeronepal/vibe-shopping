@@ -196,3 +196,67 @@ class SendMessageTests(TestCase):
         with self.assertRaises(MetaGraphError) as ctx:
             MetaGraphClient().send_message('p1', 'pt1', 'psid1', 'late reply')
         self.assertEqual(ctx.exception.code, 10)
+
+
+@override_settings(META_APP_ID='app123', META_APP_SECRET='secret123')
+class StoryPublishTests(TestCase):
+    @patch('socials.services.meta_graph.requests.post')
+    def test_publish_page_story(self, mock_post):
+        def side_effect(url, **kwargs):
+            if url.endswith('/photos'):
+                return graph_response({'id': 'photo9'})
+            return graph_response({'success': True, 'post_id': 'story9'})
+
+        mock_post.side_effect = side_effect
+        result = MetaGraphClient().publish_page_story('p1', 'pt1', b'img')
+        self.assertEqual(result['post_id'], 'story9')
+        first_url = mock_post.call_args_list[0].args[0]
+        second_url = mock_post.call_args_list[1].args[0]
+        self.assertIn('/p1/photos', first_url)
+        self.assertEqual(mock_post.call_args_list[0].kwargs['params']['published'], 'false')
+        self.assertIn('/p1/photo_stories', second_url)
+        self.assertEqual(mock_post.call_args_list[1].kwargs['params']['photo_id'], 'photo9')
+
+    @patch('socials.services.meta_graph.requests.get')
+    @patch('socials.services.meta_graph.requests.post')
+    def test_publish_instagram_story(self, mock_post, mock_get):
+        def post_side_effect(url, **kwargs):
+            if url.endswith('/media'):
+                return graph_response({'id': 'creation5'})
+            return graph_response({'id': 'media5'})
+
+        mock_post.side_effect = post_side_effect
+        mock_get.return_value = graph_response({'permalink': 'https://www.instagram.com/stories/x/'})
+        result = MetaGraphClient().publish_instagram_story('ig1', 'pt1', 'https://pub/img.jpg')
+        self.assertEqual(result['post_id'], 'media5')
+        first_params = mock_post.call_args_list[0].kwargs['params']
+        self.assertEqual(first_params['media_type'], 'STORIES')
+        self.assertEqual(first_params['image_url'], 'https://pub/img.jpg')
+
+
+@override_settings(META_APP_ID='app123', META_APP_SECRET='secret123')
+class EngagementTests(TestCase):
+    @patch('socials.services.meta_graph.requests.get')
+    def test_get_post_engagement(self, mock_get):
+        mock_get.return_value = graph_response({
+            'reactions': {'summary': {'total_count': 12}},
+            'comments': {'summary': {'total_count': 4}},
+            'shares': {'count': 2},
+            'id': 'p1_777',
+        })
+        result = MetaGraphClient().get_post_engagement('p1_777', 'pt1')
+        self.assertEqual(result, {'likes': 12, 'comments': 4, 'shares': 2})
+        params = mock_get.call_args.kwargs['params']
+        self.assertIn('reactions.summary(true)', params['fields'])
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_get_post_engagement_defaults(self, mock_get):
+        mock_get.return_value = graph_response({'id': 'p1_777'})
+        result = MetaGraphClient().get_post_engagement('p1_777', 'pt1')
+        self.assertEqual(result, {'likes': 0, 'comments': 0, 'shares': 0})
+
+    @patch('socials.services.meta_graph.requests.get')
+    def test_get_instagram_media_engagement(self, mock_get):
+        mock_get.return_value = graph_response({'like_count': 9, 'comments_count': 3, 'id': 'm5'})
+        result = MetaGraphClient().get_instagram_media_engagement('m5', 'pt1')
+        self.assertEqual(result, {'likes': 9, 'comments': 3, 'shares': 0})

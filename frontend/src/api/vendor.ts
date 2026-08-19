@@ -68,6 +68,33 @@ export interface Product {
     created_at: string;
 }
 
+
+export interface PostEngagement {
+    likes: number;
+    comments: number;
+    shares: number;
+}
+
+export interface AnalyticsPost {
+    id: number;
+    platform: 'facebook' | 'instagram';
+    status: string;
+    caption: string;
+    image_url: string | null;
+    scheduled_for: string | null;
+    post_url: string | null;
+    error_message: string;
+    created_at: string;
+    post_format: 'feed' | 'story';
+    engagement: PostEngagement;
+}
+
+export interface ProductAnalytics {
+    product: Product;
+    totals: PostEngagement & { published_posts: number };
+    posts: AnalyticsPost[];
+}
+
 export const vendorApi = {
     publishProduct: async (productData: PublishProductData) => {
         const formData = new FormData();
@@ -136,6 +163,13 @@ export const vendorApi = {
 
     updateTenant: async (data: { metadata: any }) => {
         const response = await apiClient.patch('/vendor/tenant/current/', data);
+        return response.data;
+    },
+
+    getProductAnalytics: async (id: string | number, refresh = false): Promise<ProductAnalytics> => {
+        const response = await apiClient.get(`/vendor/products/${id}/analytics/`, {
+            params: refresh ? { refresh: '1' } : {},
+        });
         return response.data;
     },
 

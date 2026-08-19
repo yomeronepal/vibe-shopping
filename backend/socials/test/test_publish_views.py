@@ -45,7 +45,7 @@ class PublishPostViewTests(APITestCase):
             price=100, image=SimpleUploadedFile('jacket.png', PNG_BYTES, 'image/png'),
         )
 
-    @patch('socials.views.MetaGraphClient')
+    @patch('socials.services.publisher.MetaGraphClient')
     def test_publish_to_both_platforms(self, mock_client_cls):
         mock_client = mock_client_cls.return_value
         mock_client.publish_page_photo.return_value = {
@@ -67,7 +67,7 @@ class PublishPostViewTests(APITestCase):
         ig_call = mock_client.publish_instagram_photo.call_args
         self.assertTrue(ig_call.args[2].startswith('https://pub.example.com/'))
 
-    @patch('socials.views.MetaGraphClient')
+    @patch('socials.services.publisher.MetaGraphClient')
     def test_platform_failure_recorded_not_fatal(self, mock_client_cls):
         mock_client = mock_client_cls.return_value
         mock_client.publish_page_photo.return_value = {
@@ -88,7 +88,7 @@ class PublishPostViewTests(APITestCase):
         self.assertTrue(failed.error_message)
 
     @override_settings(PUBLIC_MEDIA_BASE_URL='')
-    @patch('socials.views.MetaGraphClient')
+    @patch('socials.services.publisher.MetaGraphClient')
     def test_instagram_without_public_url_fails_actionably(self, mock_client_cls):
         response = self.client.post('/api/socials/posts/', {
             'product_id': self.product.id,
