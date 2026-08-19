@@ -88,6 +88,7 @@ OAUTH_SCOPES = ','.join([
     'instagram_manage_comments',
     'pages_manage_posts',
     'instagram_content_publish',
+    'pages_read_user_content',
 ])
 
 
