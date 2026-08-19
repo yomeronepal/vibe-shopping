@@ -271,7 +271,7 @@ const VendorProductListPage: React.FC = () => {
                                 borderColor: themeConfig.border,
                                 color: themeConfig.text
                             }}
-                            onClick={() => toast.success('Analytics coming soon!')}
+                            onClick={() => navigate('/vendor/analytics')}
                         >
                             <span className="material-symbols-outlined text-[20px]">analytics</span>
                             Analytics

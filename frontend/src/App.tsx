@@ -23,6 +23,7 @@ import VendorOrderInvoicePage from './pages/VendorOrderInvoicePage';
 import VendorStoreSettingsPage from './pages/VendorStoreSettingsPage';
 import VendorAssistantSettingsPage from './pages/VendorAssistantSettingsPage';
 import VendorCustomersPage from './pages/VendorCustomersPage';
+import VendorAnalyticsPage from './pages/VendorAnalyticsPage';
 import PublishingCalendarPage from './pages/PublishingCalendarPage';
 import VendorSignupPage from './pages/VendorSignupPage';
 import VendorOnboardingPage from './pages/VendorOnboardingPage';
@@ -57,6 +58,7 @@ function App() {
               <Route path="/vendor/products/:id/edit" element={<VendorProductEditPage />} />
               <Route path="/vendor/orders/:id/invoice" element={<VendorOrderInvoicePage />} />
               <Route path="/vendor/customers" element={<VendorCustomersPage />} />
+              <Route path="/vendor/analytics" element={<VendorAnalyticsPage />} />
               <Route path="/vendor/settings/profile" element={<VendorStoreSettingsPage />} />
               <Route path="/vendor/settings/assistant" element={<VendorAssistantSettingsPage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
