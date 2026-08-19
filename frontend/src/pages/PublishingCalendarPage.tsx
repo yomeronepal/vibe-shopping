@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { aiApi } from '../api/ai';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import { vendorApi, type Product } from '../api/vendor';
@@ -98,6 +99,7 @@ export default function PublishingCalendarPage() {
     const [connectedPage, setConnectedPage] = useState<ConnectedPage | null>(null);
 
     const [caption, setCaption] = useState('');
+    const [captionLoading, setCaptionLoading] = useState(false);
     const [postFormat, setPostFormat] = useState<'feed' | 'story'>('feed');
     const [platforms, setPlatforms] = useState<{ facebook: boolean; instagram: boolean }>({ facebook: false, instagram: false });
     const [imageTab, setImageTab] = useState<'product' | 'upload'>('product');
@@ -198,6 +200,25 @@ export default function PublishingCalendarPage() {
         setScheduleDate(toDateKey(anchor));
         setScheduleTime(toTimeValue(anchor));
         setModal({ mode: 'edit', post });
+    };
+
+    const generateCaption = async () => {
+        const useProduct = imageTab === 'product' && productId;
+        if (!useProduct && caption.trim().length < 5) {
+            toast.error('Pick a product or write a few words first');
+            return;
+        }
+        setCaptionLoading(true);
+        try {
+            const generated = await aiApi.generateCaption(
+                useProduct ? { product_id: productId as number } : { context: caption.trim() },
+            );
+            setCaption(generated.slice(0, 280));
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not write a caption. Try again.');
+        } finally {
+            setCaptionLoading(false);
+        }
     };
 
     const closeModal = () => setModal(null);
@@ -519,6 +540,21 @@ export default function PublishingCalendarPage() {
 
                         <div className="space-y-4">
                             <div>
+                                {!isReadOnly && !isStoryFormat && (
+                                    <div className="flex justify-end mb-1">
+                                        <button
+                                            onClick={generateCaption}
+                                            disabled={captionLoading}
+                                            className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition-all disabled:opacity-40"
+                                            style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[14px] ${captionLoading ? 'animate-spin' : ''}`}>
+                                                {captionLoading ? 'progress_activity' : 'auto_awesome'}
+                                            </span>
+                                            {captionLoading ? 'Writing…' : 'AI caption'}
+                                        </button>
+                                    </div>
+                                )}
                                 <textarea
                                     value={isStoryFormat ? '' : caption}
                                     onChange={(event) => setCaption(event.target.value.slice(0, 280))}

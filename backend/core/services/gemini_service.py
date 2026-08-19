@@ -158,7 +158,9 @@ PRODUCT_JSON_SPEC = """Generate a JSON response with the following structure. Be
     
     "selling_points": ["5-7 unique selling points or benefits"],
     
-    "similar_styles": ["3-5 similar style keywords for recommendations"]
+    "similar_styles": ["3-5 similar style keywords for recommendations"],
+    
+    "social_caption": "A ready-to-post social media caption for Facebook/Instagram (max 280 characters): 2-3 short warm lines in the style of Nepali online shops, mention the price with Rs. if given, end with a call to action to DM or message to order, then 2-4 relevant hashtags. Plain text, no markdown."
 }"""
 
 
@@ -244,7 +246,7 @@ class GeminiProductAnalyzer:
         Returns:
             dict with success status and data/error.
         """
-        price_context = f"The vendor set the price at Rs. {price}." if price else ""
+        price_context = f"The vendor set the price at Rs. {price:g}." if price else ""
         prompt = f"""A vendor in Nepal is listing a product in their online shop. They described it in their own words (English, Nepali, or a mix):
 
 VENDOR'S DESCRIPTION
@@ -267,6 +269,43 @@ Return ONLY valid JSON, no markdown formatting."""
             return {'success': False, 'error': 'The AI returned an unreadable answer. Try again.'}
         except Exception as e:
             logger.error(f"Error generating from brief: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def generate_caption(self, context: str, platform: str = '') -> dict:
+        """Generate a short social-media caption from product context.
+
+        Args:
+            context: Product or topic details to write about.
+            platform: Optional target platform hint.
+
+        Returns:
+            dict with success status and caption/error.
+        """
+        platform_hint = f'The post is for {platform}.' if platform else 'The post is for Facebook and Instagram.'
+        prompt = f"""Write one social-media caption for a small Nepali business selling online.
+
+WHAT THE POST IS ABOUT
+{context}
+
+{platform_hint}
+
+Rules:
+1. At most 280 characters total.
+2. 2-3 short, warm lines in the style of successful Nepali online shops — English with a natural touch of romanized Nepali is welcome.
+3. Mention the price with Rs. if a price is given.
+4. End with a call to action to DM or message to order.
+5. Include 2-4 relevant hashtags at the end.
+6. Plain text only — no markdown, no quotes around the caption.
+
+Return ONLY the caption text."""
+        try:
+            response = self._generate_text_with_retry(prompt)
+            caption = (getattr(response, 'text', None) or '').strip().strip('"')
+            if not caption:
+                return {'success': False, 'error': 'The AI returned an empty caption. Try again.'}
+            return {'success': True, 'caption': caption[:280]}
+        except Exception as e:
+            logger.error(f"Error generating caption: {e}")
             return {'success': False, 'error': str(e)}
 
     def analyze_product_image(self, image_data: bytes, price: float = None) -> dict:

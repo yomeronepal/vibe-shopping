@@ -14,6 +14,7 @@ FAKE_DETAILS = {
     'weather_tags': [{'tag': 'Sunny', 'fit': 'Breathable cotton for warm days.'}],
     'category': 'Clothing',
     'subcategory': 'Polo Shirts',
+    'social_caption': 'Black cotton polo, only Rs. 1500! DM to order. #polo #kathmandu',
 }
 
 
@@ -41,6 +42,7 @@ class BriefGenerationTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['title'], FAKE_DETAILS['title'])
         self.assertEqual(response.data['tags'], ['polo', 'black', 'cotton'])
+        self.assertIn('DM to order', response.data['social_caption'])
         args, kwargs = mock_generate.call_args
         self.assertIn('Black cotton polo', args[0])
         self.assertEqual(kwargs['price'], 1500.0)
@@ -58,3 +60,55 @@ class BriefGenerationTests(APITestCase):
         response = self.generate({'brief': 'A long enough product description here'})
         self.assertEqual(response.status_code, 502)
         self.assertIn('unreadable', response.data['error'])
+
+
+class CaptionGenerationTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        self.user = User.objects.create_user(username='owner', password='pass12345')
+        VendorProfile.objects.create(user=self.user, tenant=self.tenant, role='owner')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        from core.models import Product
+        self.product = Product.objects.create(
+            tenant=self.tenant, name='Pashmina Shawl', price=3500, stock=5,
+            description='Pure Mustang wool', tags=['shawl', 'wool'],
+            status='published', is_active=True,
+        )
+
+    def generate(self, payload):
+        return self.client.post('/api/products/generate-caption/', payload, format='json')
+
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer.generate_caption',
+        return_value={'success': True, 'caption': 'Cozy up this winter! DM to order. #pashmina'},
+    )
+    def test_generates_caption_from_product(self, mock_caption, mock_init):
+        response = self.generate({'product_id': self.product.id, 'platform': 'facebook'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('DM to order', response.data['caption'])
+        context = mock_caption.call_args[0][0]
+        self.assertIn('Pashmina Shawl', context)
+        self.assertIn('Rs. 3500', context)
+        self.assertIn('Pure Mustang wool', context)
+
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer.generate_caption',
+        return_value={'success': True, 'caption': 'Big sale this weekend! DM us. #sale'},
+    )
+    def test_generates_caption_from_free_text(self, mock_caption, mock_init):
+        response = self.generate({'context': 'Weekend sale, 20 percent off everything'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Weekend sale', mock_caption.call_args[0][0])
+
+    def test_rejects_empty_request(self):
+        self.assertEqual(self.generate({}).status_code, 400)
+
+    def test_product_is_tenant_scoped(self):
+        other = Tenant.objects.create(name='Other', subdomain='other')
+        from core.models import Product
+        foreign = Product.objects.create(tenant=other, name='Foreign', price=10)
+        response = self.generate({'product_id': foreign.id})
+        self.assertEqual(response.status_code, 404)

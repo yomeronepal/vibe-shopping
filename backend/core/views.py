@@ -207,6 +207,66 @@ def generate_product_details_from_text(request):
     return Response(result['data'], status=status.HTTP_200_OK)
 
 
+@api_view(['POST'])
+@throttle_classes([AIAnalysisThrottle])
+def generate_social_caption(request):
+    """Generate a social-media caption for a product or free-form topic.
+
+    Request data:
+        product_id: Generate from this product's details (optional).
+        context: Free-form topic text when no product is given.
+        platform: Optional platform hint ('facebook' or 'instagram').
+    """
+    tenant = None
+    if hasattr(request.user, 'vendor_profile'):
+        tenant = request.user.vendor_profile.tenant
+
+    context = (request.data.get('context') or '').strip()
+    product_id = request.data.get('product_id')
+    if product_id and tenant:
+        product = Product.objects.filter(tenant=tenant, id=product_id).first()
+        if product is None:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        parts = [f'Product: {product.name}', f'Price: Rs. {product.price}']
+        if product.description:
+            parts.append(f'Details: {product.description[:400]}')
+        if product.tags:
+            parts.append(f"Tags: {', '.join(product.tags[:10])}")
+        context = '\n'.join(parts)
+    if len(context) < 5:
+        return Response(
+            {'error': 'Pick a product or write a few words about the post first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from .services.gemini_service import GeminiProductAnalyzer
+    from .utils.ai_tracker import track_ai_usage, estimate_text_tokens
+
+    try:
+        analyzer = GeminiProductAnalyzer()
+        result = analyzer.generate_caption(context, platform=request.data.get('platform', ''))
+    except Exception as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if not result.get('success'):
+        return Response(
+            {'error': result.get('error', 'Caption generation failed. Try again.')},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    track_ai_usage(
+        tenant=tenant,
+        ai_provider='gemini',
+        operation_type='caption',
+        input_tokens=estimate_text_tokens(context),
+        output_tokens=estimate_text_tokens(result['caption']),
+        success=True,
+        user=request.user if request.user.is_authenticated else None,
+        metadata={'product_id': product_id},
+    )
+    return Response({'caption': result['caption']}, status=status.HTTP_200_OK)
+
+
 class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Public ViewSet for customers to view products.

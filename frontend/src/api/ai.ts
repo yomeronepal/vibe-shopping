@@ -32,9 +32,21 @@ export interface AIProductDetails {
     seo_keywords: string[];
     selling_points: string[];
     similar_styles: string[];
+    social_caption?: string;
+}
+
+export interface CaptionRequest {
+    product_id?: number;
+    context?: string;
+    platform?: string;
 }
 
 export const aiApi = {
+    generateCaption: async (payload: CaptionRequest): Promise<string> => {
+        const response = await apiClient.post('/products/generate-caption/', payload);
+        return response.data.caption;
+    },
+
     generateProductDetailsFromBrief: async (
         brief: string,
         price?: number
