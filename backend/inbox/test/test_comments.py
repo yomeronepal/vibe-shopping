@@ -111,7 +111,7 @@ class CommentIngestTests(CommentTestBase):
         self.tenant.metadata = {'aiAutoReply': True}
         self.tenant.save()
         record = store_comment(self.page, 'facebook', fb_comment_change())
-        mock_apply.assert_called_once_with(args=[record.id], countdown=60)
+        mock_apply.assert_called_once_with(args=[record.id], countdown=20)
 
 
 class PrivateReplyRoutingTests(CommentTestBase):
