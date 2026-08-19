@@ -99,7 +99,7 @@ const Step1StoreInfo: React.FC<Step1StoreInfoProps> = ({ onNext, initialData }) 
                             {subdomain || 'your-store'}
                         </div>
                         <div className="bg-slate-800 border border-l-0 border-slate-700 rounded-r-xl px-4 py-3 text-slate-500 select-none">
-                            .vibe-shopping.com
+                            .bizally.com
                         </div>
                     </div>
                 </div>

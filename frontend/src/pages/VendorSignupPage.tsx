@@ -70,7 +70,7 @@ const VendorSignupPage: React.FC = () => {
                         <div className="size-8 rounded-full bg-[#8A2BE2] flex items-center justify-center text-white shadow-lg" style={{ boxShadow: '0 4px 14px rgba(138, 43, 226, 0.3)' }}>
                             <span className="material-symbols-outlined text-xl">storefront</span>
                         </div>
-                        <h2 className="font-grotesk text-[#151117] text-lg font-bold tracking-tight">Vibe Shop</h2>
+                        <h2 className="font-grotesk text-[#151117] text-lg font-bold tracking-tight">BizAlly</h2>
                     </Link>
                     <Link className="group flex items-center gap-2 text-sm font-semibold text-[#151117]/70 hover:text-[#8A2BE2] transition-colors glass-panel-strong px-5 py-2.5 rounded-full" to="/vendor/login">
                         <span>Already a vendor?</span>
@@ -187,7 +187,7 @@ const VendorSignupPage: React.FC = () => {
                                             className="block w-full pl-11 pr-4 py-3.5 bg-transparent border-none text-[#151117] placeholder-gray-400 focus:ring-0 sm:text-sm rounded-xl"
                                             id="email"
                                             name="email"
-                                            placeholder="hello@vibeshop.com"
+                                            placeholder="hello@bizally.com"
                                             type="email"
                                             required
                                             value={formData.email}

@@ -195,7 +195,7 @@ const VendorEmailVerificationPage: React.FC = () => {
                     {/* Footer / Branding Context */}
                     <div className="mt-8 flex items-center gap-2 opacity-60">
                         <span className="material-symbols-outlined text-gray-400 text-sm">lock</span>
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">Secured by Vibe Shop AI</span>
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">Secured by BizAlly AI</span>
                     </div>
                 </main>
             </div>

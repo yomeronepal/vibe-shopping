@@ -51,7 +51,7 @@ const ChoosePathPage = () => {
                             <div className="size-8 rounded-full bg-[#8a2ce2]/10 flex items-center justify-center backdrop-blur-sm border border-white/20">
                                 <span className="material-symbols-outlined text-[#8a2ce2] text-[20px] font-bold">bolt</span>
                             </div>
-                            <h2 className="text-[#3e2b4f] text-xl font-bold tracking-tight">Vibe Shop</h2>
+                            <h2 className="text-[#3e2b4f] text-xl font-bold tracking-tight">BizAlly</h2>
                         </div>
                         <button onClick={() => navigate('/vendor/login')} className="flex items-center justify-center px-6 h-10 rounded-full bg-white/40 hover:bg-white/60 text-[#3e2b4f] text-sm font-bold tracking-wide transition-all backdrop-blur-md border border-white/30 shadow-sm">
                             Login
@@ -69,7 +69,7 @@ const ChoosePathPage = () => {
                         {/* Page Heading */}
                         <div className="text-center mb-12 md:mb-16">
                             <h1 className="text-[#3e2b4f] text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4 drop-shadow-sm">
-                                How will you use Vibe Shop?
+                                How will you use BizAlly?
                             </h1>
                             <p className="text-[#3e2b4f]/70 text-lg md:text-xl font-medium max-w-2xl mx-auto">
                                 Select your experience to get started.
@@ -135,7 +135,7 @@ const ChoosePathPage = () => {
                             <a className="text-[#3e2b4f]/60 hover:text-[#8a2ce2] text-sm font-medium transition-colors" href="#">Privacy Policy</a>
                             <a className="text-[#3e2b4f]/60 hover:text-[#8a2ce2] text-sm font-medium transition-colors" href="#">Terms of Service</a>
                         </div>
-                        <p className="text-[#3e2b4f]/40 text-sm">© 2024 Vibe Shop. All rights reserved.</p>
+                        <p className="text-[#3e2b4f]/40 text-sm">© 2026 BizAlly. All rights reserved.</p>
                     </div>
                 </footer>
             </div>

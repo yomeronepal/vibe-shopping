@@ -74,7 +74,7 @@ def fetch_website_text(url):
     if not url.startswith(('http://', 'https://')):
         raise KnowledgeError('Enter a full URL starting with http:// or https://')
     try:
-        response = requests.get(url, timeout=12, headers={'User-Agent': 'Mozilla/5.0 (VibeShop knowledge fetch)'})
+        response = requests.get(url, timeout=12, headers={'User-Agent': 'Mozilla/5.0 (BizAlly knowledge fetch)'})
     except requests.exceptions.RequestException:
         raise KnowledgeError('Could not reach that website.')
     if response.status_code >= 400:

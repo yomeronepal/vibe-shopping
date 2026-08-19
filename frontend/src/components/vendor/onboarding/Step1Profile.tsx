@@ -73,7 +73,7 @@ const Step1Profile: React.FC<Step1ProfileProps> = ({ onNext, initialData }) => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
                 <div className="max-w-2xl">
                     <h1 className="text-4xl md:text-5xl font-black leading-tight tracking-[-0.03em] mb-3 text-[#150e1b]">
-                        Let's curate your <span className="text-transparent bg-clip-text bg-gradient-to-r from-vibe-purple to-purple-400">Vibe Shop</span>
+                        Let's curate your <span className="text-transparent bg-clip-text bg-gradient-to-r from-vibe-purple to-purple-400">BizAlly</span>
 
                     </h1>
                     <p className="text-lg text-[#745095] font-medium">

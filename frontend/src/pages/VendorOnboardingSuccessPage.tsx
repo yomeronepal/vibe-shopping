@@ -7,7 +7,7 @@ const VendorOnboardingSuccessPage: React.FC = () => {
     const { config: themeConfig } = useShopTheme();
     const [copied, setCopied] = useState(false);
 
-    const shopUrl = 'vibeshop.com/neon-vibe'; // This would come from backend/context
+    const shopUrl = 'bizally.com/neon-vibe';
 
     const handleCopyLink = async () => {
         try {
@@ -94,7 +94,7 @@ const VendorOnboardingSuccessPage: React.FC = () => {
                     >
                         <span className="material-symbols-outlined text-2xl">auto_awesome</span>
                     </div>
-                    <h2 className="text-xl font-bold tracking-tight" style={{ color: themeConfig.text }}>Vibe Shop</h2>
+                    <h2 className="text-xl font-bold tracking-tight" style={{ color: themeConfig.text }}>BizAlly</h2>
                 </Link>
 
                 {/* Progress indicator showing completion - clickable to go back */}

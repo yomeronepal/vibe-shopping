@@ -263,7 +263,7 @@ const VendorOnboardingPage: React.FC = () => {
                     >
                         <span className="material-symbols-outlined text-2xl">auto_awesome</span>
                     </div>
-                    <h2 className="text-xl font-bold tracking-tight" style={{ color: themeConfig.text }}>Vibe Shop</h2>
+                    <h2 className="text-xl font-bold tracking-tight" style={{ color: themeConfig.text }}>BizAlly</h2>
                 </Link>
 
                 {/* Progress Steps - Clickable */}
@@ -340,7 +340,7 @@ const VendorOnboardingPage: React.FC = () => {
                                             backgroundClip: 'text',
                                             color: 'transparent'
                                         }}
-                                    >Vibe Shop</span>
+                                    >BizAlly</span>
                                 </h1>
                                 <p className="text-xl font-light leading-relaxed" style={{ color: themeConfig.textSecondary }}>Tell us about your brand so our AI can sync your style.</p>
                             </>
@@ -1044,7 +1044,7 @@ const VendorOnboardingPage: React.FC = () => {
                                 {step < 4 ? `Step ${step} of 4` : 'Ready to go?'}
                             </span>
                             <span className="font-bold text-lg tracking-tight">
-                                {step < 4 ? 'Next Step' : (loading ? 'Launching...' : 'Launch My Vibe Shop')}
+                                {step < 4 ? 'Next Step' : (loading ? 'Launching...' : 'Launch My Store')}
                             </span>
                         </div>
                         <div className="size-12 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 border border-white/20">

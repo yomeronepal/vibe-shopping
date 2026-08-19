@@ -12,7 +12,7 @@ export default function Footer() {
                                 <span className="text-white font-bold text-xl">V</span>
                             </div>
                             <span className="text-xl font-display font-bold text-gradient">
-                                Vibe Shopping
+                                BizAlly
                             </span>
                         </div>
                         <p className="text-slate-600 text-sm">
@@ -95,7 +95,7 @@ export default function Footer() {
 
                 {/* Bottom */}
                 <div className="mt-8 pt-8 border-t border-slate-200 text-center text-slate-600 text-sm">
-                    <p>&copy; {new Date().getFullYear()} Vibe Shopping. All rights reserved.</p>
+                    <p>&copy; {new Date().getFullYear()} BizAlly. All rights reserved.</p>
                 </div>
             </div>
         </footer>
