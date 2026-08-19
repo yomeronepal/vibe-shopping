@@ -264,12 +264,15 @@ Return ONLY valid JSON, no markdown formatting."""
             result = self._parse_details_json(response.text)
             logger.info(f"Generated product details from brief with {len(result.get('tags', []))} tags")
             return {'success': True, 'data': result}
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini brief response as JSON: {e}")
-            return {'success': False, 'error': 'The AI returned an unreadable answer. Try again.'}
         except Exception as e:
-            logger.error(f"Error generating from brief: {e}")
-            return {'success': False, 'error': str(e)}
+            logger.warning(f"Gemini brief generation failed, trying Claude: {e}")
+        from .claude_service import ClaudeError, generate_text
+        try:
+            result = self._parse_details_json(generate_text(prompt))
+            return {'success': True, 'data': result, 'ai_provider': 'claude'}
+        except (ClaudeError, json.JSONDecodeError) as e:
+            logger.error(f"Claude fallback for brief also failed: {e}")
+            return {'success': False, 'error': 'The AI could not generate details right now. Try again.'}
 
     def generate_caption(self, context: str, platform: str = '') -> dict:
         """Generate a short social-media caption from product context.
@@ -301,12 +304,18 @@ Return ONLY the caption text."""
         try:
             response = self._generate_text_with_retry(prompt)
             caption = (getattr(response, 'text', None) or '').strip().strip('"')
-            if not caption:
-                return {'success': False, 'error': 'The AI returned an empty caption. Try again.'}
-            return {'success': True, 'caption': caption[:280]}
+            if caption:
+                return {'success': True, 'caption': caption[:280]}
+            logger.warning('Gemini returned an empty caption, trying Claude')
         except Exception as e:
-            logger.error(f"Error generating caption: {e}")
-            return {'success': False, 'error': str(e)}
+            logger.warning(f"Gemini caption failed, trying Claude: {e}")
+        from .claude_service import ClaudeError, generate_text
+        try:
+            caption = generate_text(prompt, max_tokens=400).strip().strip('"')
+            return {'success': True, 'caption': caption[:280], 'ai_provider': 'claude'}
+        except ClaudeError as e:
+            logger.error(f"Claude fallback for caption also failed: {e}")
+            return {'success': False, 'error': 'The AI could not write a caption right now. Try again.'}
 
     def analyze_product_image(self, image_data: bytes, price: float = None) -> dict:
         """

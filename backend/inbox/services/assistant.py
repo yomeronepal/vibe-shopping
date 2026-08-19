@@ -98,25 +98,36 @@ Write the Business's next reply. Rules:
 Return ONLY the reply text, nothing else."""
 
 
+def call_claude_fallback(prompt):
+    """Try the Claude fallback; raise AssistantError when it also fails."""
+    from core.services.claude_service import ClaudeError, generate_text
+
+    try:
+        return generate_text(prompt)
+    except ClaudeError as exc:
+        logger.warning('Claude fallback also failed: %s', exc)
+        raise AssistantError('The AI could not draft a reply right now. Try again.')
+
+
 def call_gemini(prompt):
-    """Send the prompt to Gemini and return the raw text response."""
+    """Generate text with Gemini, falling back to Claude on failure."""
     from google import genai
 
     api_key = settings.GOOGLE_AI_API_KEY
     if not api_key:
-        raise AssistantError('AI is not configured. Add a Google AI API key.')
-    client = genai.Client(api_key=api_key)
+        return call_claude_fallback(prompt)
     try:
+        client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model=settings.GEMINI_ASSISTANT_MODEL,
             contents=prompt,
         )
+        text = (getattr(response, 'text', None) or '').strip()
     except Exception as exc:
-        logger.warning('Assistant generation failed: %s', exc)
-        raise AssistantError('The AI could not draft a reply right now. Try again.')
-    text = (getattr(response, 'text', None) or '').strip()
+        logger.warning('Gemini generation failed, trying Claude: %s', exc)
+        return call_claude_fallback(prompt)
     if not text:
-        raise AssistantError('The AI returned an empty draft. Try again.')
+        return call_claude_fallback(prompt)
     return text
 
 

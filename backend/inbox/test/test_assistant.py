@@ -208,3 +208,27 @@ class AutoSuggestSettingTests(AssistantTestBase):
         self.assertEqual(response.status_code, 200)
         self.tenant.refresh_from_db()
         self.assertFalse(self.tenant.metadata['aiAutoSuggest'])
+
+
+class ClaudeFallbackTests(AssistantTestBase):
+    @patch('core.services.claude_service.generate_text', return_value='Claude says: Rs. 1200.')
+    @patch('inbox.services.assistant.settings')
+    def test_falls_back_to_claude_when_gemini_fails(self, mock_settings, mock_claude):
+        mock_settings.GOOGLE_AI_API_KEY = 'key'
+        mock_settings.GEMINI_ASSISTANT_MODEL = 'broken-model'
+        with patch('google.genai.Client') as mock_client:
+            mock_client.return_value.models.generate_content.side_effect = Exception('429 quota')
+            response = self.client.post(f'/api/inbox/conversations/{self.convo.id}/suggest/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['suggestion'], 'Claude says: Rs. 1200.')
+
+    @patch('inbox.services.assistant.settings')
+    def test_reports_failure_when_both_providers_fail(self, mock_settings):
+        from core.services.claude_service import ClaudeError
+        mock_settings.GOOGLE_AI_API_KEY = 'key'
+        mock_settings.GEMINI_ASSISTANT_MODEL = 'broken-model'
+        with patch('google.genai.Client') as mock_client, \
+                patch('core.services.claude_service.generate_text', side_effect=ClaudeError('no key')):
+            mock_client.return_value.models.generate_content.side_effect = Exception('429 quota')
+            response = self.client.post(f'/api/inbox/conversations/{self.convo.id}/suggest/')
+        self.assertEqual(response.status_code, 502)

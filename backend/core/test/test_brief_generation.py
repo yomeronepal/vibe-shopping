@@ -112,3 +112,38 @@ class CaptionGenerationTests(APITestCase):
         foreign = Product.objects.create(tenant=other, name='Foreign', price=10)
         response = self.generate({'product_id': foreign.id})
         self.assertEqual(response.status_code, 404)
+
+
+class BriefClaudeFallbackTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Acme', subdomain='acme')
+        self.user = User.objects.create_user(username='owner', password='pass12345')
+        VendorProfile.objects.create(user=self.user, tenant=self.tenant, role='owner')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    @patch('core.services.claude_service.generate_text', return_value='{"title": "Claude Polo", "tags": ["polo"]}')
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer._generate_text_with_retry',
+        side_effect=Exception('429 RESOURCE_EXHAUSTED'),
+    )
+    def test_brief_falls_back_to_claude(self, mock_gemini, mock_init, mock_claude):
+        response = self.client.post('/api/products/generate-details-from-text/', {
+            'brief': 'Black cotton polo t-shirt, breathable fabric',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['title'], 'Claude Polo')
+
+    @patch('core.services.claude_service.generate_text', return_value='Winter deals! DM us. #sale')
+    @patch('core.services.gemini_service.GeminiProductAnalyzer.__init__', return_value=None)
+    @patch(
+        'core.services.gemini_service.GeminiProductAnalyzer._generate_text_with_retry',
+        side_effect=Exception('429 RESOURCE_EXHAUSTED'),
+    )
+    def test_caption_falls_back_to_claude(self, mock_gemini, mock_init, mock_claude):
+        response = self.client.post('/api/products/generate-caption/', {
+            'context': 'Weekend winter sale on shawls',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Winter deals', response.data['caption'])
