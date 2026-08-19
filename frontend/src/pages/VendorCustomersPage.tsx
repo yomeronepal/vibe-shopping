@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import CustomerPanel from '../components/vendor/CustomerPanel';
-import { listCustomers, type CustomerCard } from '../api/inbox';
+import { listCustomers, sendCampaign, type CustomerCard } from '../api/inbox';
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
     'prospect': { bg: '#f3f4f6', fg: '#4b5563' },
@@ -17,6 +17,28 @@ export default function VendorCustomersPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [openCustomerId, setOpenCustomerId] = useState<number | null>(null);
+    const [campaignOpen, setCampaignOpen] = useState(false);
+    const [campaignMessage, setCampaignMessage] = useState('');
+    const [campaignAudience, setCampaignAudience] = useState<'all' | 'buyers' | 'prospects'>('all');
+    const [campaignSending, setCampaignSending] = useState(false);
+
+    const handleCampaignSend = async () => {
+        if (campaignMessage.trim().length < 5) {
+            toast.error('Write the message first');
+            return;
+        }
+        setCampaignSending(true);
+        try {
+            const result = await sendCampaign(campaignMessage.trim(), campaignAudience);
+            toast.success(`Sent to ${result.sent} customer(s)${result.skipped ? ` — ${result.skipped} skipped (messaging window closed)` : ''}`);
+            setCampaignOpen(false);
+            setCampaignMessage('');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not send the campaign');
+        } finally {
+            setCampaignSending(false);
+        }
+    };
 
     useEffect(() => {
         const handle = window.setTimeout(() => {
@@ -46,6 +68,15 @@ export default function VendorCustomersPage() {
                                 Everyone who has messaged or bought from your store.
                             </p>
                         </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                            onClick={() => setCampaignOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-md transition-all hover:-translate-y-0.5"
+                            style={{ backgroundColor: themeConfig.primary }}
+                        >
+                            <span className="material-symbols-outlined text-[18px]">campaign</span>
+                            Message customers
+                        </button>
                         <div
                             className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-[240px] border"
                             style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border }}
@@ -58,6 +89,7 @@ export default function VendorCustomersPage() {
                                 className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm"
                                 style={{ color: themeConfig.text }}
                             />
+                        </div>
                         </div>
                     </div>
 
@@ -138,6 +170,53 @@ export default function VendorCustomersPage() {
             </div>
             {openCustomerId !== null && (
                 <CustomerPanel customerId={openCustomerId} onClose={closePanel} />
+            )}
+            {campaignOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/45 backdrop-blur-sm animate-fade-in" onClick={() => setCampaignOpen(false)} />
+                    <div
+                        className="relative w-full max-w-md rounded-[28px] shadow-2xl border p-6 animate-pop-in"
+                        role="dialog"
+                        aria-modal="true"
+                        style={{ backgroundColor: themeConfig.cardBg, borderColor: `${themeConfig.border}50` }}
+                    >
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-lg font-extrabold" style={{ color: themeConfig.text }}>Message customers</h3>
+                            <button onClick={() => setCampaignOpen(false)} aria-label="Close" className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>close</button>
+                        </div>
+                        <p className="text-xs mb-4" style={{ color: themeConfig.textSecondary }}>
+                            Announce new products or offers. Meta only delivers within each customer's messaging window — others are skipped.
+                        </p>
+                        <label className="block text-xs font-bold mb-1.5" style={{ color: themeConfig.textSecondary }}>Send to</label>
+                        <select
+                            value={campaignAudience}
+                            onChange={(e) => setCampaignAudience(e.target.value as typeof campaignAudience)}
+                            className="w-full rounded-xl text-sm py-2.5 px-3 mb-4 border-transparent focus:outline-none"
+                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                        >
+                            <option value="all">All customers</option>
+                            <option value="buyers">Buyers (for repeat-purchase offers)</option>
+                            <option value="prospects">Prospects (never ordered)</option>
+                        </select>
+                        <label className="block text-xs font-bold mb-1.5" style={{ color: themeConfig.textSecondary }}>Message</label>
+                        <textarea
+                            value={campaignMessage}
+                            onChange={(e) => setCampaignMessage(e.target.value)}
+                            maxLength={900}
+                            placeholder="Naya collection aayo! Herna DM garnus…"
+                            className="w-full min-h-[110px] rounded-xl text-sm leading-relaxed p-3 resize-none border-transparent focus:outline-none"
+                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                        />
+                        <button
+                            onClick={handleCampaignSend}
+                            disabled={campaignSending}
+                            className="mt-4 w-full py-3 rounded-xl font-bold text-white text-sm disabled:opacity-50"
+                            style={{ backgroundColor: themeConfig.primary }}
+                        >
+                            {campaignSending ? 'Sending…' : 'Send campaign'}
+                        </button>
+                    </div>
+                </div>
             )}
         </VendorShell>
     );

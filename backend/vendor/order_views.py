@@ -124,7 +124,7 @@ class VendorOrderDetailView(APIView):
 STATUS_NOTIFICATIONS = {
     'preparing': 'Your order #{id} is being prepared. We will update you soon!',
     'shipped': 'Good news! Your order #{id} has been shipped and is on its way.',
-    'delivered': 'Your order #{id} has been delivered. Dhanyabad for shopping with us!',
+    'delivered': 'Your order #{id} has been delivered. Dhanyabad for shopping with us! We would love to hear how you liked it — just reply with your feedback.',
     'cancelled': 'Your order #{id} has been cancelled. Message us if you have any questions.',
     'returned': 'We have recorded the return of your order #{id}. Message us for anything else.',
 }

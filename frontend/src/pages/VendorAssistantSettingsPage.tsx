@@ -21,6 +21,8 @@ export default function VendorAssistantSettingsPage() {
     const [orderFields, setOrderFields] = useState<string[]>([]);
     const [tone, setTone] = useState('');
     const [language, setLanguage] = useState('');
+    const [followupHours, setFollowupHours] = useState(6);
+    const [followupMessage, setFollowupMessage] = useState('');
     const [knowledge, setKnowledge] = useState('');
 
     const primaryColor = themeConfig.primary;
@@ -33,6 +35,8 @@ export default function VendorAssistantSettingsPage() {
                 setOrderFields(profile.order_fields);
                 setTone(profile.ai_tone);
                 setLanguage(profile.ai_language);
+                setFollowupHours(profile.followup_hours);
+                setFollowupMessage(profile.followup_message);
                 setKnowledge(profile.ai_knowledge);
             })
             .catch(() => toast.error('Could not load assistant settings'))
@@ -42,7 +46,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -207,6 +211,38 @@ export default function VendorAssistantSettingsPage() {
                                 <p className="mt-2 text-xs text-right" style={{ color: themeConfig.textSecondary }}>
                                     {knowledge.length}/6000
                                 </p>
+                            </div>
+
+                            <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>
+                                <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Abandoned-order follow-up</h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: themeConfig.textSecondary }}>
+                                    When a customer starts ordering but goes quiet, the bot sends one gentle nudge (only while the bot is on).
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Wait (hours)</label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={48}
+                                            value={followupHours}
+                                            onChange={(e) => setFollowupHours(Math.min(48, Math.max(1, parseInt(e.target.value) || 6)))}
+                                            className="w-full rounded-xl text-sm py-2.5 px-3 shadow-sm border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-xs font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Message (blank = default)</label>
+                                        <textarea
+                                            value={followupMessage}
+                                            onChange={(e) => setFollowupMessage(e.target.value)}
+                                            maxLength={500}
+                                            placeholder="Namaste! Tapaile order garna khojnu bhayeko thiyo — hami yahi chhau…"
+                                            className="w-full min-h-[64px] rounded-xl text-sm leading-relaxed p-3 shadow-sm resize-none border-transparent focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>

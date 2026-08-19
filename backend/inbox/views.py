@@ -291,3 +291,51 @@ class CustomerListView(APIView):
                 | Q(location__icontains=search)
             )
         return Response([build_customer_card(customer) for customer in customers[:100]])
+
+
+class CampaignSendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    AUDIENCES = ('all', 'buyers', 'prospects')
+
+    def post(self, request):
+        """DM a campaign message to an audience of customers.
+
+        Meta only delivers within each customer's messaging window, so
+        closed-window sends are reported as skipped, not errors.
+        """
+        from inbox.models import Customer
+        from inbox.services.crm import orders_for_customer
+        from inbox.services.sending import ConversationSendError, send_conversation_text
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        message = str(request.data.get('message') or '').strip()
+        if len(message) < 5:
+            return Response({'error': 'Write the message first.'}, status=status.HTTP_400_BAD_REQUEST)
+        audience = request.data.get('audience', 'all')
+        if audience not in self.AUDIENCES:
+            return Response({'error': 'Invalid audience'}, status=status.HTTP_400_BAD_REQUEST)
+        sent = 0
+        skipped = 0
+        for customer in Customer.objects.filter(tenant=tenant)[:200]:
+            has_orders = orders_for_customer(customer).exists()
+            if audience == 'buyers' and not has_orders:
+                continue
+            if audience == 'prospects' and has_orders:
+                continue
+            conversation = (
+                customer.conversations.select_related('customer', 'page')
+                .order_by('-last_message_at')
+                .first()
+            )
+            if conversation is None or conversation.ai_paused:
+                skipped += 1
+                continue
+            try:
+                send_conversation_text(conversation, message[:900], sent_by_ai=True)
+                sent += 1
+            except ConversationSendError:
+                skipped += 1
+        return Response({'sent': sent, 'skipped': skipped})

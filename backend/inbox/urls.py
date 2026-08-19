@@ -10,6 +10,7 @@ from inbox.views import (
     ExtractOrderView,
     CustomerDetailView,
     CustomerListView,
+    CampaignSendView,
 )
 
 urlpatterns = [
@@ -21,5 +22,6 @@ urlpatterns = [
     path('conversations/<int:conversation_id>/extract-order/', ExtractOrderView.as_view(), name='inbox_extract_order'),
     path('conversations/<int:conversation_id>/summarize/', SummarizeConversationView.as_view(), name='inbox_summarize'),
     path('customers/', CustomerListView.as_view(), name='inbox_customers'),
+    path('campaigns/send/', CampaignSendView.as_view(), name='inbox_campaign_send'),
     path('customers/<int:customer_id>/', CustomerDetailView.as_view(), name='inbox_customer_detail'),
 ]

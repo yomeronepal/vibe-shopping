@@ -36,6 +36,21 @@ def apply_conversation_signals(conversation, outcome):
     conversation.refresh_from_db()
 
 
+def track_order_intent(conversation, outcome, order):
+    """Remember unfinished buying intent; clear it once an order exists."""
+    from django.utils import timezone
+    from inbox.models import Conversation
+
+    if order is not None:
+        Conversation.objects.filter(pk=conversation.pk).update(
+            order_intent_at=None, followup_sent_at=None,
+        )
+    elif outcome.get('ordering'):
+        Conversation.objects.filter(pk=conversation.pk).update(
+            order_intent_at=timezone.now(), followup_sent_at=None,
+        )
+
+
 @shared_task
 def auto_reply_to_message(message_id):
     """Answer an inbound message with the bot and place ready orders.
@@ -83,9 +98,65 @@ def auto_reply_to_message(message_id):
         order = create_chat_order(conversation, outcome['items'], outcome['collected'])
         if order is not None:
             reply = f'{reply}\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+    track_order_intent(conversation, outcome, order)
     try:
         send_conversation_text(conversation, reply, sent_by_ai=True)
     except ConversationSendError as exc:
         logger.warning('Auto-reply send failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
     return f'sent+order:{order.id}' if order else 'sent'
+
+
+DEFAULT_FOLLOWUP_MESSAGE = (
+    'Namaste! Tapaile order garna khojnu bhayeko thiyo — hami yahi chhau. '
+    'Kunai prashna cha bhane sodhnus, order complete garna help garchhau!'
+)
+FOLLOWUP_EXPIRY_HOURS = 48
+
+
+@shared_task
+def send_abandoned_order_followups():
+    """Nudge customers who showed buying intent but never completed the order."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from inbox.models import Conversation
+    from inbox.services.assistant import is_auto_reply_enabled
+    from inbox.services.sending import ConversationSendError, send_conversation_text
+
+    now = timezone.now()
+    sent = 0
+    candidates = (
+        Conversation.objects.filter(
+            order_intent_at__isnull=False,
+            followup_sent_at__isnull=True,
+            ai_paused=False,
+        )
+        .select_related('tenant', 'customer', 'page')
+    )
+    for conversation in candidates:
+        tenant = conversation.tenant
+        if not is_auto_reply_enabled(tenant):
+            continue
+        metadata = tenant.metadata or {}
+        try:
+            delay_hours = max(1, int(metadata.get('followupHours') or 6))
+        except (TypeError, ValueError):
+            delay_hours = 6
+        if conversation.order_intent_at > now - timedelta(hours=delay_hours):
+            continue
+        if conversation.order_intent_at < now - timedelta(hours=FOLLOWUP_EXPIRY_HOURS):
+            Conversation.objects.filter(pk=conversation.pk).update(order_intent_at=None)
+            continue
+        last = conversation.messages.order_by('-sent_at', '-id').first()
+        if last is None or last.direction != 'out':
+            continue
+        message = str(metadata.get('followupMessage') or DEFAULT_FOLLOWUP_MESSAGE)[:500]
+        try:
+            send_conversation_text(conversation, message, sent_by_ai=True)
+            sent += 1
+        except ConversationSendError as exc:
+            logger.info('Follow-up skipped for conversation %s: %s', conversation.id, exc)
+        Conversation.objects.filter(pk=conversation.pk).update(followup_sent_at=now)
+    return sent

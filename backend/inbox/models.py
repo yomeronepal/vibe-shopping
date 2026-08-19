@@ -65,6 +65,8 @@ class Conversation(TimeStampedModel):
     ai_paused = models.BooleanField(default=False)
     tags = models.JSONField(default=list, blank=True)
     sentiment = models.CharField(max_length=10, blank=True, default='')
+    order_intent_at = models.DateTimeField(null=True, blank=True)
+    followup_sent_at = models.DateTimeField(null=True, blank=True)
     last_message_at = models.DateTimeField(null=True, blank=True)
     last_message_preview = models.CharField(max_length=140, blank=True, default='')
 

@@ -57,3 +57,5 @@ class StoreProfileSerializer(serializers.Serializer):
     ai_tone = serializers.CharField(max_length=20, required=False, allow_blank=True)
     ai_language = serializers.CharField(max_length=20, required=False, allow_blank=True)
     order_fields = serializers.CharField(required=False, allow_blank=True)
+    followup_hours = serializers.IntegerField(required=False, min_value=1, max_value=48)
+    followup_message = serializers.CharField(max_length=500, required=False, allow_blank=True)

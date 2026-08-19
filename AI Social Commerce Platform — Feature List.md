@@ -308,15 +308,15 @@ Automatically maintain customer profiles.
 
 # 🔁 12. Automated Customer Follow-ups
 
-- [ ] Abandoned-order follow-up
-- [ ] Order confirmation
+- [x] Abandoned-order follow-up (hourly sweep nudges unfinished chat orders once)
+- [x] Order confirmation (chat orders confirmed in-thread with the order number)
 - [x] Shipping notification (automatic DM on status change)
 - [x] Delivery notification (automatic DM on status change)
-- [ ] Review request
-- [ ] Repeat-purchase reminder
-- [ ] New-product notification
-- [ ] Promotional campaigns
-- [ ] Custom follow-up rules
+- [x] Review request (delivered notification asks for feedback)
+- [x] Repeat-purchase reminder (campaign to the buyers audience)
+- [x] New-product notification (customer campaigns)
+- [x] Promotional campaigns (audience-targeted DMs, window-aware)
+- [x] Custom follow-up rules (configurable delay and message)
 
 ---
 
@@ -570,7 +570,7 @@ Businesses should always be able to control the AI.
 
 ## Phase 3 — Automation
 
-- [ ] Automated follow-ups
+- [x] Automated follow-ups
 - [ ] AI campaigns
 - [ ] Product recommendations
 - [x] AI sales agent (chat → info gathering → order)

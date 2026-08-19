@@ -406,6 +406,8 @@ export interface StoreProfile {
     ai_tone: string;
     ai_language: string;
     order_fields: string[];
+    followup_hours: number;
+    followup_message: string;
 }
 
 export interface UpdateStoreProfileData {
@@ -431,6 +433,8 @@ export const updateAssistantSettings = async (
     orderFields: string[],
     tone: string,
     language: string,
+    followupHours: number,
+    followupMessage: string,
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
@@ -439,6 +443,8 @@ export const updateAssistantSettings = async (
         order_fields: JSON.stringify(orderFields),
         ai_tone: tone,
         ai_language: language,
+        followup_hours: followupHours,
+        followup_message: followupMessage,
     });
     return response.data;
 };

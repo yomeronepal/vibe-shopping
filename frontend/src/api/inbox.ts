@@ -147,3 +147,8 @@ export const updateCustomerCard = async (
     const response = await apiClient.patch(`/inbox/customers/${customerId}/`, data);
     return response.data;
 };
+
+export const sendCampaign = async (message: string, audience: 'all' | 'buyers' | 'prospects'): Promise<{ sent: number; skipped: number }> => {
+    const response = await apiClient.post('/inbox/campaigns/send/', { message, audience });
+    return response.data;
+};
