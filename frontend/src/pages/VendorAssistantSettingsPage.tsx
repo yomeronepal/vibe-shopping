@@ -16,7 +16,6 @@ export default function VendorAssistantSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [enabled, setEnabled] = useState(true);
-    const [autoSuggest, setAutoSuggest] = useState(true);
     const [autoReply, setAutoReply] = useState(false);
     const [knowledge, setKnowledge] = useState('');
 
@@ -26,7 +25,6 @@ export default function VendorAssistantSettingsPage() {
         getStoreProfile()
             .then((profile) => {
                 setEnabled(profile.ai_assistant_enabled);
-                setAutoSuggest(profile.ai_auto_suggest);
                 setAutoReply(profile.ai_auto_reply);
                 setKnowledge(profile.ai_knowledge);
             })
@@ -37,7 +35,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoSuggest, autoReply);
+            await updateAssistantSettings(knowledge, enabled, autoReply);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -102,37 +100,6 @@ export default function VendorAssistantSettingsPage() {
                                     <span
                                         className="absolute top-[2px] w-6 h-6 bg-white rounded-full transition-all shadow-sm"
                                         style={{ left: enabled ? '22px' : '2px' }}
-                                    />
-                                </button>
-                            </div>
-
-                            <div className="rounded-3xl shadow-lg p-6 flex items-center justify-between gap-4" style={{ backgroundColor: themeConfig.cardBg }}>
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div
-                                        className="size-10 rounded-xl flex items-center justify-center shrink-0"
-                                        style={{ background: `linear-gradient(135deg, ${primaryColor}20, ${themeConfig.accent}20)`, color: primaryColor }}
-                                    >
-                                        <span className="material-symbols-outlined text-2xl">bolt</span>
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h3 className="font-bold text-lg leading-tight" style={{ color: themeConfig.text }}>Auto-draft on new messages</h3>
-                                        <p className="text-xs font-medium mt-0.5" style={{ color: themeConfig.textSecondary }}>
-                                            When a customer writes, a draft is prepared automatically — still yours to review and send.
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={autoSuggest}
-                                    onClick={() => setAutoSuggest(!autoSuggest)}
-                                    disabled={!enabled}
-                                    className="relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-40"
-                                    style={{ backgroundColor: autoSuggest && enabled ? primaryColor : themeConfig.border }}
-                                >
-                                    <span
-                                        className="absolute top-[2px] w-6 h-6 bg-white rounded-full transition-all shadow-sm"
-                                        style={{ left: autoSuggest && enabled ? '22px' : '2px' }}
                                     />
                                 </button>
                             </div>

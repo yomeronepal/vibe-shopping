@@ -142,12 +142,6 @@ def is_auto_reply_enabled(tenant):
     return is_assistant_enabled(tenant) and bool(metadata.get('aiAutoReply', False))
 
 
-def is_auto_suggest_enabled(tenant):
-    """Return whether drafts should be generated automatically."""
-    metadata = tenant.metadata or {}
-    return bool(metadata.get('aiAutoSuggest', True))
-
-
 def format_order_product_line(product):
     """Render one catalog line with the id the model must reference."""
     stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
