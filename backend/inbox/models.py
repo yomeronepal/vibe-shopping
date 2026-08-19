@@ -52,6 +52,7 @@ class Conversation(TimeStampedModel):
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     status = models.CharField(max_length=20, choices=CONVERSATION_STATUSES, default='new')
     unread_count = models.IntegerField(default=0)
+    ai_paused = models.BooleanField(default=False)
     last_message_at = models.DateTimeField(null=True, blank=True)
     last_message_preview = models.CharField(max_length=140, blank=True, default='')
 
@@ -73,6 +74,7 @@ class Message(TimeStampedModel):
     text = models.TextField(blank=True, default='')
     attachments = models.JSONField(default=list, blank=True)
     platform_message_id = models.CharField(max_length=255, unique=True)
+    sent_by_ai = models.BooleanField(default=False)
     sent_at = models.DateTimeField()
 
     class Meta:

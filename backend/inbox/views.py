@@ -63,14 +63,21 @@ class ConversationDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, conversation_id):
-        """Update the conversation status."""
+        """Update the conversation status or pause the AI bot."""
         tenant, conversation = get_tenant_conversation(request, conversation_id)
         if not conversation:
             return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
-        new_status = request.data.get('status')
-        if new_status not in VALID_STATUSES:
-            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
-        Conversation.objects.filter(pk=conversation.pk).update(status=new_status)
+        updates = {}
+        if 'status' in request.data:
+            new_status = request.data.get('status')
+            if new_status not in VALID_STATUSES:
+                return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+            updates['status'] = new_status
+        if 'ai_paused' in request.data:
+            updates['ai_paused'] = bool(request.data.get('ai_paused'))
+        if not updates:
+            return Response({'error': 'Nothing to update'}, status=status.HTTP_400_BAD_REQUEST)
+        Conversation.objects.filter(pk=conversation.pk).update(**updates)
         conversation.refresh_from_db()
         data = ConversationSerializer(conversation).data
         push_safely(tenant.id, 'inbox.conversation_update', {'conversation': data})

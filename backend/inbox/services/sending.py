@@ -46,8 +46,11 @@ def deliver_via_meta(conversation, text):
         raise ConversationSendError('Could not send the message. Please try again.', 502)
 
 
-def send_conversation_text(conversation, text):
+def send_conversation_text(conversation, text, sent_by_ai=False):
     """Send text to a conversation's customer, store it, and push updates.
+
+    AI-sent replies keep the unread counter so the vendor still notices
+    conversations the bot handled.
 
     Returns the stored Message.
 
@@ -60,14 +63,17 @@ def send_conversation_text(conversation, text):
         direction='out',
         text=text,
         platform_message_id=message_id or f'local-{uuid.uuid4().hex}',
+        sent_by_ai=sent_by_ai,
         sent_at=timezone.now(),
     )
-    Conversation.objects.filter(pk=conversation.pk).update(
-        status='waiting_customer',
-        unread_count=0,
-        last_message_at=record.sent_at,
-        last_message_preview=text[:120],
-    )
+    update_fields = {
+        'status': 'waiting_customer',
+        'last_message_at': record.sent_at,
+        'last_message_preview': text[:120],
+    }
+    if not sent_by_ai:
+        update_fields['unread_count'] = 0
+    Conversation.objects.filter(pk=conversation.pk).update(**update_fields)
     conversation.refresh_from_db()
     push_safely(conversation.tenant_id, 'inbox.message', {
         'conversation': ConversationSerializer(conversation).data,

@@ -16,7 +16,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
         fields = [
-            'id', 'platform', 'status', 'unread_count',
+            'id', 'platform', 'status', 'unread_count', 'ai_paused',
             'last_message_at', 'last_message_preview', 'customer', 'page_id',
         ]
 
@@ -24,4 +24,4 @@ class ConversationSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ['id', 'direction', 'text', 'attachments', 'platform_message_id', 'sent_at']
+        fields = ['id', 'direction', 'text', 'attachments', 'platform_message_id', 'sent_by_ai', 'sent_at']

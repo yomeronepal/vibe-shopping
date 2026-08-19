@@ -29,6 +29,7 @@ def build_profile_payload(tenant):
         'ai_knowledge': metadata.get('aiKnowledge', ''),
         'ai_assistant_enabled': bool(metadata.get('aiAssistantEnabled', True)),
         'ai_auto_suggest': bool(metadata.get('aiAutoSuggest', True)),
+        'ai_auto_reply': bool(metadata.get('aiAutoReply', False)),
     }
 
 
@@ -59,6 +60,8 @@ def apply_profile_fields(tenant, metadata, data):
         metadata['aiAssistantEnabled'] = data['ai_assistant_enabled']
     if 'ai_auto_suggest' in data:
         metadata['aiAutoSuggest'] = data['ai_auto_suggest']
+    if 'ai_auto_reply' in data:
+        metadata['aiAutoReply'] = data['ai_auto_reply']
 
 
 def apply_contact_fields(metadata, data):
