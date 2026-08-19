@@ -1,21 +1,18 @@
 import logging
-import uuid
 
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from inbox.models import CONVERSATION_STATUSES, Conversation, Message
+from inbox.models import CONVERSATION_STATUSES, Conversation
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
-from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+from inbox.services.sending import ConversationSendError, send_conversation_text
 
 logger = logging.getLogger(__name__)
 
 VALID_STATUSES = {value for value, _ in CONVERSATION_STATUSES}
-WINDOW_CLOSED_ERROR = 'The 24-hour reply window for this conversation has closed.'
 THREAD_PAGE_SIZE = 50
 
 
@@ -121,38 +118,8 @@ class MessageListView(APIView):
         text = (request.data.get('text') or '').strip()
         if not text:
             return Response({'error': 'Message text is required'}, status=status.HTTP_400_BAD_REQUEST)
-        client = MetaGraphClient()
         try:
-            message_id = client.send_message(
-                conversation.page.page_id,
-                conversation.page.get_access_token(),
-                conversation.customer.platform_user_id,
-                text,
-            )
-        except MetaGraphError as exc:
-            if exc.code == 10:
-                return Response({'error': WINDOW_CLOSED_ERROR}, status=status.HTTP_400_BAD_REQUEST)
-            logger.warning('Inbox send failed: %s', exc)
-            return Response(
-                {'error': 'Could not send the message. Please try again.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        record = Message.objects.create(
-            conversation=conversation,
-            direction='out',
-            text=text,
-            platform_message_id=message_id or f'local-{uuid.uuid4().hex}',
-            sent_at=timezone.now(),
-        )
-        Conversation.objects.filter(pk=conversation.pk).update(
-            status='waiting_customer',
-            unread_count=0,
-            last_message_at=record.sent_at,
-            last_message_preview=text[:120],
-        )
-        conversation.refresh_from_db()
-        push_safely(tenant.id, 'inbox.message', {
-            'conversation': ConversationSerializer(conversation).data,
-            'message': MessageSerializer(record).data,
-        })
+            record = send_conversation_text(conversation, text)
+        except ConversationSendError as exc:
+            return Response({'error': str(exc)}, status=exc.status_code)
         return Response(MessageSerializer(record).data, status=status.HTTP_201_CREATED)

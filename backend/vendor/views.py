@@ -1143,9 +1143,9 @@ class POSOrderViewSet(viewsets.GenericViewSet):
                 # Create Order
                 order = Order.objects.create(
                     tenant=tenant,
-                    user=None, # No user for POS orders typically
+                    user=None,
                     total_amount=total_amount,
-                    status='completed', # POS orders are completed immediately usually
+                    status=data.get('status', 'completed'),
                     payment_method=data.get('payment_method', 'credit_card'),
                     order_type='pos',
                     customer_name=data.get('customer_name', ''),

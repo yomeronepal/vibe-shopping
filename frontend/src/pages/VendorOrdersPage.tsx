@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import NewOrderModal from '../components/vendor/NewOrderModal';
 import {
     listVendorOrders,
     updateVendorOrderStatus,
@@ -65,6 +67,15 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                     <span className="font-extrabold text-lg" style={{ color: themeConfig.text }}>
                         Rs. {order.total_amount}
                     </span>
+                    <Link
+                        to={`/vendor/orders/${order.id}/invoice`}
+                        title="Invoice"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all hover:shadow-sm"
+                        style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.primary }}
+                    >
+                        <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                        Invoice
+                    </Link>
                     <select
                         value={order.status}
                         onChange={(e) => onStatusChange(e.target.value)}
@@ -98,12 +109,17 @@ export default function VendorOrdersPage() {
     const { config: themeConfig } = useShopTheme();
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
 
-    useEffect(() => {
+    const loadOrders = () => {
         listVendorOrders()
             .then(setOrders)
             .catch(() => toast.error('Could not load orders. Refresh to retry.'))
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        loadOrders();
     }, []);
 
     const handleStatusChange = async (order: VendorOrder, status: string) => {
@@ -120,12 +136,24 @@ export default function VendorOrdersPage() {
         <VendorShell>
             <div className="overflow-y-auto h-full">
                 <div className="mx-auto max-w-4xl px-4 md:px-6 py-8">
-                    <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
-                        Orders
-                    </h1>
-                    <p className="mt-1" style={{ color: themeConfig.textSecondary }}>
-                        Track and update every order placed with your store.
-                    </p>
+                    <div className="flex flex-wrap items-end justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
+                                Orders
+                            </h1>
+                            <p className="mt-1" style={{ color: themeConfig.textSecondary }}>
+                                Track and update every order placed with your store.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setCreating(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white shadow-lg transition-all hover:-translate-y-0.5"
+                            style={{ backgroundColor: themeConfig.primary, boxShadow: `0 10px 24px -8px ${themeConfig.primary}70` }}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">add</span>
+                            New order
+                        </button>
+                    </div>
                     <div className="mt-8 space-y-4">
                         {orders.map((order) => (
                             <OrderCard
@@ -149,6 +177,14 @@ export default function VendorOrdersPage() {
                     </div>
                 </div>
             </div>
+            <NewOrderModal
+                open={creating}
+                onClose={() => setCreating(false)}
+                onCreated={() => {
+                    setCreating(false);
+                    loadOrders();
+                }}
+            />
         </VendorShell>
     );
 }

@@ -19,6 +19,7 @@ import InboxPage from './pages/InboxPage';
 import VendorOrdersPage from './pages/VendorOrdersPage';
 import VendorProductDetailPage from './pages/VendorProductDetailPage';
 import VendorProductEditPage from './pages/VendorProductEditPage';
+import VendorOrderInvoicePage from './pages/VendorOrderInvoicePage';
 import PublishingCalendarPage from './pages/PublishingCalendarPage';
 import VendorSignupPage from './pages/VendorSignupPage';
 import VendorOnboardingPage from './pages/VendorOnboardingPage';
@@ -51,6 +52,7 @@ function App() {
               <Route path="/vendor/products/new" element={<VendorProductCreatePage />} />
               <Route path="/vendor/products/:id" element={<VendorProductDetailPage />} />
               <Route path="/vendor/products/:id/edit" element={<VendorProductEditPage />} />
+              <Route path="/vendor/orders/:id/invoice" element={<VendorOrderInvoicePage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
               <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
               <Route path="/vendor/inbox" element={<InboxPage />} />
