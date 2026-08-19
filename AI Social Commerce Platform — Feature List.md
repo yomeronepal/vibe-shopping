@@ -253,11 +253,11 @@ Generate social-media content automatically.
 
 - [x] Create post
 - [x] Save draft
-- [ ] Preview post
+- [x] Preview post (live platform-style preview in the composer)
 - [x] Publish immediately
 - [x] Schedule post
 - [x] Edit scheduled post
-- [ ] Delete scheduled post
+- [x] Delete scheduled post (drafts, scheduled, and failed; themed confirmation)
 - [x] Post publishing status
 - [x] Publish product to selected platforms from product creation
 - [x] Per-platform post result log (SocialMediaPost)
@@ -273,7 +273,7 @@ Generate social-media content automatically.
 ### Content Calendar
 
 - [x] Monthly calendar
-- [ ] Weekly calendar
+- [x] Weekly calendar (month/week toggle)
 - [x] Scheduled posts
 - [x] Published posts
 - [x] Draft posts
