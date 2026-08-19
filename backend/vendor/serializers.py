@@ -38,3 +38,16 @@ class OnboardingStatusSerializer(serializers.Serializer):
     socials_connected = serializers.BooleanField()
     theme_selected = serializers.BooleanField()
     is_complete = serializers.BooleanField()
+
+
+class StoreProfileSerializer(serializers.Serializer):
+    """Serializer for updating the vendor's store profile."""
+
+    store_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    bio = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    category = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    brand_vibes = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    address = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    logo = serializers.ImageField(required=False)
