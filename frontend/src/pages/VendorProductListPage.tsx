@@ -249,7 +249,8 @@ const VendorProductListPage: React.FC = () => {
                             return (
                                 <div
                                     key={product.id}
-                                    className="group flex flex-col rounded-2xl border overflow-hidden shadow-sm transition-all duration-300 hover:shadow-xl"
+                                    onClick={() => navigate(`/vendor/products/${product.id}`)}
+                                    className="group flex flex-col rounded-2xl border overflow-hidden shadow-sm transition-all duration-300 hover:shadow-xl cursor-pointer"
                                     style={{
                                         backgroundColor: themeConfig.cardBg,
                                         borderColor: themeConfig.border

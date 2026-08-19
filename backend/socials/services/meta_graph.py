@@ -254,3 +254,27 @@ class MetaGraphClient:
             'post_id': media_id,
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
+
+    def get_post_engagement(self, post_id, page_token):
+        """Return likes, comments, and shares for a Page post."""
+        payload = self.get(f'/{post_id}', {
+            'access_token': page_token,
+            'fields': 'reactions.summary(true),comments.summary(true),shares',
+        })
+        return {
+            'likes': (payload.get('reactions') or {}).get('summary', {}).get('total_count', 0),
+            'comments': (payload.get('comments') or {}).get('summary', {}).get('total_count', 0),
+            'shares': (payload.get('shares') or {}).get('count', 0),
+        }
+
+    def get_instagram_media_engagement(self, media_id, page_token):
+        """Return likes and comments for an IG media object."""
+        payload = self.get(f'/{media_id}', {
+            'access_token': page_token,
+            'fields': 'like_count,comments_count',
+        })
+        return {
+            'likes': payload.get('like_count', 0),
+            'comments': payload.get('comments_count', 0),
+            'shares': 0,
+        }
