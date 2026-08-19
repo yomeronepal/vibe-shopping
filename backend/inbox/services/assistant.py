@@ -1,6 +1,8 @@
 import logging
+import re
 
 from django.conf import settings
+from django.db.models import Q
 
 from core.models import Product
 
@@ -8,6 +10,16 @@ logger = logging.getLogger(__name__)
 
 MAX_PRODUCTS = 30
 MAX_HISTORY = 12
+MAX_CANDIDATES = 200
+MAX_SEARCH_TERMS = 20
+MAX_RECOMMENDED = 3
+
+SEARCH_STOPWORDS = {
+    'the', 'and', 'for', 'with', 'this', 'that', 'you', 'your', 'have', 'want',
+    'how', 'much', 'price', 'rate', 'kati', 'chha', 'cha', 'hola', 'huncha',
+    'malai', 'lai', 'ko', 'ma', 'garna', 'garnu', 'chahiyo', 'chahiyeko',
+    'namaste', 'hello', 'sir', 'madam', 'please', 'order', 'available', 'photo',
+}
 
 
 class AssistantError(Exception):
@@ -51,22 +63,99 @@ def format_availability_details(product):
     return '; '.join(details)
 
 
+def extract_search_terms(conversation):
+    """Collect distinctive words from the customer's recent messages."""
+    words = []
+    recent = conversation.messages.filter(direction='in').order_by('-sent_at')[:8]
+    for message in recent:
+        source = f"{message.text or ''} {(message.metadata or {}).get('product_name', '')}"
+        words.extend(re.findall(r'[a-z0-9][a-z0-9\-]{2,}', source.lower()))
+    terms = []
+    for word in words:
+        if word not in SEARCH_STOPWORDS and word not in terms:
+            terms.append(word)
+    return terms[:MAX_SEARCH_TERMS]
+
+
+def score_product(product, terms):
+    """Rate how well a product matches the conversation's search terms."""
+    name = product.name.lower()
+    sku = (product.product_code or '').lower()
+    category = f'{product.category} {product.subcategory}'.lower()
+    description = (product.description or '').lower()[:400]
+    score = 0
+    for term in terms:
+        if sku and term == sku:
+            score += 10
+        if term in name:
+            score += 4
+        elif term in category:
+            score += 2
+        elif term in description:
+            score += 1
+    return score
+
+
+def find_candidate_products(base_queryset, terms):
+    """Fetch a bounded set of products that mention any search term."""
+    if not terms:
+        return []
+    query = Q()
+    for term in terms:
+        query |= (
+            Q(name__icontains=term)
+            | Q(category__icontains=term)
+            | Q(subcategory__icontains=term)
+            | Q(description__icontains=term)
+            | Q(product_code__iexact=term)
+        )
+    return list(base_queryset.filter(query).prefetch_related('variants')[:MAX_CANDIDATES])
+
+
+def select_relevant_products(tenant, conversation=None):
+    """Pick the products worth showing the model for this conversation.
+
+    Small catalogs are passed whole; large ones are narrowed to the
+    best keyword and SKU matches so the prompt stays bounded no matter
+    how many products the vendor has.
+    """
+    base = Product.objects.filter(tenant=tenant, status='published', is_active=True)
+    newest = base.prefetch_related('variants').order_by('-created_at')
+    if conversation is None or base.count() <= MAX_PRODUCTS:
+        return list(newest[:MAX_PRODUCTS])
+    terms = extract_search_terms(conversation)
+    candidates = find_candidate_products(base, terms)
+    scored = sorted(
+        ((score_product(product, terms), product) for product in candidates),
+        key=lambda pair: pair[0], reverse=True,
+    )
+    picked = [product for score, product in scored if score > 0][:MAX_PRODUCTS]
+    if len(picked) < MAX_PRODUCTS:
+        chosen_ids = {product.id for product in picked}
+        fill = newest.exclude(id__in=chosen_ids)[:MAX_PRODUCTS - len(picked)]
+        picked.extend(fill)
+    return picked
+
+
+def format_sku_tag(product):
+    """Render the SKU marker for a catalog line, or empty."""
+    return f' | SKU {product.product_code}' if product.product_code else ''
+
+
 def format_product_line(product):
     """Render one catalog line the model may quote from."""
     stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
     description = (product.description or '').replace('\n', ' ')[:120]
-    line = f'- {product.name} — Rs. {format_price(product.price)} — {stock}'
+    line = f'- {product.name}{format_sku_tag(product)} — Rs. {format_price(product.price)} — {stock}'
     availability = format_availability_details(product)
     if availability:
         line += f' — {availability}'
     return f'{line} — {description}'
 
 
-def build_catalog_block(tenant):
-    """List the tenant's live products as the only allowed product facts."""
-    products = Product.objects.filter(
-        tenant=tenant, status='published', is_active=True,
-    ).prefetch_related('variants').order_by('-created_at')[:MAX_PRODUCTS]
+def build_catalog_block(tenant, conversation=None):
+    """List the relevant live products as the only allowed product facts."""
+    products = select_relevant_products(tenant, conversation)
     lines = [format_product_line(product) for product in products]
     return '\n'.join(lines) if lines else '(no products published yet)'
 
@@ -142,7 +231,7 @@ BUSINESS KNOWLEDGE (policies and FAQs — the only extra facts you may state)
 {knowledge or '(none provided)'}
 
 PRODUCT CATALOG (the ONLY source of product names, prices, and availability)
-{build_catalog_block(tenant)}
+{build_catalog_block(tenant, conversation)}
 
 CONVERSATION SO FAR (Customer is the buyer; Business is you)
 {build_history_block(conversation)}
@@ -289,18 +378,16 @@ def is_auto_reply_enabled(tenant):
 def format_order_product_line(product):
     """Render one catalog line with the id the model must reference."""
     stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
-    line = f'- [id {product.id}] {product.name} — Rs. {format_price(product.price)} — {stock}'
+    line = f'- [id {product.id}{format_sku_tag(product)}] {product.name} — Rs. {format_price(product.price)} — {stock}'
     availability = format_availability_details(product)
     if availability:
         line += f' — {availability}'
     return line
 
 
-def build_order_catalog_block(tenant):
-    """List purchasable products with their database ids."""
-    products = Product.objects.filter(
-        tenant=tenant, status='published', is_active=True,
-    ).prefetch_related('variants').order_by('-created_at')[:MAX_PRODUCTS]
+def build_order_catalog_block(tenant, conversation=None):
+    """List purchasable relevant products with their database ids."""
+    products = select_relevant_products(tenant, conversation)
     lines = [format_order_product_line(product) for product in products]
     return '\n'.join(lines) if lines else '(no products published yet)'
 
@@ -311,18 +398,18 @@ def build_order_prompt(conversation):
     return f"""You extract purchase orders from a shop's customer chat.
 
 PRODUCT CATALOG (only these products can be ordered; use the exact id)
-{build_order_catalog_block(tenant)}
+{build_order_catalog_block(tenant, conversation)}
 
 CONVERSATION (Customer is the buyer; Business is the shop)
 {build_history_block(conversation)}
 
 TASK
 Decide whether the customer has clearly asked to buy something. Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"order_detected": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "customer_name": "<name if the customer stated one, else empty string>", "note": "<one short sentence explaining your decision>"}}
+{{"order_detected": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "customer_name": "<name if the customer stated one, else empty string>", "note": "<one short sentence explaining your decision>"}}
 
 Rules:
 1. order_detected is true only when the customer explicitly wants to buy, not when they are just asking questions.
-2. Only use product ids from the catalog. If the requested product is not in the catalog, leave it out.
+2. Only use product ids and SKUs from the catalog. When the customer quotes a SKU code, match it exactly. If the requested product is not in the catalog, leave it out.
 3. Default quantity to 1 when the customer wants an item but gave no number."""
 
 
@@ -341,11 +428,43 @@ def parse_model_json(text):
         raise AssistantError('The AI returned an unreadable answer. Try again.')
 
 
-def coerce_extracted_item(item, products):
+def parse_item_id(item):
+    """Return the item's product id as an int, or None."""
+    try:
+        return int(item.get('product_id'))
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_item_sku(item):
+    """Return the item's normalized SKU, or empty string."""
+    return str(item.get('sku') or '').strip().lower()[:40]
+
+
+def load_referenced_products(tenant, raw_items):
+    """Fetch only the catalog products the extraction refers to."""
+    ids = {parse_item_id(item) for item in raw_items if isinstance(item, dict)}
+    skus = {parse_item_sku(item) for item in raw_items if isinstance(item, dict)}
+    ids.discard(None)
+    skus.discard('')
+    if not ids and not skus:
+        return {}, {}
+    query = Q(id__in=ids)
+    for sku in skus:
+        query |= Q(product_code__iexact=sku)
+    products = Product.objects.filter(
+        tenant=tenant, status='published', is_active=True,
+    ).filter(query)
+    by_id = {product.id: product for product in products}
+    by_sku = {product.product_code.lower(): product for product in products if product.product_code}
+    return by_id, by_sku
+
+
+def coerce_extracted_item(item, by_id, by_sku):
     """Validate one extracted line against the catalog; None if invalid."""
     if not isinstance(item, dict):
         return None
-    product = products.get(item.get('product_id'))
+    product = by_id.get(parse_item_id(item)) or by_sku.get(parse_item_sku(item))
     if product is None:
         return None
     try:
@@ -355,6 +474,7 @@ def coerce_extracted_item(item, products):
     return {
         'product_id': product.id,
         'name': product.name,
+        'sku': product.product_code or '',
         'price': format_price(product.price),
         'quantity': quantity,
         'stock': product.stock,
@@ -365,12 +485,9 @@ def coerce_extracted_item(item, products):
 
 def validate_order_extraction(tenant, data, conversation):
     """Ground the model's extraction in the real catalog."""
-    products = {
-        product.id: product
-        for product in Product.objects.filter(tenant=tenant, status='published', is_active=True)
-    }
     raw_items = data.get('items') if isinstance(data.get('items'), list) else []
-    items = [entry for entry in (coerce_extracted_item(item, products) for item in raw_items) if entry]
+    by_id, by_sku = load_referenced_products(tenant, raw_items)
+    items = [entry for entry in (coerce_extracted_item(item, by_id, by_sku) for item in raw_items) if entry]
     customer_name = str(data.get('customer_name') or '').strip()[:100]
     if not customer_name and conversation.customer.name:
         customer_name = conversation.customer.name
@@ -408,7 +525,7 @@ BUSINESS KNOWLEDGE (policies and FAQs — the only extra facts you may state)
 {knowledge or '(none provided)'}
 
 PRODUCT CATALOG (only these can be ordered; use the exact id; the ONLY source of prices and stock)
-{build_order_catalog_block(tenant)}
+{build_order_catalog_block(tenant, conversation)}
 
 INFORMATION TO COLLECT BEFORE PLACING AN ORDER
 {', '.join(fields)}
@@ -418,7 +535,7 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
@@ -430,9 +547,30 @@ Rules:
 5. When ordering and fields are missing, the reply must naturally ask for the missing fields (all of them at once) and order_ready is false.
 6. order_ready is true ONLY when ordering is true, items are known, and every field in the list has been collected. Then the reply confirms the items, total price from the catalog, and tells the customer their order is being placed.
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
-8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY.
+8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY, and put their catalog ids in recommended_product_ids so their photos can be sent. Also fill recommended_product_ids when the customer asks to see a product or its photo. Leave it empty otherwise.
+8b. When the customer quotes a SKU code, match it exactly against the catalog.
 9. sentiment reflects the customer's mood in their recent messages.
 10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order, or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
+
+
+def load_recommended_products(tenant, data):
+    """Return the catalog products the model chose to showcase."""
+    raw = data.get('recommended_product_ids')
+    if not isinstance(raw, list):
+        return []
+    ids = []
+    for value in raw[:6]:
+        try:
+            ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return []
+    products = Product.objects.filter(
+        tenant=tenant, status='published', is_active=True, id__in=ids,
+    )
+    by_id = {product.id: product for product in products}
+    return [by_id[pid] for pid in ids if pid in by_id][:MAX_RECOMMENDED]
 
 
 def advance_order_conversation(conversation):
@@ -458,6 +596,7 @@ def advance_order_conversation(conversation):
         'missing': missing,
         'sentiment': sentiment,
         'needs_human': bool(data.get('needs_human')),
+        'recommended_products': load_recommended_products(conversation.tenant, data),
     }
 
 

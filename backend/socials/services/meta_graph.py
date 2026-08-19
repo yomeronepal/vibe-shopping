@@ -224,6 +224,21 @@ class MetaGraphClient:
         })
         return payload.get('message_id', '')
 
+    def send_generic_template(self, page_id, page_token, recipient_id, elements):
+        """Send a product card carousel DM; returns the platform message id."""
+        payload = self.post(f'/{page_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'id': recipient_id}),
+            'message': json.dumps({
+                'attachment': {
+                    'type': 'template',
+                    'payload': {'template_type': 'generic', 'elements': elements},
+                },
+            }),
+            'messaging_type': 'RESPONSE',
+        })
+        return payload.get('message_id', '')
+
     def send_private_reply(self, sender_id, page_token, comment_id, text):
         """Privately message the author of a comment; returns the message id.
 

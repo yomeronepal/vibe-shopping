@@ -71,6 +71,81 @@ def deliver_via_meta(conversation, text):
         raise ConversationSendError('Could not send the message. Please try again.', 502)
 
 
+def build_product_page_url(product):
+    """Return the public product page link, or empty when not configured."""
+    from django.conf import settings
+
+    base = (getattr(settings, 'PUBLIC_APP_BASE_URL', '') or '').rstrip('/')
+    return f'{base}/product/{product.id}' if base else ''
+
+
+def build_product_card(product):
+    """Render one generic-template element for a product."""
+    from inbox.services.assistant import format_price
+    from socials.services.publisher import build_public_image_url
+
+    subtitle = f'Rs. {format_price(product.price)}'
+    if product.product_code:
+        subtitle += f' · SKU {product.product_code}'
+    element = {'title': product.name[:80], 'subtitle': subtitle[:80]}
+    image_field = product.processed_image or product.image
+    if image_field:
+        image_url = build_public_image_url(image_field)
+        if image_url:
+            element['image_url'] = image_url
+    link = build_product_page_url(product)
+    if link:
+        element['default_action'] = {'type': 'web_url', 'url': link}
+        element['buttons'] = [{'type': 'web_url', 'url': link, 'title': 'View product'}]
+    return element
+
+
+def store_card_message(conversation, products, message_id):
+    """Record the card send in the thread and push it live."""
+    names = ', '.join(product.name[:40] for product in products)
+    record = Message.objects.create(
+        conversation=conversation,
+        direction='out',
+        text=f'[Sent product cards: {names}]',
+        platform_message_id=message_id or f'local-{uuid.uuid4().hex}',
+        sent_by_ai=True,
+        sent_at=timezone.now(),
+        metadata={'type': 'product_cards', 'product_ids': [product.id for product in products]},
+    )
+    Conversation.objects.filter(pk=conversation.pk).update(
+        last_message_at=record.sent_at,
+        last_message_preview=record.text[:120],
+    )
+    conversation.refresh_from_db()
+    push_safely(conversation.tenant_id, 'inbox.message', {
+        'conversation': ConversationSerializer(conversation).data,
+        'message': MessageSerializer(record).data,
+    })
+    return record
+
+
+def send_product_cards(conversation, products):
+    """Send photo cards for products after a reply; best-effort, DM only.
+
+    Comment-origin threads whose one-shot private reply was just used
+    cannot carry attachments, so those are skipped silently.
+    """
+    products = [product for product in products if product][:3]
+    route, target = resolve_reply_route(conversation)
+    if not products or route != 'dm':
+        return None
+    elements = [build_product_card(product) for product in products]
+    page = conversation.page
+    try:
+        message_id = MetaGraphClient().send_generic_template(
+            page.page_id, page.get_access_token(), target, elements,
+        )
+    except MetaGraphError as exc:
+        logger.info('Product card send skipped for conversation %s: %s', conversation.id, exc)
+        return None
+    return store_card_message(conversation, products, message_id)
+
+
 def send_conversation_text(conversation, text, sent_by_ai=False):
     """Send text to a conversation's customer, store it, and push updates.
 

@@ -57,7 +57,8 @@ class AssistantTestBase(APITestCase):
 class SuggestionPromptTests(AssistantTestBase):
     def test_prompt_grounds_on_catalog_profile_and_history(self):
         prompt = build_suggestion_prompt(self.convo)
-        self.assertIn('Linen Shirt — Rs. 1200 — 4 in stock', prompt)
+        self.assertIn('Linen Shirt | SKU', prompt)
+        self.assertIn('Rs. 1200 — 4 in stock', prompt)
         self.assertIn('Handmade fashion from Kathmandu', prompt)
         self.assertIn('Delivery inside the valley costs Rs. 100', prompt)
         self.assertIn('Customer: How much is the linen shirt?', prompt)
@@ -161,7 +162,7 @@ class OrderExtractionTests(AssistantTestBase):
         self.assertEqual(item['price'], '1200')
         self.assertEqual(item['stock'], 4)
         self.assertEqual(response.data['customer_name'], 'Ram')
-        self.assertIn(f'[id {product.id}] Linen Shirt', mock_call.call_args[0][0])
+        self.assertIn(f'[id {product.id} | SKU {product.product_code}] Linen Shirt', mock_call.call_args[0][0])
 
     @patch(
         'inbox.services.assistant.call_gemini',

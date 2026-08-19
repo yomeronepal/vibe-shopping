@@ -116,7 +116,22 @@ def auto_reply_to_message(message_id):
     except ConversationSendError as exc:
         logger.warning('Auto-reply send failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
+    if not outcome['order_ready']:
+        send_recommendation_cards(conversation, outcome)
     return f'sent+order:{order.id}' if order else 'sent'
+
+
+def send_recommendation_cards(conversation, outcome):
+    """Follow the reply with photo cards for recommended products."""
+    products = outcome.get('recommended_products') or []
+    if not products:
+        return
+    from inbox.services.sending import send_product_cards
+
+    try:
+        send_product_cards(conversation, products)
+    except Exception:
+        logger.warning('Product card send failed for conversation %s', conversation.id, exc_info=True)
 
 
 DEFAULT_FOLLOWUP_MESSAGE = (
