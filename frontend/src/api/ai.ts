@@ -39,6 +39,9 @@ export interface CaptionRequest {
     product_id?: number;
     context?: string;
     platform?: string;
+    content_type?: 'caption' | 'promo' | 'announcement' | 'ad';
+    tone?: string;
+    language?: string;
 }
 
 export const aiApi = {

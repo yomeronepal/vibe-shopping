@@ -721,6 +721,16 @@ class ProductViewSet(viewsets.ModelViewSet):
             return ProductCreateSerializer
         return ProductSerializer
 
+    def perform_update(self, serializer):
+        """Save edits, recording manual stock adjustments."""
+        from core.models import record_stock_change
+
+        old_stock = serializer.instance.stock
+        product = serializer.save()
+        delta = product.stock - old_stock
+        if delta:
+            record_stock_change(product, delta, 'manual', 'Edited by vendor')
+
     @action(detail=True, methods=['post'], url_path='generate-copy')
     def generate_copy(self, request, pk=None):
         """
@@ -841,8 +851,12 @@ class ProductViewSet(viewsets.ModelViewSet):
         from core.models import ProductVariant, ProductImage
         import json
 
+        from core.models import record_stock_change
+
         tenant = self.request.user.vendor_profile.tenant
         product = serializer.save(tenant=tenant)
+        if product.stock:
+            record_stock_change(product, product.stock, 'initial', 'Product created')
 
         variants_data = self.request.data.get('variants')
         if variants_data:
@@ -1137,7 +1151,9 @@ class POSOrderViewSet(viewsets.GenericViewSet):
                     items_to_create.append({
                         'product': product,
                         'quantity': item_data['quantity'],
-                        'price': product.price
+                        'price': product.price,
+                        'size': item_data.get('size', ''),
+                        'color': item_data.get('color', ''),
                     })
                 
                 # Create Order
@@ -1159,12 +1175,16 @@ class POSOrderViewSet(viewsets.GenericViewSet):
                         order=order,
                         product=item['product'],
                         quantity=item['quantity'],
-                        price=item['price']
+                        price=item['price'],
+                        size=item.get('size', ''),
+                        color=item.get('color', ''),
                     )
                     
                     # Update stock
                     item['product'].stock -= item['quantity']
                     item['product'].save()
+                    from core.models import record_stock_change
+                    record_stock_change(item['product'], -item['quantity'], 'order', f'Order #{order.id}')
                     
                     # Log event
                     ProductEvent.objects.create(

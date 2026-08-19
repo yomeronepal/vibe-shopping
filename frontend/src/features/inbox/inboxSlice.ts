@@ -38,7 +38,7 @@ const upsertConversation = (state: InboxState, conversation: InboxConversation) 
 
 export const fetchConversations = createAsyncThunk(
     'inbox/fetchConversations',
-    async (status: string) => listConversations(status),
+    async ({ status, q }: { status: string; q?: string }) => listConversations(status, q),
 );
 
 export const fetchMessages = createAsyncThunk(

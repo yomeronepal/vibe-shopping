@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { aiApi } from '../api/ai';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import { vendorApi, type Product } from '../api/vendor';
 import { mediaUrl } from '../api/media';
 import {
@@ -92,6 +93,8 @@ export default function PublishingCalendarPage() {
     const { config: themeConfig } = useShopTheme();
 
     const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
+    const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+    const [weekCursor, setWeekCursor] = useState(() => new Date());
     const [posts, setPosts] = useState<ScheduledPost[]>([]);
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [modal, setModal] = useState<ModalState>(null);
@@ -100,6 +103,9 @@ export default function PublishingCalendarPage() {
 
     const [caption, setCaption] = useState('');
     const [captionLoading, setCaptionLoading] = useState(false);
+    const [aiType, setAiType] = useState<'caption' | 'promo' | 'announcement' | 'ad'>('caption');
+    const [aiTone, setAiTone] = useState('');
+    const [aiLanguage, setAiLanguage] = useState('');
     const [postFormat, setPostFormat] = useState<'feed' | 'story'>('feed');
     const [platforms, setPlatforms] = useState<{ facebook: boolean; instagram: boolean }>({ facebook: false, instagram: false });
     const [imageTab, setImageTab] = useState<'product' | 'upload'>('product');
@@ -110,9 +116,18 @@ export default function PublishingCalendarPage() {
     const [scheduleTime, setScheduleTime] = useState('');
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState('');
+    const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-    const grid = useMemo(() => monthGrid(monthCursor), [monthCursor]);
-    const monthLabel = monthCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const grid = useMemo(() => {
+        if (viewMode === 'week') {
+            const start = addDays(weekCursor, -weekCursor.getDay());
+            return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+        }
+        return monthGrid(monthCursor);
+    }, [monthCursor, weekCursor, viewMode]);
+    const monthLabel = viewMode === 'week'
+        ? `${grid[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${grid[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        : monthCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     const STATUS_COLORS: Record<ScheduledPost['status'], { bg: string; fg: string }> = {
         draft: { bg: `${themeConfig.border}60`, fg: themeConfig.textSecondary },
@@ -154,9 +169,18 @@ export default function PublishingCalendarPage() {
         return map;
     }, [posts]);
 
-    const goToPrevMonth = () => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    const goToNextMonth = () => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    const goToToday = () => setMonthCursor(startOfMonth(new Date()));
+    const goToPrevMonth = () => {
+        if (viewMode === 'week') setWeekCursor((prev) => addDays(prev, -7));
+        else setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    };
+    const goToNextMonth = () => {
+        if (viewMode === 'week') setWeekCursor((prev) => addDays(prev, 7));
+        else setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    };
+    const goToToday = () => {
+        setMonthCursor(startOfMonth(new Date()));
+        setWeekCursor(new Date());
+    };
 
     const resetComposer = () => {
         setCaption('');
@@ -210,9 +234,12 @@ export default function PublishingCalendarPage() {
         }
         setCaptionLoading(true);
         try {
-            const generated = await aiApi.generateCaption(
-                useProduct ? { product_id: productId as number } : { context: caption.trim() },
-            );
+            const generated = await aiApi.generateCaption({
+                ...(useProduct ? { product_id: productId as number } : { context: caption.trim() }),
+                content_type: aiType,
+                tone: aiTone || undefined,
+                language: aiLanguage || undefined,
+            });
             setCaption(generated.slice(0, 280));
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Could not write a caption. Try again.');
@@ -353,7 +380,7 @@ export default function PublishingCalendarPage() {
 
     const handleDelete = async () => {
         if (modal?.mode !== 'edit') return;
-        if (!window.confirm('Delete this post?')) return;
+        setConfirmingDelete(false);
         setSaving(true);
         try {
             await deletePost(modal.post.id);
@@ -390,7 +417,7 @@ export default function PublishingCalendarPage() {
     const isReadOnly = isPosted || isPending;
     const canMutateSchedule = !isEdit || editPost?.status === 'draft' || editPost?.status === 'scheduled';
     const canSaveDraft = !isEdit || editPost?.status === 'draft';
-    const canDelete = isEdit && (editPost?.status === 'draft' || editPost?.status === 'scheduled');
+    const canDelete = isEdit && (editPost?.status === 'draft' || editPost?.status === 'scheduled' || editPost?.status === 'failed');
     const postNowNeedsImage = isEdit && !editPost?.product && !uploadFile;
 
     return (
@@ -451,7 +478,20 @@ export default function PublishingCalendarPage() {
                                 </span>
                             )}
                         </h2>
-                        <div className="w-[132px]" />
+                        <div className="flex items-center gap-1 rounded-full p-1" style={{ backgroundColor: `${themeConfig.border}40` }}>
+                            {(['month', 'week'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setViewMode(mode)}
+                                    className="px-3 py-1 rounded-full text-xs font-bold capitalize transition-colors"
+                                    style={viewMode === mode
+                                        ? { backgroundColor: themeConfig.surface, color: themeConfig.primary }
+                                        : { color: themeConfig.textSecondary }}
+                                >
+                                    {mode}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div
@@ -470,13 +510,14 @@ export default function PublishingCalendarPage() {
                         {grid.map((date) => {
                             const key = toDateKey(date);
                             const dayPosts = postsByDate.get(key) ?? [];
-                            const inMonth = date.getFullYear() === monthCursor.getFullYear() && date.getMonth() === monthCursor.getMonth();
+                            const inMonth = viewMode === 'week'
+                                || (date.getFullYear() === monthCursor.getFullYear() && date.getMonth() === monthCursor.getMonth());
                             const isToday = key === toDateKey(new Date());
                             return (
                                 <div
                                     key={key}
                                     onClick={() => openCreateModal(date)}
-                                    className="min-h-[110px] p-2 flex flex-col gap-1 cursor-pointer transition-colors"
+                                    className={`${viewMode === 'week' ? 'min-h-[340px]' : 'min-h-[110px]'} p-2 flex flex-col gap-1 cursor-pointer transition-colors`}
                                     style={{
                                         backgroundColor: themeConfig.surface,
                                         opacity: inMonth ? 1 : 0.45,
@@ -487,7 +528,7 @@ export default function PublishingCalendarPage() {
                                         {date.getDate()}
                                     </span>
                                     <div className="flex flex-col gap-1">
-                                        {dayPosts.slice(0, 3).map((post) => {
+                                        {dayPosts.slice(0, viewMode === 'week' ? 12 : 3).map((post) => {
                                             const palette = STATUS_COLORS[post.status];
                                             return (
                                                 <span
@@ -506,9 +547,9 @@ export default function PublishingCalendarPage() {
                                                 </span>
                                             );
                                         })}
-                                        {dayPosts.length > 3 && (
+                                        {dayPosts.length > (viewMode === 'week' ? 12 : 3) && (
                                             <span className="text-[10px] font-semibold" style={{ color: themeConfig.textSecondary }}>
-                                                +{dayPosts.length - 3} more
+                                                +{dayPosts.length - (viewMode === 'week' ? 12 : 3)} more
                                             </span>
                                         )}
                                     </div>
@@ -541,7 +582,39 @@ export default function PublishingCalendarPage() {
                         <div className="space-y-4">
                             <div>
                                 {!isReadOnly && !isStoryFormat && (
-                                    <div className="flex justify-end mb-1">
+                                    <div className="flex items-center justify-end gap-1.5 mb-1 flex-wrap">
+                                        <select
+                                            value={aiType}
+                                            onChange={(e) => setAiType(e.target.value as typeof aiType)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="caption">Caption</option>
+                                            <option value="promo">Promo</option>
+                                            <option value="announcement">Announcement</option>
+                                            <option value="ad">Ad copy</option>
+                                        </select>
+                                        <select
+                                            value={aiTone}
+                                            onChange={(e) => setAiTone(e.target.value)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Friendly</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="casual">Casual</option>
+                                            <option value="promotional">Promotional</option>
+                                        </select>
+                                        <select
+                                            value={aiLanguage}
+                                            onChange={(e) => setAiLanguage(e.target.value)}
+                                            className="text-xs font-semibold rounded-lg px-1.5 py-1 focus:outline-none"
+                                            style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                                        >
+                                            <option value="">Mixed</option>
+                                            <option value="english">English</option>
+                                            <option value="nepali">Nepali</option>
+                                        </select>
                                         <button
                                             onClick={generateCaption}
                                             disabled={captionLoading}
@@ -746,6 +819,42 @@ export default function PublishingCalendarPage() {
                                 />
                             </div>
 
+                            {(() => {
+                                if (isStoryFormat && !caption) return null;
+                                const selectedProduct = imageTab === 'product' && productId
+                                    ? products.find((p) => p.id === productId) ?? null
+                                    : null;
+                                const previewImage = uploadPreviewUrl
+                                    ?? (selectedProduct ? productThumbnail(selectedProduct) : null)
+                                    ?? (isEdit && editPost?.image_url ? mediaUrl(editPost.image_url) : null);
+                                if (!previewImage && !caption) return null;
+                                return (
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: themeConfig.textSecondary }}>Preview</p>
+                                        <div className="rounded-xl border overflow-hidden" style={{ borderColor: themeConfig.border, backgroundColor: themeConfig.background }}>
+                                            <div className="flex items-center gap-2 px-3 py-2">
+                                                <div className="size-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#1877F2' }}>
+                                                    {(connectedPage?.name ?? 'P').charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold leading-tight" style={{ color: themeConfig.text }}>{connectedPage?.name ?? 'Your Page'}</p>
+                                                    <p className="text-[10px]" style={{ color: themeConfig.textSecondary }}>
+                                                        {[platforms.facebook ? 'Facebook' : '', platforms.instagram ? 'Instagram' : ''].filter(Boolean).join(' · ') || 'Not published yet'}
+                                                        {postFormat === 'story' ? ' · Story' : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {!isStoryFormat && caption && (
+                                                <p className="px-3 pb-2 text-sm whitespace-pre-wrap" style={{ color: themeConfig.text }}>{caption}</p>
+                                            )}
+                                            {previewImage && (
+                                                <img src={previewImage} alt="Post preview" className="w-full max-h-56 object-cover" />
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {formError && (
                                 <p className="text-sm font-medium" style={{ color: '#b91c1c' }}>{formError}</p>
                             )}
@@ -817,7 +926,7 @@ export default function PublishingCalendarPage() {
                                 )}
                                 {canDelete && (
                                     <button
-                                        onClick={handleDelete}
+                                        onClick={() => setConfirmingDelete(true)}
                                         disabled={saving}
                                         className="ml-auto px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50"
                                         style={{ color: '#b91c1c' }}
@@ -830,6 +939,15 @@ export default function PublishingCalendarPage() {
                     </div>
                 </div>
             )}
+            <ConfirmDialog
+                open={confirmingDelete}
+                title="Delete this post?"
+                message="The post will be removed from your calendar. This cannot be undone."
+                confirmLabel="Delete post"
+                danger
+                onConfirm={handleDelete}
+                onCancel={() => setConfirmingDelete(false)}
+            />
         </VendorShell>
     );
 }

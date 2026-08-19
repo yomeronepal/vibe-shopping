@@ -31,6 +31,14 @@ export interface PublishProductData {
     variants?: ProductVariantData[];
 }
 
+export interface StockHistoryEntry {
+    delta: number;
+    resulting_stock: number;
+    reason: string;
+    note: string;
+    created_at: string;
+}
+
 export interface UpdateProductData {
     name?: string;
     description?: string;
@@ -218,6 +226,11 @@ export const vendorApi = {
         return response.data;
     },
 
+    getStockHistory: async (id: number | string): Promise<StockHistoryEntry[]> => {
+        const response = await apiClient.get(`/vendor/products/${id}/stock-history/`);
+        return response.data;
+    },
+
     archiveProduct: async (id: number): Promise<Product> => {
         const response = await apiClient.post(`/vendor/products/${id}/archive/`);
         return response.data;
@@ -390,8 +403,38 @@ export interface StoreProfile {
     ai_knowledge: string;
     ai_assistant_enabled: boolean;
     ai_auto_reply: boolean;
+    ai_tone: string;
+    ai_language: string;
     order_fields: string[];
+    followup_hours: number;
+    followup_message: string;
+    restricted_topics: string[];
+    ai_max_discount: number;
+    max_auto_order_value: number;
+    knowledge_docs: { name: string; chars: number }[];
+    website_knowledge: { url: string; chars: number };
 }
+
+export const uploadKnowledgeDoc = async (file: File): Promise<{ name: string; chars: number }[]> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/vendor/knowledge/documents/', formData);
+    return response.data.documents;
+};
+
+export const deleteKnowledgeDoc = async (name: string): Promise<{ name: string; chars: number }[]> => {
+    const response = await apiClient.delete(`/vendor/knowledge/documents/?name=${encodeURIComponent(name)}`);
+    return response.data.documents;
+};
+
+export const fetchWebsiteKnowledge = async (url: string): Promise<{ url: string; chars: number }> => {
+    const response = await apiClient.post('/vendor/knowledge/website/', { url });
+    return response.data;
+};
+
+export const removeWebsiteKnowledge = async (): Promise<void> => {
+    await apiClient.delete('/vendor/knowledge/website/');
+};
 
 export interface UpdateStoreProfileData {
     store_name?: string;
@@ -414,12 +457,26 @@ export const updateAssistantSettings = async (
     enabled: boolean,
     autoReply: boolean,
     orderFields: string[],
+    tone: string,
+    language: string,
+    followupHours: number,
+    followupMessage: string,
+    restrictedTopics: string[],
+    maxDiscount: number,
+    maxAutoOrderValue: number,
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
         ai_assistant_enabled: enabled,
         ai_auto_reply: autoReply,
         order_fields: JSON.stringify(orderFields),
+        ai_tone: tone,
+        ai_language: language,
+        followup_hours: followupHours,
+        followup_message: followupMessage,
+        restricted_topics: JSON.stringify(restrictedTopics),
+        ai_max_discount: maxDiscount,
+        max_auto_order_value: maxAutoOrderValue,
     });
     return response.data;
 };

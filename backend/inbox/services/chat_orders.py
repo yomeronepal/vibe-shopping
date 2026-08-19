@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import Order, OrderItem, Product
+from core.models import Order, OrderItem, Product, record_stock_change
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,34 @@ def pick_customer_details(conversation, collected):
     name = next((v for k, v in lowered.items() if 'name' in k), '') or conversation.customer.name
     phone = next((v for k, v in lowered.items() if 'phone' in k or 'number' in k), '')
     return name[:255], phone[:20]
+
+
+def order_value_cap(tenant):
+    """Return the max order value the bot may auto-confirm (0 = no cap)."""
+    try:
+        return float((tenant.metadata or {}).get('maxAutoOrderValue') or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def estimate_order_total(tenant, items):
+    """Price the extracted items against the live catalog."""
+    ids = [item['product_id'] for item in items]
+    products = {p.id: p for p in Product.objects.filter(tenant=tenant, id__in=ids)}
+    total = 0
+    for item in items:
+        product = products.get(item['product_id'])
+        if product:
+            total += float(product.price) * max(1, int(item['quantity']))
+    return total
+
+
+def exceeds_order_cap(tenant, items):
+    """Whether this order needs human approval due to its value."""
+    cap = order_value_cap(tenant)
+    if cap <= 0:
+        return False
+    return estimate_order_total(tenant, items) > cap
 
 
 def create_chat_order(conversation, items, collected):
@@ -70,7 +98,7 @@ def create_chat_order(conversation, items, collected):
             quantity = min(max(1, int(item['quantity'])), product.stock) if product.stock > 0 else 0
             if quantity < 1:
                 continue
-            lines.append((product, quantity))
+            lines.append((product, quantity, item.get('size', ''), item.get('color', '')))
             total += product.price * quantity
         if not lines:
             return None
@@ -90,9 +118,15 @@ def create_chat_order(conversation, items, collected):
                 'collected': collected,
             },
         )
-        for product, quantity in lines:
-            OrderItem.objects.create(order=order, product=product, quantity=quantity, price=product.price)
+        for product, quantity, size, color in lines:
+            OrderItem.objects.create(
+                order=order, product=product, quantity=quantity, price=product.price,
+                size=size, color=color,
+            )
             product.stock -= quantity
             product.save(update_fields=['stock'])
+            record_stock_change(product, -quantity, 'chat_order', f'Order #{order.id}')
+    from inbox.services.crm import apply_collected_contact
+    apply_collected_contact(conversation.customer, collected)
     logger.info('Chat bot created order %s for conversation %s', order.id, conversation.id)
     return order

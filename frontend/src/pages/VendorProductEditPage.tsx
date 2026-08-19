@@ -23,6 +23,7 @@ export default function VendorProductEditPage() {
     const [tags, setTags] = useState<string[]>([]);
     const [vibeTags, setVibeTags] = useState<string[]>([]);
     const [currentImage, setCurrentImage] = useState<string | null>(null);
+    const [sku, setSku] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [posts, setPosts] = useState<AnalyticsPost[]>([]);
@@ -39,6 +40,7 @@ export default function VendorProductEditPage() {
                 setTags(data.product.tags ?? []);
                 setVibeTags(data.product.vibe_tags ?? []);
                 setCurrentImage(mediaUrl(data.product.processed_image || data.product.image));
+                setSku(data.product.product_code || '');
                 setPosts(data.posts);
             })
             .catch(() => setNotFound(true))
@@ -178,6 +180,12 @@ export default function VendorProductEditPage() {
                                     <p className="mt-3 text-xs leading-relaxed" style={{ color: themeConfig.textSecondary }}>
                                         Replacing the photo updates your store only — photos on posts already published to Facebook and Instagram cannot be changed.
                                     </p>
+                                    {sku && (
+                                        <div className="mt-4 pt-4 border-t" style={{ borderColor: `${themeConfig.border}60` }}>
+                                            <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: themeConfig.textSecondary }}>SKU</p>
+                                            <p className="text-sm font-mono font-semibold" style={{ color: themeConfig.text }}>{sku}</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-3 flex flex-col gap-6">

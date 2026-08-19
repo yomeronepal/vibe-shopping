@@ -6,7 +6,11 @@ from inbox.views import (
     ConversationReadView,
     MessageListView,
     SuggestReplyView,
+    SummarizeConversationView,
     ExtractOrderView,
+    CustomerDetailView,
+    CustomerListView,
+    CampaignSendView,
 )
 
 urlpatterns = [
@@ -16,4 +20,8 @@ urlpatterns = [
     path('conversations/<int:conversation_id>/messages/', MessageListView.as_view(), name='inbox_messages'),
     path('conversations/<int:conversation_id>/suggest/', SuggestReplyView.as_view(), name='inbox_suggest_reply'),
     path('conversations/<int:conversation_id>/extract-order/', ExtractOrderView.as_view(), name='inbox_extract_order'),
+    path('conversations/<int:conversation_id>/summarize/', SummarizeConversationView.as_view(), name='inbox_summarize'),
+    path('customers/', CustomerListView.as_view(), name='inbox_customers'),
+    path('campaigns/send/', CampaignSendView.as_view(), name='inbox_campaign_send'),
+    path('customers/<int:customer_id>/', CustomerDetailView.as_view(), name='inbox_customer_detail'),
 ]

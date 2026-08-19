@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useShopTheme } from '../../contexts/ShopThemeContext';
 import ThemePicker from './ThemePicker';
 
 const ThemePickerButton: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const { config } = useShopTheme();
+    const { pathname } = useLocation();
+
+    if (pathname.startsWith('/vendor/inbox') || pathname.includes('/invoice')) {
+        return null;
+    }
 
     return (
         <>

@@ -16,7 +16,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
         fields = [
-            'id', 'platform', 'status', 'unread_count', 'ai_paused',
+            'id', 'platform', 'status', 'unread_count', 'ai_paused', 'tags', 'sentiment',
             'last_message_at', 'last_message_preview', 'customer', 'page_id',
         ]
 

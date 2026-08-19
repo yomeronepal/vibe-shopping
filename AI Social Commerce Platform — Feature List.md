@@ -6,7 +6,7 @@ The platform acts as an **AI sales assistant** that can communicate with custome
 
 ---
 
-> **Build status (2026-08-19):** Two cycles complete. **Foundation + publishing** (PR #1): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection, signature-validated webhook receiver, product publishing to Facebook/Instagram with per-platform result tracking. **Unified inbox + dashboard sweep** (PR #2, stacked): Messenger and Instagram DMs ingested into conversations (idempotent, echo-aware), real-time WebSocket inbox at /vendor/inbox with replies via Meta's Send API, conversation statuses/unread/read-state, a shared themed VendorShell across Inbox/Orders/Products/Settings with mobile navigation, and a new vendor Orders page with live status management (GET/PATCH /api/vendor/orders/). 120+ backend tests green; verified end-to-end in a real browser including live no-reload message arrival. Remaining to go live: ngrok tunnel + Meta webhook dashboard config (also unlocks Instagram publishing via PUBLIC_MEDIA_BASE_URL). **AI sales agent** (#12–#14): opt-in auto-reply bot that answers customers by itself (grounded, debounced, per-conversation pause, AI-labeled messages, unread preserved for vendor review); automatic order creation from chat using a vendor-defined info template (name/phone/address + custom fields) with atomic stock handling and in-chat confirmation — proven with a real order placed entirely through Messenger on the live Page; Facebook & Instagram comments ingested into the inbox and answered via private DM (comment-to-chat), with the commented post mapped back to the catalog product so "pp" gets that product's price.
+> **Build status (2026-08-19, PRs #1–#10):** The platform is live end-to-end against real Meta APIs. **Foundation & integration** (#1–#3): business auth/profile, Meta OAuth with encrypted tokens, Facebook Page + Instagram connection with New Pages Experience support, signature-validated webhooks. **Unified inbox** (#4): FB/IG DMs with real-time WebSocket updates and replies via the Send API. **Publishing** (#5): monthly content calendar with scheduled/draft/immediate posts, Facebook & Instagram feed posts and stories via Celery Beat, failed-post retry. **Engagement analytics** (#5–#6): per-product Facebook/Instagram likes/comments/shares with 5-minute automatic refresh. **Product lifecycle & dashboard** (#7): reworked create page, draft→publish→archive→restore→delete with order-history-safe deletion, product editing that syncs captions to published Facebook posts, live-data vendor dashboard. **Vendor orders & invoices** (#8–#9): manual/POS order creation with stock deduction, printable invoices, invoice delivery straight into the customer's Messenger thread, fully editable store profile. **AI assistant** (#10): Copilot reply drafts in the inbox (manual + auto-draft on new messages) grounded strictly in the product catalog and a vendor-managed knowledge base, plus AI order capture that extracts items/quantities/customer from the chat into a prefilled, human-approved order. 200+ backend tests green; every cycle verified in a real browser, AI verified against live Gemini. **AI sales agent** (#12–#14): opt-in auto-reply bot that answers customers by itself (grounded, debounced, per-conversation pause, AI-labeled messages, unread preserved for vendor review); automatic order creation from chat using a vendor-defined info template (name/phone/address + custom fields) with atomic stock handling and in-chat confirmation — proven with a real order placed entirely through Messenger on the live Page; Facebook & Instagram comments ingested into the inbox and answered via private DM (comment-to-chat), with the commented post mapped back to the catalog product so "pp" gets that product's price.
 
 ## 🚀 Core Features
 
@@ -62,10 +62,10 @@ Manage customer conversations from one dashboard.
 - [x] Facebook comments
 - [x] Conversation list
 - [x] Unread message count
-- [ ] Search conversations
+- [x] Search conversations (by customer name, message text, or tag)
 - [x] Conversation history
 - [x] Customer profile
-- [ ] Conversation tags
+- [x] Conversation tags (add/remove in the thread, shown in the list, searchable)
 - [ ] Internal notes
 - [ ] Assign conversation to team member
 - [x] Mark conversation as resolved
@@ -92,31 +92,31 @@ AI automatically handles repetitive customer conversations.
 
 ### Customer Questions
 
-- [ ] Product questions
-- [ ] Price questions
-- [ ] Availability questions
-- [ ] Size questions
-- [ ] Color questions
-- [ ] Delivery questions
-- [ ] Payment questions
-- [ ] Return/exchange questions
-- [ ] Business FAQ questions
+- [x] Product questions
+- [x] Price questions
+- [x] Availability questions
+- [x] Size questions (per-size stock from the catalog)
+- [x] Color questions (color variants with per-size stock)
+- [x] Delivery questions (from knowledge base)
+- [x] Payment questions (from knowledge base)
+- [x] Return/exchange questions (from knowledge base)
+- [x] Business FAQ questions (from knowledge base)
 
 ### AI Capabilities
 
 - [x] Automatic replies (opt-in bot with debounce and safety rails)
-- [ ] AI suggested replies
-- [ ] Context-aware responses
-- [ ] Customer intent detection
-- [ ] Product recommendations
-- [ ] FAQ answering
-- [ ] Customer sentiment detection
-- [ ] Conversation summarization
-- [ ] Human handoff
-- [ ] Multi-language support
-- [ ] Nepali language support
-- [ ] English language support
-- [ ] Nepali-English mixed language support
+- [x] AI suggested replies (manual button + auto-draft on new messages)
+- [x] Context-aware responses (conversation history + store profile)
+- [x] Customer intent detection (purchase intent for order capture)
+- [x] Product recommendations (catalog-only suggestions when items are unavailable or asked)
+- [x] FAQ answering
+- [x] Customer sentiment detection (per conversation, upset customers flagged in the list)
+- [x] Conversation summarization (Summary button in the thread)
+- [x] Human handoff (bot pauses itself and promises a team member when the customer is upset or asks for a person)
+- [x] Multi-language support
+- [x] Nepali language support
+- [x] English language support
+- [x] Nepali-English mixed language support
 
 ---
 
@@ -127,13 +127,15 @@ Businesses can maintain their products and inventory.
 ### Product Management
 
 - [x] Create product
-- [ ] Update product
-- [ ] Delete product
+- [x] Update product
+- [x] Delete product (blocked when order history exists; archive instead)
+- [x] Archive and restore product
+- [x] Save product as draft, publish later
 - [x] Product name
 - [x] Product description
 - [x] Product images
 - [x] Product price
-- [ ] SKU
+- [x] SKU (auto-generated per store, shown on product pages, searchable)
 - [x] Category
 - [x] Product variants
 - [x] Sizes
@@ -142,11 +144,11 @@ Businesses can maintain their products and inventory.
 
 ### AI Integration
 
-- [ ] AI reads product catalog
-- [ ] AI answers product questions
-- [ ] AI checks product availability
-- [ ] AI recommends products
-- [ ] AI prevents unsupported product claims
+- [x] AI reads product catalog
+- [x] AI answers product questions
+- [x] AI checks product availability
+- [x] AI recommends products (catalog-only)
+- [x] AI prevents unsupported product claims (prices/stock only from catalog)
 
 ---
 
@@ -156,50 +158,52 @@ Convert social conversations into structured orders.
 
 ### Order Creation
 
-- [ ] Extract product from conversation
-- [ ] Extract quantity
-- [ ] Extract size
-- [ ] Extract color
-- [ ] Extract customer name
+- [x] Extract product from conversation
+- [x] Extract quantity
+- [x] Extract size
+- [x] Extract color
+- [x] Extract customer name
 - [x] Extract phone number
 - [x] Extract delivery address
-- [ ] Confirm order details
+- [x] Confirm order details (prefilled order form, human approves)
 - [x] Create order automatically (when items + all template fields are collected)
-- [ ] Manual order creation
+- [x] Manual order creation (with stock deduction and totals)
 
 ### Order Status
 
-- [ ] Pending confirmation
-- [ ] Confirmed
-- [ ] Preparing
+- [x] Pending confirmation (pending payment / pending delivery)
+- [x] Confirmed (completed)
+- [x] Preparing
 - [x] Shipped
 - [x] Delivered
 - [x] Cancelled
-- [ ] Returned
+- [x] Returned
 
 ### Order Management
 
 - [x] Order dashboard
 - [x] Order status updates from the dashboard
-- [ ] Order search
-- [ ] Order filtering
+- [x] Order search (id, customer, phone, product)
+- [x] Order filtering (by status)
 - [x] Order history
-- [ ] Customer order history
-- [ ] Order notifications
+- [x] Customer order history (Orders button in the chat thread)
+- [x] Order notifications (status changes DM the customer automatically for chat orders)
+- [x] Invoice generation (printable / save as PDF)
+- [x] Send invoice to the customer via Messenger
 
 ---
 
 # 📦 7. Inventory Management
 
-- [ ] Product stock management
-- [ ] Variant stock management
-- [ ] Automatic stock deduction
-- [ ] Low-stock alerts
-- [ ] Out-of-stock status
-- [ ] Stock history
-- [ ] SKU management
-- [ ] Inventory search
-- [ ] Inventory filtering
+- [x] Product stock management
+- [x] Variant stock management
+- [x] Automatic stock deduction on orders
+- [x] Low-stock alerts (Inventory alerts card on the dashboard)
+- [x] Out-of-stock status
+- [x] Stock history (every movement logged with reason, shown on the product page)
+- [x] SKU management (auto-generated tenant-prefixed codes, POS lookup)
+- [x] Inventory search
+- [x] Inventory filtering (drafts / low stock / archived / out of stock)
 
 ---
 
@@ -209,24 +213,24 @@ Generate social-media content automatically.
 
 ### Content Types
 
-- [ ] Instagram captions
-- [ ] Facebook posts
+- [x] Instagram captions
+- [x] Facebook posts
 - [x] Product descriptions
-- [ ] Promotional messages
-- [ ] TikTok captions
-- [ ] Hashtags
-- [ ] Ad copy
-- [ ] Customer announcements
+- [x] Promotional messages
+- [x] TikTok captions (generation; TikTok publishing not connected)
+- [x] Hashtags (included per content type)
+- [x] Ad copy
+- [x] Customer announcements
 
 ### AI Options
 
-- [ ] Nepali content
-- [ ] English content
-- [ ] Nepali-English content
-- [ ] Professional tone
-- [ ] Casual tone
-- [ ] Promotional tone
-- [ ] Custom brand voice
+- [x] Nepali content
+- [x] English content
+- [x] Nepali-English content
+- [x] Professional tone
+- [x] Casual tone
+- [x] Promotional tone
+- [x] Custom brand voice (store name, bio, and brand vibes shape every generation)
 
 ---
 
@@ -248,16 +252,18 @@ Generate social-media content automatically.
 ### Post Management
 
 - [x] Create post
-- [ ] Save draft
-- [ ] Preview post
+- [x] Save draft
+- [x] Preview post (live platform-style preview in the composer)
 - [x] Publish immediately
-- [ ] Schedule post
-- [ ] Edit scheduled post
-- [ ] Delete scheduled post
+- [x] Schedule post
+- [x] Edit scheduled post
+- [x] Delete scheduled post (drafts, scheduled, and failed; themed confirmation)
 - [x] Post publishing status
 - [x] Publish product to selected platforms from product creation
 - [x] Per-platform post result log (SocialMediaPost)
-- [ ] Failed-post retry
+- [x] Failed-post retry
+- [x] Facebook & Instagram stories
+- [x] Edit captions of published Facebook posts when a product changes
 
 ### Publishing Channels
 
@@ -266,11 +272,11 @@ Generate social-media content automatically.
 
 ### Content Calendar
 
-- [ ] Monthly calendar
-- [ ] Weekly calendar
-- [ ] Scheduled posts
-- [ ] Published posts
-- [ ] Draft posts
+- [x] Monthly calendar
+- [x] Weekly calendar (month/week toggle)
+- [x] Scheduled posts
+- [x] Published posts
+- [x] Draft posts
 
 ---
 
@@ -280,37 +286,37 @@ Automatically maintain customer profiles.
 
 ### Customer Information
 
-- [ ] Customer name
-- [ ] Social account
-- [ ] Phone number
-- [ ] Email
-- [ ] Location
-- [ ] Tags
-- [ ] Notes
-- [ ] Customer status
+- [x] Customer name
+- [x] Social account
+- [x] Phone number (auto-filled from chat orders, editable)
+- [x] Email (auto-filled from chat orders, editable)
+- [x] Location (auto-filled from the delivery address, editable)
+- [x] Tags
+- [x] Notes
+- [x] Customer status (prospect / customer / repeat, computed from orders)
 
 ### Customer History
 
 - [x] Conversation history
 - [x] Order history
-- [ ] Total spending
-- [ ] Last purchase
-- [ ] Product interests
-- [ ] Customer activity
+- [x] Total spending
+- [x] Last purchase
+- [x] Product interests (from their order history)
+- [x] Customer activity (last active timestamp)
 
 ---
 
 # 🔁 12. Automated Customer Follow-ups
 
-- [ ] Abandoned-order follow-up
-- [ ] Order confirmation
-- [ ] Shipping notification
-- [ ] Delivery notification
-- [ ] Review request
-- [ ] Repeat-purchase reminder
-- [ ] New-product notification
-- [ ] Promotional campaigns
-- [ ] Custom follow-up rules
+- [x] Abandoned-order follow-up (hourly sweep nudges unfinished chat orders once)
+- [x] Order confirmation (chat orders confirmed in-thread with the order number)
+- [x] Shipping notification (automatic DM on status change)
+- [x] Delivery notification (automatic DM on status change)
+- [x] Review request (delivered notification asks for feedback)
+- [x] Repeat-purchase reminder (campaign to the buyers audience)
+- [x] New-product notification (customer campaigns)
+- [x] Promotional campaigns (audience-targeted DMs, window-aware)
+- [x] Custom follow-up rules (configurable delay and message)
 
 ---
 
@@ -320,24 +326,24 @@ Businesses can provide information that AI should use when responding.
 
 ### Knowledge Sources
 
-- [ ] FAQs
-- [ ] Product information
-- [ ] Return policy
-- [ ] Delivery policy
-- [ ] Payment instructions
-- [ ] Business information
-- [ ] Custom instructions
-- [ ] Documents
-- [ ] Website content
+- [x] FAQs
+- [x] Product information (live catalog)
+- [x] Return policy
+- [x] Delivery policy
+- [x] Payment instructions
+- [x] Business information (store profile)
+- [x] Custom instructions (free-text knowledge box)
+- [x] Documents (.txt/.md/.csv/.pdf uploads feed the AI, up to 3)
+- [x] Website content (fetch a page into the AI knowledge)
 
 ### AI Controls
 
-- [ ] Business-specific AI context
-- [ ] Custom system instructions
-- [ ] Brand tone
-- [ ] Allowed languages
-- [ ] Restricted topics
-- [ ] Human approval rules
+- [x] Business-specific AI context
+- [x] Custom system instructions (knowledge box + voice settings shape the system prompt)
+- [x] Brand tone (assistant tone setting: friendly / professional / casual)
+- [x] Allowed languages (assistant language setting: match customer / English / Nepali / mixed)
+- [x] Restricted topics (AI politely declines and steers back to the shop)
+- [x] Human approval rules (Copilot: every reply and order is human-approved)
 
 ---
 
@@ -348,35 +354,35 @@ Businesses should always be able to control the AI.
 ### AI Modes
 
 - [x] Full AI automation (auto-reply bot)
-- [ ] AI Copilot
-- [ ] Human-only mode
+- [x] AI Copilot
+- [x] Human-only mode (assistant toggle off)
 
 ### Controls
 
-- [ ] AI suggested response
-- [ ] Approve AI response
-- [ ] Edit AI response
-- [ ] Send manually
-- [ ] Pause AI
-- [ ] Resume AI
-- [ ] Human takeover
-- [ ] Escalate conversation
+- [x] AI suggested response
+- [x] Approve AI response
+- [x] Edit AI response
+- [x] Send manually
+- [x] Pause AI (settings toggle)
+- [x] Resume AI (settings toggle)
+- [x] Human takeover (replying manually pauses the bot for that chat automatically)
+- [x] Escalate conversation (automatic on negative sentiment / human request)
 
 ---
 
 # 🛡️ 15. AI Safety & Business Rules
 
-- [ ] Prevent AI hallucinated product information
-- [ ] Product availability validation
-- [ ] Price validation
-- [ ] Discount limits
-- [ ] Maximum order value for automatic confirmation
-- [ ] Human approval for refunds
-- [ ] Human approval for high-value orders
-- [ ] Restricted topics
-- [ ] Brand-specific instructions
-- [ ] AI response logs
-- [ ] AI error monitoring
+- [x] Prevent AI hallucinated product information
+- [x] Product availability validation
+- [x] Price validation (extracted orders validated against the catalog)
+- [x] Discount limits (0 = never; otherwise a hard % ceiling in every prompt)
+- [x] Maximum order value for automatic confirmation
+- [x] Human approval for refunds (bot hands off refund/return requests)
+- [x] Human approval for high-value orders (over-cap orders pause the bot)
+- [x] Restricted topics
+- [x] Brand-specific instructions (brand voice from the store profile)
+- [x] AI response logs (every generation recorded per provider and operation)
+- [x] AI error monitoring (failed generations recorded with the error)
 
 ---
 
@@ -384,8 +390,8 @@ Businesses should always be able to control the AI.
 
 ### Sales Analytics
 
-- [ ] Total orders
-- [ ] Total revenue
+- [x] Total orders (dashboard)
+- [x] Total revenue (dashboard)
 - [ ] Average order value
 - [ ] Conversion rate
 - [ ] Best-selling products
@@ -398,9 +404,9 @@ Businesses should always be able to control the AI.
 - [ ] Messages received
 - [ ] Response time
 - [ ] Comments
-- [ ] Engagement
+- [x] Engagement (per-product likes/comments/shares, auto-refreshed)
 - [ ] Followers
-- [ ] Post performance
+- [x] Post performance (per-post engagement on the product analytics page)
 - [ ] Best-performing posts
 - [ ] Best-performing products
 
@@ -411,8 +417,8 @@ Businesses should always be able to control the AI.
 - [ ] Human handoff rate
 - [x] AI-generated orders (Chat bot badge + collected fields on the Orders page)
 - [ ] AI conversion rate
-- [ ] AI usage
-- [ ] AI cost tracking
+- [x] AI usage
+- [x] AI cost tracking
 
 ---
 
@@ -421,7 +427,7 @@ Businesses should always be able to control the AI.
 - [ ] New order notification
 - [ ] New message notification
 - [ ] Human assistance required
-- [ ] Low-stock notification
+- [x] Low-stock notification (dashboard inventory alerts)
 - [ ] Failed post notification
 - [ ] Payment notification
 - [ ] Delivery notification
@@ -548,28 +554,28 @@ Businesses should always be able to control the AI.
 - [x] Webhooks (receiver built; live delivery needs a public URL)
 - [x] Unified inbox
 - [x] Product catalog
-- [ ] AI customer replies
-- [ ] AI order extraction
+- [x] AI customer replies (Copilot)
+- [x] AI order extraction
 - [x] Basic order management
 
 ## Phase 2 — Social Commerce
 
 - [x] Facebook post publishing
 - [x] Instagram post publishing (requires PUBLIC_MEDIA_BASE_URL for image hosting)
-- [ ] AI content generation
-- [ ] Post scheduling
-- [ ] Customer CRM
-- [ ] Inventory management
+- [x] AI content generation
+- [x] Post scheduling
+- [x] Customer CRM
+- [x] Inventory management (stock editing, deduction, filters)
 - [ ] Analytics
 
 ## Phase 3 — Automation
 
-- [ ] Automated follow-ups
+- [x] Automated follow-ups
 - [ ] AI campaigns
 - [ ] Product recommendations
 - [x] AI sales agent (chat → info gathering → order)
-- [ ] Business knowledge base
-- [ ] Advanced AI controls
+- [x] Business knowledge base
+- [x] Advanced AI controls
 
 ## Phase 4 — Commerce Infrastructure
 

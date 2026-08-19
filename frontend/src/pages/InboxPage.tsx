@@ -12,7 +12,8 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import { extractOrder, setConversationAiPaused, suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import { extractOrder, setConversationAiPaused, setConversationTags, suggestReply, summarizeConversation, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import CustomerPanel from '../components/vendor/CustomerPanel';
 import { getStoreProfile } from '@/api/vendor';
 import NewOrderModal, { type OrderPrefill } from '../components/vendor/NewOrderModal';
 import toast from 'react-hot-toast';
@@ -75,6 +76,20 @@ function CustomerAvatar({ conversation, size }: { conversation: InboxConversatio
     );
 }
 
+function SentimentIcon({ sentiment, size = 15 }: { sentiment: string; size?: number }) {
+    if (sentiment !== 'negative' && sentiment !== 'positive') return null;
+    const negative = sentiment === 'negative';
+    return (
+        <span
+            title={negative ? 'Customer seems upset' : 'Customer seems happy'}
+            className="material-symbols-outlined shrink-0"
+            style={{ color: negative ? '#dc2626' : '#16a34a', fontSize: size }}
+        >
+            {negative ? 'sentiment_dissatisfied' : 'sentiment_satisfied'}
+        </span>
+    );
+}
+
 function ConversationRow({
     conversation,
     active,
@@ -103,6 +118,7 @@ function ConversationRow({
                             <span className="font-semibold truncate text-sm" style={{ color: themeConfig.text }}>
                                 {displayName(conversation)}
                             </span>
+                            <SentimentIcon sentiment={conversation.sentiment} />
                         </div>
                         <span className="text-[11px] shrink-0" style={{ color: themeConfig.textSecondary }}>
                             {relativeTime(conversation.last_message_at)}
@@ -121,6 +137,19 @@ function ConversationRow({
                             </span>
                         )}
                     </div>
+                    {(conversation.tags ?? []).length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                            {(conversation.tags ?? []).slice(0, 3).map((tag) => (
+                                <span
+                                    key={tag}
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                    style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </button>
@@ -182,6 +211,10 @@ export default function InboxPage() {
     const { conversations, messages, activeConversationId, statusFilter, loading, sendError } =
         useAppSelector((state) => state.inbox);
     const [draft, setDraft] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [tagDraft, setTagDraft] = useState('');
+    const [summary, setSummary] = useState('');
+    const [summarizing, setSummarizing] = useState(false);
     const [sending, setSending] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [draftFromAi, setDraftFromAi] = useState(false);
@@ -190,14 +223,18 @@ export default function InboxPage() {
     const [extracting, setExtracting] = useState(false);
     const [orderModalOpen, setOrderModalOpen] = useState(false);
     const [orderPrefill, setOrderPrefill] = useState<OrderPrefill | null>(null);
+    const [customerPanelId, setCustomerPanelId] = useState<number | null>(null);
     const threadEndRef = useRef<HTMLDivElement | null>(null);
     useInboxSocket();
 
     const primaryColor = themeConfig.primary;
 
     useEffect(() => {
-        dispatch(fetchConversations(statusFilter));
-    }, [dispatch, statusFilter]);
+        const handle = window.setTimeout(() => {
+            dispatch(fetchConversations({ status: statusFilter, q: searchQuery }));
+        }, searchQuery ? 350 : 0);
+        return () => window.clearTimeout(handle);
+    }, [dispatch, statusFilter, searchQuery]);
 
     useEffect(() => {
         threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -206,6 +243,7 @@ export default function InboxPage() {
     const active = conversations.find((c) => c.id === activeConversationId) ?? null;
 
     const openConversation = (conversation: InboxConversation) => {
+        setSummary('');
         dispatch(setActiveConversation(conversation.id));
         dispatch(fetchMessages(conversation.id));
         if (conversation.unread_count > 0) {
@@ -222,6 +260,9 @@ export default function InboxPage() {
         if (sendReply.fulfilled.match(result)) {
             setDraft('');
             setDraftFromAi(false);
+            if ((result.payload as { human_takeover?: boolean })?.human_takeover) {
+                toast('Bot paused — you have taken over this chat. Resume it from the header anytime.', { icon: '🤝' });
+            }
         }
     };
 
@@ -265,6 +306,34 @@ export default function InboxPage() {
             .then((profile) => setAutoReplyOn(profile.ai_assistant_enabled && profile.ai_auto_reply))
             .catch(() => setAutoReplyOn(false));
     }, []);
+
+    const handleSummarize = async () => {
+        if (!active || summarizing) return;
+        setSummarizing(true);
+        try {
+            setSummary(await summarizeConversation(active.id));
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not summarize this conversation.');
+        } finally {
+            setSummarizing(false);
+        }
+    };
+
+    const updateTags = async (tags: string[]) => {
+        if (!active) return;
+        try {
+            await setConversationTags(active.id, tags);
+        } catch {
+            toast.error('Could not update tags');
+        }
+    };
+
+    const addTag = () => {
+        if (!active || !tagDraft.trim()) return;
+        const next = [...(active.tags ?? []), tagDraft.trim()];
+        setTagDraft('');
+        updateTags(next);
+    };
 
     const toggleBotPause = async () => {
         if (!active || botToggling) return;
@@ -321,9 +390,35 @@ export default function InboxPage() {
                     style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
                 >
                     <div
-                        className={`${active ? 'hidden md:block' : 'block'} w-full md:w-96 overflow-y-auto border-r`}
+                        className={`${active ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-96 border-r`}
                         style={{ borderColor: `${themeConfig.border}50` }}
                     >
+                        <div className="p-3 border-b" style={{ borderColor: `${themeConfig.border}50` }}>
+                            <div
+                                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                                style={{ backgroundColor: `${themeConfig.border}30` }}
+                            >
+                                <span className="material-symbols-outlined text-[18px]" style={{ color: themeConfig.textSecondary }}>search</span>
+                                <input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search name or messages…"
+                                    className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm"
+                                    style={{ color: themeConfig.text }}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        aria-label="Clear search"
+                                        className="material-symbols-outlined text-[16px]"
+                                        style={{ color: themeConfig.textSecondary }}
+                                    >
+                                        close
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
                         {conversations.map((conversation) => (
                             <ConversationRow
                                 key={conversation.id}
@@ -334,13 +429,18 @@ export default function InboxPage() {
                         ))}
                         {!loading && conversations.length === 0 && (
                             <div className="p-8 text-center">
-                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>forum</span>
-                                <p className="text-sm font-medium" style={{ color: themeConfig.text }}>No conversations yet</p>
+                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>{searchQuery ? 'search_off' : 'forum'}</span>
+                                <p className="text-sm font-medium" style={{ color: themeConfig.text }}>
+                                    {searchQuery ? 'No conversations match' : 'No conversations yet'}
+                                </p>
                                 <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
-                                    Messages from your connected Facebook Page and Instagram will appear here.
+                                    {searchQuery
+                                        ? 'Try a different name or keyword.'
+                                        : 'Messages from your connected Facebook Page and Instagram will appear here.'}
                                 </p>
                             </div>
                         )}
+                        </div>
                     </div>
                     <div className={`${active ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
                         {active ? (
@@ -357,20 +457,51 @@ export default function InboxPage() {
                                         >
                                             arrow_back
                                         </button>
-                                        <CustomerAvatar conversation={active} size={36} />
-                                        <div className="min-w-0">
+                                        <button
+                                            onClick={() => setCustomerPanelId(active.customer.id)}
+                                            title="Open customer profile"
+                                            className="shrink-0"
+                                        >
+                                            <CustomerAvatar conversation={active} size={36} />
+                                        </button>
+                                        <div className="min-w-0 cursor-pointer" onClick={() => setCustomerPanelId(active.customer.id)}>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold truncate" style={{ color: themeConfig.text }}>
                                                     {displayName(active)}
                                                 </span>
                                                 <PlatformBadge platform={active.platform} />
                                             </div>
-                                            <span className="text-xs" style={{ color: themeConfig.textSecondary }}>
+                                            <span className="flex items-center gap-1.5 text-xs" style={{ color: themeConfig.textSecondary }}>
                                                 {active.status.replace('_', ' ')}
+                                                <SentimentIcon sentiment={active.sentiment} size={14} />
+                                                {active.sentiment === 'negative' && (
+                                                    <span className="font-semibold" style={{ color: '#dc2626' }}>customer upset</span>
+                                                )}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => window.open(`/vendor/orders?q=${encodeURIComponent(displayName(active))}`, '_self')}
+                                            title="See this customer's orders"
+                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all"
+                                            style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                                            Orders
+                                        </button>
+                                        <button
+                                            onClick={handleSummarize}
+                                            disabled={summarizing}
+                                            title="Summarize this conversation with AI"
+                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                            style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[16px] ${summarizing ? 'animate-spin' : ''}`}>
+                                                {summarizing ? 'progress_activity' : 'summarize'}
+                                            </span>
+                                            {summarizing ? 'Summarizing…' : 'Summary'}
+                                        </button>
                                         {autoReplyOn && (
                                             <button
                                                 onClick={toggleBotPause}
@@ -408,6 +539,61 @@ export default function InboxPage() {
                                     </button>
                                     </div>
                                 </div>
+                                <div
+                                    className="flex items-center gap-1.5 px-5 py-2 border-b flex-wrap"
+                                    style={{ borderColor: `${themeConfig.border}50` }}
+                                >
+                                    <span className="material-symbols-outlined text-[15px]" style={{ color: themeConfig.textSecondary }}>sell</span>
+                                    {(active.tags ?? []).map((tag) => (
+                                        <span
+                                            key={tag}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                            style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                        >
+                                            {tag}
+                                            <button
+                                                onClick={() => updateTags((active.tags ?? []).filter((t) => t !== tag))}
+                                                aria-label={`Remove tag ${tag}`}
+                                                className="material-symbols-outlined text-[12px] hover:opacity-70"
+                                            >
+                                                close
+                                            </button>
+                                        </span>
+                                    ))}
+                                    <input
+                                        value={tagDraft}
+                                        onChange={(e) => setTagDraft(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                addTag();
+                                            }
+                                        }}
+                                        placeholder="Add tag…"
+                                        className="bg-transparent border-none focus:ring-0 focus:outline-none text-xs font-medium min-w-[70px] w-20"
+                                        style={{ color: themeConfig.text }}
+                                    />
+                                </div>
+                                {summary && (
+                                    <div
+                                        className="mx-5 mt-3 rounded-xl border p-4 text-sm leading-relaxed whitespace-pre-wrap relative shadow-sm max-h-56 overflow-y-auto"
+                                        style={{ backgroundColor: `${primaryColor}08`, borderColor: `${primaryColor}25`, color: themeConfig.text }}
+                                    >
+                                        <div className="flex items-center gap-1.5 mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: primaryColor }}>
+                                            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                            AI summary
+                                        </div>
+                                        {summary}
+                                        <button
+                                            onClick={() => setSummary('')}
+                                            aria-label="Dismiss summary"
+                                            className="absolute top-2 right-2 material-symbols-outlined text-[16px]"
+                                            style={{ color: themeConfig.textSecondary }}
+                                        >
+                                            close
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                                     {messages.map((message) => (
                                         <MessageBubble
@@ -487,6 +673,9 @@ export default function InboxPage() {
                     </div>
                 </div>
             </div>
+            {customerPanelId !== null && (
+                <CustomerPanel customerId={customerPanelId} onClose={() => setCustomerPanelId(null)} />
+            )}
             <NewOrderModal
                 open={orderModalOpen}
                 prefill={orderPrefill}

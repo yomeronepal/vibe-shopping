@@ -471,9 +471,9 @@ class PostDetailView(APIView):
         tenant, post = get_tenant_post(request, post_id)
         if not post:
             return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
-        if post.status not in ('draft', 'scheduled'):
+        if post.status not in ('draft', 'scheduled', 'failed'):
             return Response(
-                {'error': 'Only drafts and scheduled posts can be deleted'},
+                {'error': 'Only drafts, scheduled, and failed posts can be deleted'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         post.delete()

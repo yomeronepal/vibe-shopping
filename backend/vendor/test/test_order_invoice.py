@@ -161,3 +161,100 @@ class SendInvoiceTests(OrderInvoiceTestBase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('24-hour', response.data['error'])
         self.assertFalse(Message.objects.filter(conversation=self.convo, direction='out').exists())
+
+
+class OrderSearchFilterTests(OrderInvoiceTestBase):
+    def setUp(self):
+        super().setUp()
+        self.order2 = Order.objects.create(
+            tenant=self.tenant, total_amount=500, status='shipped',
+            order_type='pos', payment_method='cash', customer_name='Gita Rai',
+            customer_phone='9811111111',
+        )
+        OrderItem.objects.create(order=self.order2, product=self.product, quantity=1, price=500)
+
+    def test_filter_by_status(self):
+        response = self.client.get('/api/vendor/orders/?status=shipped')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['customer_name'], 'Gita Rai')
+
+    def test_search_by_customer_name(self):
+        response = self.client.get('/api/vendor/orders/?q=gita')
+        self.assertEqual(len(response.data), 1)
+
+    def test_search_by_phone(self):
+        response = self.client.get('/api/vendor/orders/?q=98111')
+        self.assertEqual(len(response.data), 1)
+
+    def test_search_by_order_id(self):
+        response = self.client.get(f'/api/vendor/orders/?q={self.order.id}')
+        ids = [o['id'] for o in response.data]
+        self.assertIn(self.order.id, ids)
+
+    def test_search_by_product_name(self):
+        response = self.client.get('/api/vendor/orders/?q=linen')
+        self.assertEqual(len(response.data), 2)
+
+
+class StatusNotificationTests(OrderInvoiceTestBase):
+    def setUp(self):
+        super().setUp()
+        connection = MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb9')
+        self.page = ConnectedPage.objects.create(
+            tenant=self.tenant, connection=connection, page_id='p9',
+            name='Store', status='connected',
+        )
+        self.page.set_access_token('pt9')
+        self.page.save()
+        from inbox.models import Conversation, Customer
+        customer = Customer.objects.create(
+            tenant=self.tenant, platform='facebook', platform_user_id='psid9', name='Sita',
+        )
+        self.convo = Conversation.objects.create(
+            tenant=self.tenant, page=self.page, customer=customer, platform='facebook',
+        )
+        self.order.metadata = {'source': 'chat_bot', 'conversation_id': self.convo.id}
+        self.order.save()
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-notif-1')
+    def test_status_change_notifies_chat_customer(self, mock_deliver):
+        response = self.client.patch(
+            f'/api/vendor/orders/{self.order.id}/', {'status': 'shipped'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['customer_notified'])
+        from inbox.models import Message
+        sent = Message.objects.get(conversation=self.convo, direction='out')
+        self.assertIn(f'order #{self.order.id}', sent.text)
+        self.assertIn('shipped', sent.text)
+        self.assertTrue(sent.sent_by_ai)
+
+    @patch('inbox.services.sending.deliver_via_meta')
+    def test_no_notification_for_non_chat_orders(self, mock_deliver):
+        self.order.metadata = {}
+        self.order.save()
+        response = self.client.patch(
+            f'/api/vendor/orders/{self.order.id}/', {'status': 'shipped'}, format='json',
+        )
+        self.assertFalse(response.data['customer_notified'])
+        mock_deliver.assert_not_called()
+
+    @patch('inbox.services.sending.deliver_via_meta')
+    def test_notification_failure_does_not_break_update(self, mock_deliver):
+        from inbox.services.sending import ConversationSendError
+        mock_deliver.side_effect = ConversationSendError('window closed', 400)
+        response = self.client.patch(
+            f'/api/vendor/orders/{self.order.id}/', {'status': 'delivered'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'delivered')
+        self.assertFalse(response.data['customer_notified'])
+
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-notif-2a', 'mid-notif-2b'])
+    def test_new_statuses_accepted(self, mock_deliver):
+        for value in ('preparing', 'returned'):
+            response = self.client.patch(
+                f'/api/vendor/orders/{self.order.id}/', {'status': value}, format='json',
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data['status'], value)

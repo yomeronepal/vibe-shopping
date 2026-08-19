@@ -35,6 +35,11 @@ class Customer(TimeStampedModel):
     platform_user_id = models.CharField(max_length=64)
     name = models.CharField(max_length=255, blank=True, default='')
     profile_pic_url = models.URLField(max_length=500, blank=True, default='')
+    phone = models.CharField(max_length=30, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
+    location = models.CharField(max_length=255, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    tags = models.JSONField(default=list, blank=True)
 
     class Meta:
         constraints = [
@@ -58,6 +63,10 @@ class Conversation(TimeStampedModel):
     status = models.CharField(max_length=20, choices=CONVERSATION_STATUSES, default='new')
     unread_count = models.IntegerField(default=0)
     ai_paused = models.BooleanField(default=False)
+    tags = models.JSONField(default=list, blank=True)
+    sentiment = models.CharField(max_length=10, blank=True, default='')
+    order_intent_at = models.DateTimeField(null=True, blank=True)
+    followup_sent_at = models.DateTimeField(null=True, blank=True)
     last_message_at = models.DateTimeField(null=True, blank=True)
     last_message_preview = models.CharField(max_length=140, blank=True, default='')
 

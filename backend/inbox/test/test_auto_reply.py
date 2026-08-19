@@ -266,3 +266,160 @@ class AutoReplyApiTests(AutoReplyTestBase):
         self.assertEqual(response.status_code, 200)
         self.tenant.refresh_from_db()
         self.assertFalse(self.tenant.metadata['aiAutoReply'])
+
+
+class SentimentHandoffTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_negative_sentiment_stored(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Maaf garnuhos!')
+        result_outcome['sentiment'] = 'negative'
+        mock_advance.return_value = result_outcome
+        auto_reply_to_message(self.inbound.id)
+        self.convo.refresh_from_db()
+        self.assertEqual(self.convo.sentiment, 'negative')
+        self.assertFalse(self.convo.ai_paused)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_needs_human_pauses_bot_but_sends_handoff_reply(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Hamro team member chittai reply garnu hunecha.')
+        result_outcome['sentiment'] = 'negative'
+        result_outcome['needs_human'] = True
+        mock_advance.return_value = result_outcome
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertEqual(result, 'sent')
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        self.assertEqual(self.convo.sentiment, 'negative')
+        sent = Message.objects.get(direction='out')
+        self.assertIn('team member', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-hh-3')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_paused_conversation_stays_silent_afterwards(self, mock_advance, mock_deliver):
+        result_outcome = outcome(reply='Team member aaudai cha.')
+        result_outcome['needs_human'] = True
+        mock_advance.return_value = result_outcome
+        auto_reply_to_message(self.inbound.id)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='I said NOW',
+            platform_message_id='m-angry-2', sent_at=timezone.now(),
+        )
+        self.assertEqual(auto_reply_to_message(newer.id), 'skipped')
+
+
+class HumanTakeoverTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-1')
+    def test_manual_reply_pauses_bot(self, mock_deliver):
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Let me handle this personally.'}, format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data['human_takeover'])
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='ok thanks',
+            platform_message_id='m-ht-2', sent_at=timezone.now(),
+        )
+        self.assertEqual(auto_reply_to_message(newer.id), 'skipped')
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-3')
+    def test_no_takeover_when_bot_disabled(self, mock_deliver):
+        self.tenant.metadata = {}
+        self.tenant.save()
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Hello!'}, format='json',
+        )
+        self.assertFalse(response.data['human_takeover'])
+        self.convo.refresh_from_db()
+        self.assertFalse(self.convo.ai_paused)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-ht-4')
+    def test_no_duplicate_takeover_when_already_paused(self, mock_deliver):
+        Conversation.objects.filter(pk=self.convo.pk).update(ai_paused=True)
+        response = self.client.post(
+            f'/api/inbox/conversations/{self.convo.id}/messages/',
+            {'text': 'Still me.'}, format='json',
+        )
+        self.assertFalse(response.data['human_takeover'])
+
+
+class SafetyRuleTests(AutoReplyTestBase):
+    def ready_outcome(self):
+        product = Product.objects.get(name='Linen Shirt')
+        return outcome(
+            reply='Order confirm gardai chhu!',
+            ordering=True,
+            order_ready=True,
+            items=[{'product_id': product.id, 'quantity': 2}],
+            collected={'Full name': 'Sita', 'Phone number': '98', 'Delivery address': 'KTM'},
+        )
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-cap-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_order_over_cap_needs_human(self, mock_advance, mock_deliver):
+        self.tenant.metadata['maxAutoOrderValue'] = 2000
+        self.tenant.save()
+        mock_advance.return_value = self.ready_outcome()
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertEqual(result, 'sent')
+        self.assertEqual(Order.objects.count(), 0)
+        self.convo.refresh_from_db()
+        self.assertTrue(self.convo.ai_paused)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('team member', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-cap-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_order_under_cap_proceeds(self, mock_advance, mock_deliver):
+        self.tenant.metadata['maxAutoOrderValue'] = 5000
+        self.tenant.save()
+        mock_advance.return_value = self.ready_outcome()
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertIn('sent+order:', result)
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_discount_rule_in_prompts(self):
+        from inbox.services.assistant import build_order_flow_prompt, build_suggestion_prompt
+        prompt = build_suggestion_prompt(self.convo)
+        self.assertIn('Never offer or agree to any discount', prompt)
+        self.tenant.metadata['aiMaxDiscount'] = 10
+        self.tenant.save()
+        self.convo.tenant.refresh_from_db()
+        prompt = build_order_flow_prompt(self.convo)
+        self.assertIn('at most 10% off', prompt)
+
+    @patch('inbox.services.assistant.log_ai_usage')
+    @patch('google.genai.Client')
+    def test_ai_usage_logged_on_success(self, mock_client, mock_log):
+        mock_client.return_value.models.generate_content.return_value.text = 'Namaste!'
+        from inbox.services.assistant import suggest_reply
+        with patch('inbox.services.assistant.settings') as mock_settings:
+            mock_settings.GOOGLE_AI_API_KEY = 'key'
+            mock_settings.GEMINI_ASSISTANT_MODEL = 'm'
+            suggest_reply(self.convo)
+        args = mock_log.call_args[0]
+        self.assertEqual(args[1], 'gemini')
+        self.assertEqual(args[2], 'reply_suggestion')
+        self.assertTrue(args[5])
+
+    @patch('inbox.services.assistant.log_ai_usage')
+    @patch('core.services.claude_service.generate_text')
+    @patch('google.genai.Client')
+    def test_ai_failure_logged(self, mock_client, mock_claude, mock_log):
+        from core.services.claude_service import ClaudeError
+        from inbox.services.assistant import AssistantError, suggest_reply
+        mock_client.return_value.models.generate_content.side_effect = Exception('down')
+        mock_claude.side_effect = ClaudeError('also down')
+        with patch('inbox.services.assistant.settings') as mock_settings:
+            mock_settings.GOOGLE_AI_API_KEY = 'key'
+            mock_settings.GEMINI_ASSISTANT_MODEL = 'm'
+            with self.assertRaises(AssistantError):
+                suggest_reply(self.convo)
+        args = mock_log.call_args[0]
+        self.assertEqual(args[1], 'none')
+        self.assertFalse(args[5])

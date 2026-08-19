@@ -34,3 +34,27 @@ class ProductCreationTests(TestCase):
         self.assertTrue(p.is_active)
         self.assertEqual(p.tenant, self.tenant)
         self.assertTrue(bool(p.image))
+
+
+class ProductSkuTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Sku Shop', subdomain='sku-shop', is_active=True)
+
+    def test_sku_assigned_on_create(self):
+        product = Product.objects.create(tenant=self.tenant, name='Cap', price=100)
+        self.assertTrue(product.product_code)
+        self.assertIn('-', product.product_code)
+
+    def test_existing_sku_not_overwritten(self):
+        product = Product.objects.create(
+            tenant=self.tenant, name='Cap', price=100, product_code='CUSTOM-1',
+        )
+        product.name = 'Cap 2'
+        product.save()
+        product.refresh_from_db()
+        self.assertEqual(product.product_code, 'CUSTOM-1')
+
+    def test_skus_are_unique(self):
+        first = Product.objects.create(tenant=self.tenant, name='A', price=10)
+        second = Product.objects.create(tenant=self.tenant, name='B', price=10)
+        self.assertNotEqual(first.product_code, second.product_code)

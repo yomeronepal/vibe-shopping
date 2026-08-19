@@ -164,6 +164,49 @@ PRODUCT_JSON_SPEC = """Generate a JSON response with the following structure. Be
 }"""
 
 
+CONTENT_TYPE_SPECS = {
+    'caption': 'one social-media caption, at most 280 characters, 2-3 short lines, ending with a call to action to DM to order, then 2-4 relevant hashtags',
+    'promo': 'one promotional message announcing an offer, at most 500 characters, exciting but honest, with a clear call to action and 2-4 hashtags',
+    'announcement': 'one customer announcement (news, arrival, holiday notice), at most 500 characters, clear and warm, with 1-3 hashtags',
+    'ad': 'one piece of ad copy, at most 400 characters: a strong hook line, one benefit-focused line, and a call to action — no hashtags',
+}
+
+TONE_SPECS = {
+    'professional': 'Professional and polished, but still approachable.',
+    'casual': 'Casual and playful, like chatting with a friend.',
+    'promotional': 'High-energy promotional, urgency without being pushy.',
+}
+
+LANGUAGE_SPECS = {
+    'english': 'Write in clear English only.',
+    'nepali': 'Write in romanized Nepali (Nepali words in Latin script).',
+    'mixed': 'Write in the natural English + romanized Nepali mix used by Nepali online shops.',
+}
+
+
+def build_caption_prompt(context, platform='', content_type='caption', tone='', language='', brand=''):
+    """Assemble the content-generation prompt from the vendor's choices."""
+    spec = CONTENT_TYPE_SPECS.get(content_type, CONTENT_TYPE_SPECS['caption'])
+    platform_hint = f'It will be posted on {platform}.' if platform else 'It will be posted on Facebook and Instagram.'
+    tone_hint = TONE_SPECS.get(tone, 'Warm and friendly, in the style of successful Nepali online shops.')
+    language_hint = LANGUAGE_SPECS.get(language, LANGUAGE_SPECS['mixed'])
+    brand_block = f'\nBRAND VOICE (match this store identity)\n{brand}\n' if brand else ''
+    return f"""Write {spec} for a small Nepali business selling online.
+
+WHAT THE POST IS ABOUT
+{context}
+{brand_block}
+{platform_hint}
+Tone: {tone_hint}
+Language: {language_hint}
+
+Rules:
+1. Mention the price with Rs. if a price is given.
+2. Plain text only — no markdown, no asterisks, no quotes around the text.
+
+Return ONLY the text."""
+
+
 class GeminiProductAnalyzer:
     """
     Service to analyze product images using Google Gemini AI
@@ -274,45 +317,35 @@ Return ONLY valid JSON, no markdown formatting."""
             logger.error(f"Claude fallback for brief also failed: {e}")
             return {'success': False, 'error': 'The AI could not generate details right now. Try again.'}
 
-    def generate_caption(self, context: str, platform: str = '') -> dict:
-        """Generate a short social-media caption from product context.
+    def generate_caption(self, context: str, platform: str = '', content_type: str = 'caption',
+                          tone: str = '', language: str = '', brand: str = '') -> dict:
+        """Generate social-media content from product or topic context.
 
         Args:
             context: Product or topic details to write about.
             platform: Optional target platform hint.
+            content_type: caption, promo, announcement, or ad.
+            tone: professional, casual, or promotional.
+            language: english, nepali, or mixed.
+            brand: Store identity text for brand voice.
 
         Returns:
             dict with success status and caption/error.
         """
-        platform_hint = f'The post is for {platform}.' if platform else 'The post is for Facebook and Instagram.'
-        prompt = f"""Write one social-media caption for a small Nepali business selling online.
-
-WHAT THE POST IS ABOUT
-{context}
-
-{platform_hint}
-
-Rules:
-1. At most 280 characters total.
-2. 2-3 short, warm lines in the style of successful Nepali online shops — English with a natural touch of romanized Nepali is welcome.
-3. Mention the price with Rs. if a price is given.
-4. End with a call to action to DM or message to order.
-5. Include 2-4 relevant hashtags at the end.
-6. Plain text only — no markdown, no quotes around the caption.
-
-Return ONLY the caption text."""
+        prompt = build_caption_prompt(context, platform, content_type, tone, language, brand)
+        length_cap = {'caption': 280, 'ad': 400}.get(content_type, 500)
         try:
             response = self._generate_text_with_retry(prompt)
             caption = (getattr(response, 'text', None) or '').strip().strip('"')
             if caption:
-                return {'success': True, 'caption': caption[:280]}
+                return {'success': True, 'caption': caption[:length_cap]}
             logger.warning('Gemini returned an empty caption, trying Claude')
         except Exception as e:
             logger.warning(f"Gemini caption failed, trying Claude: {e}")
         from .claude_service import ClaudeError, generate_text
         try:
-            caption = generate_text(prompt, max_tokens=400).strip().strip('"')
-            return {'success': True, 'caption': caption[:280], 'ai_provider': 'claude'}
+            caption = generate_text(prompt, max_tokens=600).strip().strip('"')
+            return {'success': True, 'caption': caption[:length_cap], 'ai_provider': 'claude'}
         except ClaudeError as e:
             logger.error(f"Claude fallback for caption also failed: {e}")
             return {'success': False, 'error': 'The AI could not write a caption right now. Try again.'}

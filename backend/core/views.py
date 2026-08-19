@@ -242,9 +242,25 @@ def generate_social_caption(request):
     from .services.gemini_service import GeminiProductAnalyzer
     from .utils.ai_tracker import track_ai_usage, estimate_text_tokens
 
+    brand_parts = []
+    if tenant:
+        metadata = tenant.metadata or {}
+        brand_parts.append(f'Store: {tenant.name}')
+        if metadata.get('bio'):
+            brand_parts.append(f"About: {metadata['bio'][:200]}")
+        if metadata.get('brandVibe'):
+            brand_parts.append(f"Vibes: {', '.join(metadata['brandVibe'][:6])}")
+
     try:
         analyzer = GeminiProductAnalyzer()
-        result = analyzer.generate_caption(context, platform=request.data.get('platform', ''))
+        result = analyzer.generate_caption(
+            context,
+            platform=request.data.get('platform', ''),
+            content_type=request.data.get('content_type', 'caption'),
+            tone=request.data.get('tone', ''),
+            language=request.data.get('language', ''),
+            brand='\n'.join(brand_parts),
+        )
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -433,9 +449,10 @@ class OrderViewSet(viewsets.GenericViewSet, generics.RetrieveAPIView):
                     if product.stock < item['quantity']:
                          raise ValueError(f"Insufficient stock for {product.name}.")
                          
-                    # Deduct Stock
                     product.stock -= item['quantity']
                     product.save()
+                    from core.models import record_stock_change
+                    record_stock_change(product, -item['quantity'], 'online_order', f'Order #{order.id}')
                     
                     line_total = product.price * item['quantity']
                     total_amount += line_total

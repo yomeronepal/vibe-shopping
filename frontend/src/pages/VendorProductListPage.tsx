@@ -80,7 +80,9 @@ const VendorProductListPage: React.FC = () => {
     };
 
     const filteredProducts = Array.isArray(products) ? products.filter((product) => {
-        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = product.name.toLowerCase().includes(query)
+            || (product.product_code ?? '').toLowerCase().includes(query);
 
         if (!matchesSearch) return false;
 
@@ -497,8 +499,9 @@ const VendorProductListPage: React.FC = () => {
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>
-                                            Stock: {product.stock} units
+                                        <div className="flex items-center justify-between text-xs font-medium" style={{ color: themeConfig.textSecondary }}>
+                                            <span>Stock: {product.stock} units</span>
+                                            {product.product_code && <span className="font-mono">{product.product_code}</span>}
                                         </div>
                                     </div>
                                 </div>
