@@ -12,7 +12,8 @@ import {
     setStatusFilter,
 } from '@/features/inbox/inboxSlice';
 import { useInboxSocket } from '@/features/inbox/useInboxSocket';
-import type { InboxConversation, InboxMessage } from '@/api/inbox';
+import { suggestReply, type InboxConversation, type InboxMessage } from '@/api/inbox';
+import toast from 'react-hot-toast';
 
 const FILTERS = [
     { key: 'all', label: 'All' },
@@ -166,6 +167,8 @@ export default function InboxPage() {
         useAppSelector((state) => state.inbox);
     const [draft, setDraft] = useState('');
     const [sending, setSending] = useState(false);
+    const [suggesting, setSuggesting] = useState(false);
+    const [draftFromAi, setDraftFromAi] = useState(false);
     const threadEndRef = useRef<HTMLDivElement | null>(null);
     useInboxSocket();
 
@@ -197,6 +200,21 @@ export default function InboxPage() {
         setSending(false);
         if (sendReply.fulfilled.match(result)) {
             setDraft('');
+            setDraftFromAi(false);
+        }
+    };
+
+    const handleSuggest = async () => {
+        if (!active || suggesting) return;
+        setSuggesting(true);
+        try {
+            const suggestion = await suggestReply(active.id);
+            setDraft(suggestion);
+            setDraftFromAi(true);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not draft a reply. Try again.');
+        } finally {
+            setSuggesting(false);
         }
     };
 
@@ -312,10 +330,35 @@ export default function InboxPage() {
                                     {sendError && (
                                         <p className="mb-2 text-sm font-medium text-red-600">{sendError}</p>
                                     )}
+                                    {draftFromAi && draft && (
+                                        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold" style={{ color: primaryColor }}>
+                                            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                                            AI draft — review and edit before sending
+                                        </p>
+                                    )}
                                     <div className="flex gap-3">
+                                        <button
+                                            onClick={handleSuggest}
+                                            disabled={suggesting}
+                                            title="Draft a reply with AI"
+                                            className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition-all hover:shadow-sm disabled:opacity-50"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${primaryColor}15, ${themeConfig.accent}15)`,
+                                                color: primaryColor,
+                                                border: `1px solid ${primaryColor}30`,
+                                            }}
+                                        >
+                                            <span className={`material-symbols-outlined text-[18px] ${suggesting ? 'animate-spin' : ''}`}>
+                                                {suggesting ? 'progress_activity' : 'auto_awesome'}
+                                            </span>
+                                            {suggesting ? 'Drafting…' : 'AI draft'}
+                                        </button>
                                         <input
                                             value={draft}
-                                            onChange={(e) => setDraft(e.target.value)}
+                                            onChange={(e) => {
+                                                setDraft(e.target.value);
+                                                setDraftFromAi(false);
+                                            }}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && !e.shiftKey) {
                                                     e.preventDefault();

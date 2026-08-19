@@ -387,6 +387,8 @@ export interface StoreProfile {
     phone: string;
     email: string;
     address: string;
+    ai_knowledge: string;
+    ai_assistant_enabled: boolean;
 }
 
 export interface UpdateStoreProfileData {
@@ -402,6 +404,17 @@ export interface UpdateStoreProfileData {
 
 export const getStoreProfile = async (): Promise<StoreProfile> => {
     const response = await apiClient.get('/vendor/profile/');
+    return response.data;
+};
+
+export const updateAssistantSettings = async (
+    knowledge: string,
+    enabled: boolean,
+): Promise<StoreProfile> => {
+    const response = await apiClient.patch('/vendor/profile/', {
+        ai_knowledge: knowledge,
+        ai_assistant_enabled: enabled,
+    });
     return response.data;
 };
 

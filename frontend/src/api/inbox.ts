@@ -61,3 +61,8 @@ export const updateConversationStatus = async (
     const response = await apiClient.patch(`/inbox/conversations/${conversationId}/`, { status });
     return response.data;
 };
+
+export const suggestReply = async (conversationId: number): Promise<string> => {
+    const response = await apiClient.post(`/inbox/conversations/${conversationId}/suggest/`);
+    return response.data.suggestion;
+};

@@ -51,3 +51,5 @@ class StoreProfileSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     address = serializers.CharField(max_length=500, required=False, allow_blank=True)
     logo = serializers.ImageField(required=False)
+    ai_knowledge = serializers.CharField(max_length=6000, required=False, allow_blank=True)
+    ai_assistant_enabled = serializers.BooleanField(required=False)

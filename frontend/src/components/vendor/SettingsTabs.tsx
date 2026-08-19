@@ -4,6 +4,7 @@ import { useShopTheme } from '../../contexts/ShopThemeContext';
 const TABS = [
     { to: '/vendor/settings/profile', label: 'Store profile', icon: 'storefront' },
     { to: '/vendor/settings/accounts', label: 'Connected accounts', icon: 'link' },
+    { to: '/vendor/settings/assistant', label: 'AI assistant', icon: 'auto_awesome' },
 ];
 
 export default function SettingsTabs() {

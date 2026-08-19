@@ -190,6 +190,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Google Gemini AI Configuration
 GOOGLE_AI_API_KEY = config('GOOGLE_AI_API_KEY', default='')
+GEMINI_ASSISTANT_MODEL = config('GEMINI_ASSISTANT_MODEL', default='gemini-2.5-flash')
 
 # OpenAI Configuration (Fallback)
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
