@@ -116,8 +116,8 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                 </div>
             </aside>
             <div
-                className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex justify-around py-2 backdrop-blur-xl border-t"
-                style={{ backgroundColor: `${themeConfig.surface}95`, borderColor: `${themeConfig.border}60` }}
+                className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex justify-around pt-2 backdrop-blur-xl border-t"
+                style={{ backgroundColor: `${themeConfig.surface}95`, borderColor: `${themeConfig.border}60`, paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
             >
                 {NAV_ITEMS.map((item) => {
                     const active = isActive(item);
@@ -134,7 +134,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                     );
                 })}
             </div>
-            <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pb-14 md:pb-0">
+            <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10 mobile-nav-clearance md:pb-0">
                 {children}
             </main>
         </div>

@@ -302,3 +302,15 @@ body.theme-warm-cozy {
 .animate-fade-in {
     animation: fade-in 0.25s ease-out forwards;
 }
+
+@media (max-width: 768px) {
+    input, select, textarea {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 767px) {
+    .mobile-nav-clearance {
+        padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    }
+}
