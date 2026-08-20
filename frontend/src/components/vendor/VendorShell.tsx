@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../../contexts/ShopThemeContext';
 import { authApi } from '../../api/auth';
 import { getStoreProfile } from '../../api/vendor';
+import { listConversations } from '../../api/inbox';
 
 interface VendorProfileInfo {
     store_name?: string;
@@ -16,6 +17,8 @@ function resolveNavLabel(item: { label: string; offeringLabel?: boolean }, offer
     if (offering === 'both') return 'Catalog';
     return item.label;
 }
+
+const MOBILE_PRIMARY = ['/vendor', '/vendor/inbox', '/vendor/orders', '/vendor/products'];
 
 const NAV_ITEMS = [
     { to: '/vendor', label: 'Dashboard', icon: 'grid_view', exact: true },
@@ -33,9 +36,24 @@ export default function VendorShell({ children }: { children: ReactNode }) {
     const location = useLocation();
     const { config: themeConfig } = useShopTheme();
     const [profile, setProfile] = useState<VendorProfileInfo>({});
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [moreOpen, setMoreOpen] = useState(false);
 
     const primaryColor = themeConfig.primary;
     const accentColor = themeConfig.accent;
+
+    useEffect(() => {
+        const loadUnread = () => {
+            listConversations()
+                .then((conversations) => {
+                    setUnreadCount(conversations.reduce((total, convo) => total + (convo.unread_count || 0), 0));
+                })
+                .catch(() => {});
+        };
+        loadUnread();
+        const interval = window.setInterval(loadUnread, 30000);
+        return () => window.clearInterval(interval);
+    }, [location.pathname]);
 
     useEffect(() => {
         getStoreProfile()
@@ -97,6 +115,14 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                                     >
                                         <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                                         <span className="text-sm">{resolveNavLabel(item, profile.offering)}</span>
+                                        {item.to === '/vendor/inbox' && unreadCount > 0 && (
+                                            <span
+                                                className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-white text-[11px] font-bold flex items-center justify-center"
+                                                style={{ backgroundColor: accentColor }}
+                                            >
+                                                {unreadCount > 99 ? '99+' : unreadCount}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}
@@ -115,11 +141,37 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                     </div>
                 </div>
             </aside>
+            {moreOpen && (
+                <div className="md:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}>
+                    <div className="absolute inset-0 bg-black/30" />
+                    <div
+                        className="absolute left-3 right-3 rounded-2xl border shadow-2xl p-2"
+                        style={{
+                            bottom: 'calc(4.5rem + env(safe-area-inset-bottom))',
+                            backgroundColor: themeConfig.cardBg,
+                            borderColor: `${themeConfig.border}60`,
+                        }}
+                    >
+                        {NAV_ITEMS.filter((item) => !MOBILE_PRIMARY.includes(item.to)).map((item) => (
+                            <Link
+                                key={item.to}
+                                to={item.to}
+                                onClick={() => setMoreOpen(false)}
+                                className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                                style={{ color: isActive(item) ? primaryColor : themeConfig.text }}
+                            >
+                                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                                <span className="text-sm font-semibold">{resolveNavLabel(item, profile.offering)}</span>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
             <div
                 className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex justify-around pt-2 backdrop-blur-xl border-t"
                 style={{ backgroundColor: `${themeConfig.surface}95`, borderColor: `${themeConfig.border}60`, paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
             >
-                {NAV_ITEMS.map((item) => {
+                {NAV_ITEMS.filter((item) => MOBILE_PRIMARY.includes(item.to)).map((item) => {
                     const active = isActive(item);
                     return (
                         <Link
@@ -128,11 +180,29 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                             className="flex flex-col items-center gap-0.5 px-3 py-1"
                             style={{ color: active ? primaryColor : themeConfig.textSecondary }}
                         >
-                            <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                            <span className="relative material-symbols-outlined text-[22px]">
+                                {item.icon}
+                                {item.to === '/vendor/inbox' && unreadCount > 0 && (
+                                    <span
+                                        className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                                        style={{ backgroundColor: accentColor }}
+                                    >
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </span>
                             <span className={`text-[10px] ${active ? 'font-bold' : 'font-medium'}`}>{resolveNavLabel(item, profile.offering)}</span>
                         </Link>
                     );
                 })}
+                <button
+                    onClick={() => setMoreOpen((open) => !open)}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1"
+                    style={{ color: moreOpen ? primaryColor : themeConfig.textSecondary }}
+                >
+                    <span className="material-symbols-outlined text-[22px]">menu</span>
+                    <span className={`text-[10px] ${moreOpen ? 'font-bold' : 'font-medium'}`}>More</span>
+                </button>
             </div>
             <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10 mobile-nav-clearance md:pb-0">
                 {children}

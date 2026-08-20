@@ -446,7 +446,7 @@ export default function InboxPage() {
                         {active ? (
                             <>
                                 <div
-                                    className="flex items-center justify-between px-5 py-3 border-b"
+                                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 px-4 md:px-5 py-3 border-b"
                                     style={{ borderColor: `${themeConfig.border}50` }}
                                 >
                                     <div className="flex items-center gap-3 min-w-0">
@@ -480,11 +480,11 @@ export default function InboxPage() {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
                                         <button
                                             onClick={() => window.open(`/vendor/orders?q=${encodeURIComponent(displayName(active))}`, '_self')}
                                             title="See this customer's orders"
-                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all"
+                                            className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all"
                                             style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">receipt_long</span>
@@ -494,7 +494,7 @@ export default function InboxPage() {
                                             onClick={handleSummarize}
                                             disabled={summarizing}
                                             title="Summarize this conversation with AI"
-                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                            className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
                                             style={{ backgroundColor: `${themeConfig.border}40`, color: themeConfig.textSecondary }}
                                         >
                                             <span className={`material-symbols-outlined text-[16px] ${summarizing ? 'animate-spin' : ''}`}>
@@ -507,7 +507,7 @@ export default function InboxPage() {
                                                 onClick={toggleBotPause}
                                                 disabled={botToggling}
                                                 title={active.ai_paused ? 'The bot is paused here — resume auto-replies' : 'The bot replies automatically here — pause it'}
-                                                className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                                className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
                                                 style={active.ai_paused
                                                     ? { backgroundColor: '#fef3c7', color: '#b45309' }
                                                     : { backgroundColor: '#dcfce7', color: '#15803d' }}
@@ -522,7 +522,7 @@ export default function InboxPage() {
                                             onClick={handleExtractOrder}
                                             disabled={extracting}
                                             title="Create an order from this chat with AI"
-                                            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                                            className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
                                             style={{ background: `linear-gradient(135deg, ${primaryColor}15, ${themeConfig.accent}15)`, color: primaryColor, border: `1px solid ${primaryColor}30` }}
                                         >
                                             <span className={`material-symbols-outlined text-[16px] ${extracting ? 'animate-spin' : ''}`}>
@@ -532,7 +532,7 @@ export default function InboxPage() {
                                         </button>
                                     <button
                                         onClick={toggleResolve}
-                                        className="text-sm font-semibold px-3 py-1.5 rounded-full"
+                                        className="shrink-0 whitespace-nowrap text-sm font-semibold px-3 py-1.5 rounded-full"
                                         style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
                                     >
                                         {active.status === 'resolved' ? 'Reopen' : 'Mark resolved'}
@@ -614,7 +614,7 @@ export default function InboxPage() {
                                             AI draft — review and edit before sending
                                         </p>
                                     )}
-                                    <div className="flex gap-3">
+                                    <div className="flex gap-2 sm:gap-3">
                                         <button
                                             onClick={() => handleSuggest()}
                                             disabled={suggesting}
@@ -629,7 +629,7 @@ export default function InboxPage() {
                                             <span className={`material-symbols-outlined text-[18px] ${suggesting ? 'animate-spin' : ''}`}>
                                                 {suggesting ? 'progress_activity' : 'auto_awesome'}
                                             </span>
-                                            {suggesting ? 'Drafting…' : 'AI draft'}
+                                            <span className="hidden sm:inline">{suggesting ? 'Drafting…' : 'AI draft'}</span>
                                         </button>
                                         <input
                                             value={draft}
@@ -644,7 +644,7 @@ export default function InboxPage() {
                                                 }
                                             }}
                                             placeholder="Type a reply…"
-                                            className="flex-1 rounded-xl px-4 py-2 focus:outline-none focus:ring-2"
+                                            className="flex-1 min-w-0 rounded-xl px-4 py-2 focus:outline-none focus:ring-2"
                                             style={{
                                                 backgroundColor: themeConfig.surface,
                                                 border: `1px solid ${themeConfig.border}`,
@@ -654,10 +654,11 @@ export default function InboxPage() {
                                         <button
                                             onClick={handleSend}
                                             disabled={sending || !draft.trim()}
-                                            className="rounded-xl px-5 py-2 text-white font-semibold transition-opacity disabled:opacity-50"
+                                            className="shrink-0 rounded-xl px-4 sm:px-5 py-2 text-white font-semibold transition-opacity disabled:opacity-50 flex items-center gap-1.5"
                                             style={{ backgroundColor: primaryColor }}
                                         >
-                                            {sending ? 'Sending…' : 'Send'}
+                                            <span className="material-symbols-outlined text-[18px] sm:hidden">send</span>
+                                            <span className="hidden sm:inline">{sending ? 'Sending…' : 'Send'}</span>
                                         </button>
                                     </div>
                                 </div>
