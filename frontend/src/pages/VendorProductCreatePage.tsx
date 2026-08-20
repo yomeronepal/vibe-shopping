@@ -233,6 +233,11 @@ const VendorProductCreatePage: React.FC = () => {
         listConnectedPages()
             .then((pages) => setConnectedPage(pages.find((p) => p.status === 'connected') ?? null))
             .catch(() => setConnectedPage(null));
+        vendorApi.getVendorProfile()
+            .then((profile: any) => {
+                if (profile.offering === 'services') setItemType('service');
+            })
+            .catch(() => {});
     }, []);
 
     const discountedPrice = Math.round(mrp - (mrp * discountPercent / 100));

@@ -128,6 +128,7 @@ function ChecklistItem({ done, label, to }: { done: boolean; label: string; to: 
 export default function VendorDashboardPage() {
     const { config: themeConfig } = useShopTheme();
     const [storeName, setStoreName] = useState('');
+    const [offering, setOffering] = useState('products');
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [conversations, setConversations] = useState<InboxConversation[]>([]);
@@ -151,6 +152,7 @@ export default function VendorDashboardPage() {
             listPosts(from, to),
         ]).then(([profile, productsRes, ordersRes, convosRes, pagesRes, postsRes]) => {
             if (profile.status === 'fulfilled') setStoreName(profile.value.store_name || 'BizAlly');
+            if (profile.status === 'fulfilled') setOffering(profile.value.offering || 'products');
             if (productsRes.status === 'fulfilled') {
                 const data: any = productsRes.value;
                 setProducts(Array.isArray(data) ? data : data?.results ?? []);
@@ -231,6 +233,7 @@ export default function VendorDashboardPage() {
                             </div>
 
                             {(() => {
+                                if (offering === 'services') return null;
                                 const lowStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock > 0 && p.stock < 10);
                                 const outOfStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock === 0);
                                 if (lowStock.length === 0 && outOfStock.length === 0) return null;

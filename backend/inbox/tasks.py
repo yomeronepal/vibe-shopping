@@ -159,11 +159,12 @@ def build_order_details_form(conversation, outcome):
         return '', False
     from inbox.services.assistant import get_order_fields
 
+    fields = outcome.get('required_fields') or get_order_fields(conversation.tenant)
     collected = outcome.get('collected') or {}
     customer = conversation.customer
     lines = []
     blanks = 0
-    for field in get_order_fields(conversation.tenant):
+    for field in fields:
         value = str(collected.get(field) or '').strip() or lookup_customer_value(customer, field)
         if value.lower() == 'n/a':
             continue
@@ -183,10 +184,19 @@ def build_order_details_form(conversation, outcome):
     ), False
 
 
+def order_word(outcome):
+    """Say Booking for service-only carts, Order otherwise."""
+    items = outcome.get('items') or []
+    if items and all(item.get('item_type') == 'service' for item in items):
+        return 'Booking'
+    return 'Order'
+
+
 def resolve_ready_order(conversation, outcome):
     """Place or revise the order; returns (order, reply note)."""
     from inbox.services.chat_orders import create_chat_order, update_chat_order
 
+    word = order_word(outcome)
     if outcome.get('update_order_id'):
         order = update_chat_order(
             conversation, outcome['update_order_id'], outcome['items'], outcome['collected'],
@@ -200,14 +210,14 @@ def resolve_ready_order(conversation, outcome):
                 '\n\nYo change ko lagi hamro team member le tapailai '
                 'chittai contact garnu hunecha. Dhanyabad!'
             )
-        return order, f'\n\nOrder #{order.id} updated — New total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+        return order, f'\n\n{word} #{order.id} updated — New total Rs. {order.total_amount:,.0f}. Dhanyabad!'
     order = create_chat_order(conversation, outcome['items'], outcome['collected'])
     if order is None:
         revised = revise_recent_duplicate(conversation, outcome)
         if revised is not None:
-            return revised, f'\n\nOrder #{revised.id} updated — New total Rs. {revised.total_amount:,.0f}. Dhanyabad!'
+            return revised, f'\n\n{word} #{revised.id} updated — New total Rs. {revised.total_amount:,.0f}. Dhanyabad!'
         return None, ''
-    return order, f'\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+    return order, f'\n\n{word} #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
 
 
 def order_matches_items(order, items):

@@ -320,6 +320,7 @@ export const vendorApi = {
         category?: string;
         brand_vibes?: string[];
         ai_persona?: number;
+        offering?: 'products' | 'services' | 'both';
     }, logo?: File | null) => {
         const formData = new FormData();
 
@@ -327,6 +328,7 @@ export const vendorApi = {
         if (data.category) formData.append('category', data.category);
         if (data.brand_vibes) formData.append('brand_vibes', JSON.stringify(data.brand_vibes));
         if (data.ai_persona !== undefined) formData.append('ai_persona', data.ai_persona.toString());
+        if (data.offering) formData.append('offering', data.offering);
         if (logo) formData.append('logo', logo);
 
         const response = await apiClient.post('/vendor/onboarding/profile/', formData);
@@ -411,6 +413,8 @@ export interface StoreProfile {
     ai_tone: string;
     ai_language: string;
     order_fields: string[];
+    service_fields: string[];
+    offering: 'products' | 'services' | 'both';
     followup_hours: number;
     followup_message: string;
     restricted_topics: string[];
@@ -443,6 +447,7 @@ export const removeWebsiteKnowledge = async (): Promise<void> => {
 
 export interface UpdateStoreProfileData {
     store_name?: string;
+    offering?: 'products' | 'services' | 'both';
     bio?: string;
     category?: string;
     brand_vibes?: string[];
@@ -469,12 +474,14 @@ export const updateAssistantSettings = async (
     restrictedTopics: string[],
     maxDiscount: number,
     maxAutoOrderValue: number,
+    serviceFields: string[],
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
         ai_assistant_enabled: enabled,
         ai_auto_reply: autoReply,
         order_fields: JSON.stringify(orderFields),
+        service_fields: JSON.stringify(serviceFields),
         ai_tone: tone,
         ai_language: language,
         followup_hours: followupHours,

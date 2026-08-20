@@ -83,6 +83,7 @@ const VendorOnboardingPage: React.FC = () => {
     // Step 1: Profile state
     const [shopName, setShopName] = useState('');
     const [category, setCategory] = useState(CATEGORIES[0]);
+    const [offering, setOffering] = useState<'products' | 'services' | 'both'>('products');
     const [bio, setBio] = useState('');
     const [selectedVibes, setSelectedVibes] = useState<string[]>(['Minimal']);
     const [aiPersona, setAiPersona] = useState(65);
@@ -184,7 +185,8 @@ const VendorOnboardingPage: React.FC = () => {
                     bio,
                     category,
                     brand_vibes: selectedVibes,
-                    ai_persona: aiPersona
+                    ai_persona: aiPersona,
+                    offering
                 }, logo);
                 setStep(2);
             } else if (step === 2) {
@@ -488,6 +490,31 @@ const VendorOnboardingPage: React.FC = () => {
                                         onChange={(e) => setShopName(e.target.value)}
                                     />
                                 </label>
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <span className="text-sm font-bold">What does your business offer?</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {([
+                                            ['products', 'I sell products', 'inventory_2', 'Clothes, gadgets, cosmetics — anything you deliver'],
+                                            ['services', 'I offer services', 'event_available', 'Photography, salon, repairs — customers book appointments'],
+                                            ['both', 'Both', 'storefront', 'Products to deliver and services to book'],
+                                        ] as const).map(([value, label, icon, hint]) => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                onClick={() => setOffering(value)}
+                                                className="rounded-2xl border-2 p-4 text-left transition-all"
+                                                style={{
+                                                    borderColor: offering === value ? themeConfig.primary : themeConfig.border,
+                                                    backgroundColor: offering === value ? `${themeConfig.primary}0d` : themeConfig.surface,
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined" style={{ color: offering === value ? themeConfig.primary : themeConfig.textSecondary }}>{icon}</span>
+                                                <p className="font-bold mt-1" style={{ color: themeConfig.text }}>{label}</p>
+                                                <p className="text-xs mt-1 leading-snug" style={{ color: themeConfig.textSecondary }}>{hint}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 <label className="flex flex-col gap-2">
                                     <span className="text-sm font-bold">Category</span>
                                     <select

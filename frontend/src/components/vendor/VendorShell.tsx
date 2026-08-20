@@ -7,6 +7,14 @@ import { vendorApi } from '../../api/vendor';
 interface VendorProfileInfo {
     store_name?: string;
     logo?: string | null;
+    offering?: string;
+}
+
+function resolveNavLabel(item: { label: string; offeringLabel?: boolean }, offering?: string) {
+    if (!item.offeringLabel) return item.label;
+    if (offering === 'services') return 'Services';
+    if (offering === 'both') return 'Catalog';
+    return item.label;
 }
 
 const NAV_ITEMS = [
@@ -16,7 +24,7 @@ const NAV_ITEMS = [
     { to: '/vendor/customers', label: 'Customers', icon: 'group', exact: false },
     { to: '/vendor/analytics', label: 'Analytics', icon: 'bar_chart', exact: false },
     { to: '/vendor/calendar', label: 'Publishing', icon: 'calendar_month', exact: false },
-    { to: '/vendor/products', label: 'Products', icon: 'sell', exact: false },
+    { to: '/vendor/products', label: 'Products', icon: 'sell', exact: false, offeringLabel: true },
     { to: '/vendor/settings/profile', label: 'Settings', icon: 'tune', exact: false, match: '/vendor/settings' },
 ];
 
@@ -31,7 +39,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         vendorApi.getVendorProfile()
-            .then((data) => setProfile({ store_name: data.store_name || 'BizAlly', logo: data.logo || null }))
+            .then((data) => setProfile({ store_name: data.store_name || 'BizAlly', logo: data.logo || null, offering: data.offering || 'products' }))
             .catch(() => setProfile({ store_name: 'BizAlly', logo: null }));
     }, []);
 
@@ -88,7 +96,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                                         }}
                                     >
                                         <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                                        <span className="text-sm">{item.label}</span>
+                                        <span className="text-sm">{resolveNavLabel(item, profile.offering)}</span>
                                     </Link>
                                 );
                             })}
@@ -121,7 +129,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
                             style={{ color: active ? primaryColor : themeConfig.textSecondary }}
                         >
                             <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
-                            <span className={`text-[10px] ${active ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
+                            <span className={`text-[10px] ${active ? 'font-bold' : 'font-medium'}`}>{resolveNavLabel(item, profile.offering)}</span>
                         </Link>
                     );
                 })}
