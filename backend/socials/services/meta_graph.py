@@ -214,15 +214,40 @@ class MetaGraphClient:
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
 
-    def send_message(self, page_id, page_token, recipient_id, text):
-        """Send a DM reply via the Page; returns the platform message id."""
+    def send_message(self, page_id, page_token, recipient_id, text, quick_replies=None):
+        """Send a DM reply via the Page; returns the platform message id.
+
+        quick_replies is an optional list of short strings shown as
+        tappable chips under the message.
+        """
+        message = {'text': text}
+        if quick_replies:
+            message['quick_replies'] = [
+                {'content_type': 'text', 'title': title[:20], 'payload': title[:20]}
+                for title in quick_replies[:13]
+            ]
         payload = self.post(f'/{page_id}/messages', {
             'access_token': page_token,
             'recipient': json.dumps({'id': recipient_id}),
-            'message': json.dumps({'text': text}),
+            'message': json.dumps(message),
             'messaging_type': 'RESPONSE',
         })
         return payload.get('message_id', '')
+
+    def send_sender_action(self, page_id, page_token, recipient_id, action):
+        """Send mark_seen / typing_on / typing_off for the conversation."""
+        return self.post(f'/{page_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'id': recipient_id}),
+            'sender_action': action,
+        })
+
+    def set_messenger_profile(self, page_id, page_token, profile):
+        """Configure the page's greeting, get-started, and menu."""
+        return self.post(f'/{page_id}/messenger_profile', {
+            'access_token': page_token,
+            **{key: json.dumps(value) for key, value in profile.items()},
+        })
 
     def send_image_attachment(self, page_id, page_token, recipient_id, image_url):
         """Send a native photo DM Meta re-hosts; returns the message id."""

@@ -69,6 +69,27 @@ def resolve_sent_at(messaging_event):
     return datetime.fromtimestamp(raw_timestamp / 1000, tz=dt_timezone.utc)
 
 
+POSTBACK_TEXTS = {
+    'GET_STARTED': 'Namaste!',
+    'SHOW_PRODUCTS': 'Tapai sanga k k products chha?',
+    'ORDER_STATUS': 'Mero order ko status k chha?',
+    'TALK_HUMAN': 'Malai team member sanga kura garnu cha.',
+}
+
+
+def postback_as_message(messaging_event):
+    """Turn a tapped button into the equivalent typed message, or None."""
+    postback = messaging_event.get('postback') or {}
+    payload = postback.get('payload', '')
+    text = POSTBACK_TEXTS.get(payload)
+    if not text:
+        return None
+    sender = (messaging_event.get('sender') or {}).get('id', '')
+    stamp = messaging_event.get('timestamp', '')
+    mid = postback.get('mid') or f'pb-{payload}-{sender}-{stamp}'
+    return {'mid': mid, 'text': text}
+
+
 def resolve_photo_reply(conversation, message):
     """Map a reply-to mid back to the product photo it answers."""
     reply_mid = ((message.get('reply_to') or {}).get('mid')) or ''
@@ -89,8 +110,8 @@ def resolve_photo_reply(conversation, message):
 
 
 def store_message(page, platform, messaging_event):
-    """Persist one messaging event; returns the Message or None."""
-    message = messaging_event.get('message') or {}
+    """Persist one messaging or postback event; returns the Message or None."""
+    message = messaging_event.get('message') or postback_as_message(messaging_event) or {}
     mid = message.get('mid')
     if not mid:
         return None
@@ -159,10 +180,13 @@ def store_message(page, platform, messaging_event):
 def queue_auto_reply(record, tenant):
     """Queue the bot's reply when the tenant has auto-reply switched on."""
     from inbox.services.assistant import is_auto_reply_enabled
+    from inbox.services.sending import show_read_and_typing
     from inbox.tasks import auto_reply_to_message
 
     if record.conversation.ai_paused or not is_auto_reply_enabled(tenant):
         return
+    if record.source != 'comment':
+        show_read_and_typing(record.conversation)
     try:
         from inbox.tasks import AUTO_REPLY_DEBOUNCE_SECONDS
         auto_reply_to_message.apply_async(args=[record.id], countdown=AUTO_REPLY_DEBOUNCE_SECONDS)

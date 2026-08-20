@@ -84,6 +84,10 @@ def auto_reply_to_message(message_id):
         return 'superseded'
     if was_answered_after(conversation, message):
         return 'already_answered'
+    from inbox.services.sending import show_read_and_typing
+
+    if message.source != 'comment':
+        show_read_and_typing(conversation)
     try:
         outcome = advance_order_conversation(conversation)
     except AssistantError as exc:
@@ -92,7 +96,9 @@ def auto_reply_to_message(message_id):
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
     apply_conversation_signals(conversation, outcome)
-    reply = outcome['reply'] + build_order_details_form(conversation, outcome)
+    form, confirming = build_order_details_form(conversation, outcome)
+    reply = outcome['reply'] + form
+    quick_replies = ['Confirm', 'Change garnu cha'] if confirming else outcome.get('quick_replies') or []
     order = None
     if outcome['order_ready']:
         from inbox.services.chat_orders import exceeds_order_cap
@@ -111,7 +117,7 @@ def auto_reply_to_message(message_id):
             reply = f'{reply}{note}'
     track_order_intent(conversation, outcome, order)
     try:
-        send_conversation_text(conversation, reply, sent_by_ai=True)
+        send_conversation_text(conversation, reply, sent_by_ai=True, quick_replies=quick_replies)
     except ConversationSendError as exc:
         logger.warning('Auto-reply send failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
@@ -148,9 +154,9 @@ def lookup_customer_value(customer, field):
 
 
 def build_order_details_form(conversation, outcome):
-    """Attach one full form: known fields prefilled, unknown fields blank."""
+    """Return (form text, confirming): prefilled known fields, blank unknowns."""
     if not outcome.get('ordering') or outcome.get('order_ready') or outcome.get('needs_human'):
-        return ''
+        return '', False
     from inbox.services.assistant import get_order_fields
 
     collected = outcome.get('collected') or {}
@@ -165,16 +171,16 @@ def build_order_details_form(conversation, outcome):
             blanks += 1
         lines.append(f'{field}: {value}'.rstrip())
     if not lines:
-        return ''
+        return '', False
     form = '\n'.join(lines)
     if blanks == 0:
         return (
             f'\n\nHami sanga bhayeko details 👇\n{form}\n'
             'Thik chha bhane "confirm" bhannus, change garnu parne bhaye copy garera milaera pathaunus.'
-        )
+        ), True
     return (
         f'\n\nYo copy garera khali details bharera pathaunus 👇\n{form}'
-    )
+    ), False
 
 
 def resolve_ready_order(conversation, outcome):

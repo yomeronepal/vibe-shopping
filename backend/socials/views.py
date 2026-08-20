@@ -242,6 +242,8 @@ class PageConnectView(APIView):
         )
         page.set_access_token(target['access_token'])
         page.save()
+        from socials.services.messenger_profile import setup_messenger_profile
+        setup_messenger_profile(page)
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 

@@ -642,7 +642,7 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "update_order_id": <the id from the recent orders list when the customer asks to change that existing order, else null>, "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "update_order_id": <the id from the recent orders list when the customer asks to change that existing order, else null>, "quick_replies": ["<up to 4 short answers the customer can tap, each under 20 characters>"], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
@@ -662,6 +662,7 @@ Rules:
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
 8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY, and put their catalog ids in recommended_product_ids so their photos can be sent. Also fill recommended_product_ids when the customer asks to see a product or its photo. Leave it empty otherwise.
 8b. When the customer quotes a SKU code, match it exactly against the catalog.
+8c. When your reply asks the customer to choose between a few options (sizes, colors, option values, yes/no), fill quick_replies with the exact choices as short tappable answers — only in-stock catalog values, max 4, each under 20 characters. Leave quick_replies empty when the reply needs a typed answer (like an address).
 9. sentiment reflects the customer's mood in their recent messages.
 10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order (except a simple change you can handle via update_order_id), or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
 
@@ -704,6 +705,8 @@ def advance_order_conversation(conversation):
         update_order_id = int(data.get('update_order_id')) if data.get('update_order_id') else None
     except (TypeError, ValueError):
         update_order_id = None
+    raw_quick = data.get('quick_replies') if isinstance(data.get('quick_replies'), list) else []
+    quick_replies = [str(entry).strip()[:20] for entry in raw_quick if str(entry).strip()][:4]
     return {
         'reply': str(data['reply']).strip()[:1500],
         'ordering': bool(data.get('ordering')),
@@ -715,6 +718,7 @@ def advance_order_conversation(conversation):
         'needs_human': bool(data.get('needs_human')),
         'recommended_products': load_recommended_products(conversation.tenant, data),
         'update_order_id': update_order_id,
+        'quick_replies': quick_replies,
     }
 
 

@@ -49,7 +49,21 @@ def resolve_reply_route(conversation):
     return 'dm', conversation.customer.platform_user_id
 
 
-def deliver_via_meta(conversation, text):
+def show_read_and_typing(conversation):
+    """Mark the thread seen and show typing dots; never raises."""
+    page = conversation.page
+    client = MetaGraphClient()
+    try:
+        for action in ('mark_seen', 'typing_on'):
+            client.send_sender_action(
+                page.page_id, page.get_access_token(),
+                conversation.customer.platform_user_id, action,
+            )
+    except MetaGraphError as exc:
+        logger.info('Sender action skipped for conversation %s: %s', conversation.id, exc)
+
+
+def deliver_via_meta(conversation, text, quick_replies=None):
     """Send the text through Meta; return the platform message id."""
     client = MetaGraphClient()
     page = conversation.page
@@ -63,6 +77,7 @@ def deliver_via_meta(conversation, text):
             page.get_access_token(),
             target,
             text,
+            quick_replies=quick_replies,
         )
     except MetaGraphError as exc:
         if exc.code == 10:
@@ -198,7 +213,7 @@ def send_product_cards(conversation, products):
     return send_card_photos(conversation, page, target, products)
 
 
-def send_conversation_text(conversation, text, sent_by_ai=False):
+def send_conversation_text(conversation, text, sent_by_ai=False, quick_replies=None):
     """Send text to a conversation's customer, store it, and push updates.
 
     AI-sent replies keep the unread counter so the vendor still notices
@@ -209,7 +224,7 @@ def send_conversation_text(conversation, text, sent_by_ai=False):
     Raises:
         ConversationSendError: when Meta rejects or cannot be reached.
     """
-    message_id = deliver_via_meta(conversation, text)
+    message_id = deliver_via_meta(conversation, text, quick_replies=quick_replies)
     record = Message.objects.create(
         conversation=conversation,
         direction='out',
