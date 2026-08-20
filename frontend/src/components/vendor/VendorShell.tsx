@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useShopTheme } from '../../contexts/ShopThemeContext';
 import { authApi } from '../../api/auth';
-import { vendorApi } from '../../api/vendor';
+import { getStoreProfile } from '../../api/vendor';
 
 interface VendorProfileInfo {
     store_name?: string;
@@ -38,7 +38,7 @@ export default function VendorShell({ children }: { children: ReactNode }) {
     const accentColor = themeConfig.accent;
 
     useEffect(() => {
-        vendorApi.getVendorProfile()
+        getStoreProfile()
             .then((data) => setProfile({ store_name: data.store_name || 'BizAlly', logo: data.logo || null, offering: data.offering || 'products' }))
             .catch(() => setProfile({ store_name: 'BizAlly', logo: null }));
     }, []);

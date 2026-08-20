@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
-import { vendorApi, type Product } from '../api/vendor';
+import { vendorApi, type Product, getStoreProfile } from '../api/vendor';
 import { listVendorOrders, type VendorOrder } from '../api/orders';
 import { listConversations, type InboxConversation } from '../api/inbox';
 import { listConnectedPages, listPosts, type ConnectedPage, type ScheduledPost } from '../api/socials';
@@ -145,7 +145,7 @@ export default function VendorDashboardPage() {
         const from = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
         const to = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
         Promise.allSettled([
-            vendorApi.getVendorProfile(),
+            getStoreProfile(),
             vendorApi.getProducts(),
             listVendorOrders(),
             listConversations(),

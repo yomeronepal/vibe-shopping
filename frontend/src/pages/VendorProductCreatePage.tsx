@@ -5,7 +5,7 @@ import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
-import { vendorApi, type WeatherTag } from '../api/vendor';
+import { vendorApi, type WeatherTag, getStoreProfile } from '../api/vendor';
 import { aiApi } from '../api/ai';
 import { listConnectedPages, publishProductPost, type ConnectedPage } from '../api/socials';
 
@@ -233,8 +233,8 @@ const VendorProductCreatePage: React.FC = () => {
         listConnectedPages()
             .then((pages) => setConnectedPage(pages.find((p) => p.status === 'connected') ?? null))
             .catch(() => setConnectedPage(null));
-        vendorApi.getVendorProfile()
-            .then((profile: any) => {
+        getStoreProfile()
+            .then((profile) => {
                 if (profile.offering === 'services') setItemType('service');
             })
             .catch(() => {});
