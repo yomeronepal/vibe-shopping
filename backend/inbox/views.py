@@ -68,7 +68,11 @@ class ConversationListView(APIView):
                 | Q(messages__text__icontains=search)
                 | Q(tags__icontains=search)
             ).distinct()
-        return Response(ConversationSerializer(queryset, many=True).data)
+        from vendor.order_views import paginated_list_response
+
+        return paginated_list_response(
+            request, queryset, lambda qs: ConversationSerializer(qs, many=True).data, page_size=30,
+        )
 
 
 class ConversationDetailView(APIView):
@@ -307,7 +311,12 @@ class CustomerListView(APIView):
                 | Q(email__icontains=search)
                 | Q(location__icontains=search)
             )
-        return Response([build_customer_card(customer) for customer in customers[:100]])
+        from vendor.order_views import paginated_list_response
+
+        return paginated_list_response(
+            request, customers,
+            lambda qs: [build_customer_card(customer) for customer in qs], page_size=30,
+        )
 
 
 class CampaignSendView(APIView):

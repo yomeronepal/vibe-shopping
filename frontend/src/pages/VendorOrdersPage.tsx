@@ -6,7 +6,7 @@ import VendorShell from '../components/vendor/VendorShell';
 import { mediaUrl } from '../api/media';
 import NewOrderModal from '../components/vendor/NewOrderModal';
 import {
-    listVendorOrders,
+    listVendorOrdersPage,
     updateVendorOrderStatus,
     ORDER_STATUSES,
     type VendorOrder,
@@ -183,10 +183,16 @@ export default function VendorOrdersPage() {
     const [search, setSearch] = useState(searchParams.get('q') ?? '');
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+    const [nextPage, setNextPage] = useState<number | null>(null);
+    const [totalCount, setTotalCount] = useState(0);
 
-    const loadOrders = (q = search, status = statusFilter, sort = sortOrder) => {
-        listVendorOrders(q, status, sort)
-            .then(setOrders)
+    const loadOrders = (q = search, status = statusFilter, sort = sortOrder, page = 1) => {
+        listVendorOrdersPage(page, q, status, sort)
+            .then((data) => {
+                setOrders((prev) => (page === 1 ? data.results : [...prev, ...data.results]));
+                setNextPage(data.next);
+                setTotalCount(data.count);
+            })
             .catch(() => toast.error('Could not load orders. Refresh to retry.'))
             .finally(() => setLoading(false));
     };
@@ -289,6 +295,17 @@ export default function VendorOrdersPage() {
                                 onStatusChange={(status) => handleStatusChange(order, status)}
                             />
                         ))}
+                        {nextPage && !loading && (
+                            <div className="flex justify-center py-2">
+                                <button
+                                    onClick={() => loadOrders(search, statusFilter, sortOrder, nextPage)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-sm border"
+                                    style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                >
+                                    Load more ({orders.length} of {totalCount})
+                                </button>
+                            </div>
+                        )}
                         {!loading && orders.length === 0 && (
                             <div
                                 className="rounded-2xl border border-dashed p-10 text-center"

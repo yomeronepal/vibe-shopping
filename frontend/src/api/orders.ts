@@ -58,6 +58,17 @@ export const listVendorOrders = async (q?: string, status?: string, sort?: strin
     return response.data;
 };
 
+export const listVendorOrdersPage = async (
+    page: number, q?: string, status?: string, sort?: string,
+): Promise<{ count: number; next: number | null; results: VendorOrder[] }> => {
+    const params: Record<string, string | number> = { page };
+    if (q && q.trim()) params.q = q.trim();
+    if (status && status !== 'all') params.status = status;
+    if (sort === 'oldest') params.sort = 'oldest';
+    const response = await apiClient.get('/vendor/orders/', { params });
+    return response.data;
+};
+
 export const updateVendorOrderStatus = async (orderId: number, status: string): Promise<VendorOrder & { customer_notified?: boolean }> => {
     const response = await apiClient.patch(`/vendor/orders/${orderId}/`, { status });
     return response.data;
