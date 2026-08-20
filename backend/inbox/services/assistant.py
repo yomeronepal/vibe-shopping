@@ -107,19 +107,32 @@ def score_product(product, terms):
 
 
 def find_candidate_products(base_queryset, terms):
-    """Fetch a bounded set of products that mention any search term."""
+    """Fetch a bounded candidate set, strong matches before weak ones.
+
+    Name, category, and SKU hits fill the candidate pool first so a
+    product named for the query can never be crowded out by hundreds
+    of description-only matches once the catalog grows large.
+    """
     if not terms:
         return []
-    query = Q()
+    strong = Q()
+    weak = Q()
     for term in terms:
-        query |= (
+        strong |= (
             Q(name__icontains=term)
             | Q(category__icontains=term)
             | Q(subcategory__icontains=term)
-            | Q(description__icontains=term)
             | Q(product_code__iexact=term)
         )
-    return list(base_queryset.filter(query).prefetch_related('variants')[:MAX_CANDIDATES])
+        weak |= Q(description__icontains=term)
+    candidates = list(base_queryset.filter(strong).prefetch_related('variants')[:MAX_CANDIDATES])
+    if len(candidates) < MAX_CANDIDATES:
+        chosen_ids = {product.id for product in candidates}
+        filler = base_queryset.filter(weak).exclude(id__in=chosen_ids).prefetch_related(
+            'variants'
+        )[:MAX_CANDIDATES - len(candidates)]
+        candidates.extend(filler)
+    return candidates
 
 
 def select_relevant_products(tenant, conversation=None):
