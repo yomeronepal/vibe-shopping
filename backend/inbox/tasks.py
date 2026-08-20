@@ -115,9 +115,22 @@ def auto_reply_to_message(message_id):
     except ConversationSendError as exc:
         logger.warning('Auto-reply send failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
-    if not outcome['order_ready']:
+    if order is not None:
+        send_order_item_cards(conversation, order)
+    elif not outcome['order_ready']:
         send_recommendation_cards(conversation, outcome)
     return f'sent+order:{order.id}' if order else 'sent'
+
+
+def send_order_item_cards(conversation, order):
+    """Follow the confirmation with photos of the ordered products."""
+    from inbox.services.sending import send_product_cards
+
+    products = [item.product for item in order.items.select_related('product')[:3]]
+    try:
+        send_product_cards(conversation, products)
+    except Exception:
+        logger.warning('Order photo send failed for conversation %s', conversation.id, exc_info=True)
 
 
 def resolve_ready_order(conversation, outcome):

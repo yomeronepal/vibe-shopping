@@ -167,6 +167,31 @@ class ChatOrderCreationTests(AutoReplyTestBase):
         self.assertIn(f'Order #{order.id}', sent.text)
         self.assertIn('2,400', sent.text)
 
+    @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment', return_value='mid-photo-9')
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-bot-9')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_confirmation_followed_by_ordered_product_photo(self, mock_advance, mock_deliver, mock_photo):
+        import io
+
+        from django.core.files.base import ContentFile
+        from django.test import override_settings
+        from PIL import Image as PILImage
+
+        product = Product.objects.get(name='Linen Shirt')
+        buf = io.BytesIO()
+        PILImage.new('RGB', (300, 300), (200, 190, 170)).save(buf, format='JPEG')
+        product.image.save('shirt.jpg', ContentFile(buf.getvalue()), save=True)
+        mock_advance.return_value = self.ready_outcome()
+        with override_settings(PUBLIC_MEDIA_BASE_URL='https://media.example', PUBLIC_APP_BASE_URL=''):
+            result = auto_reply_to_message(self.inbound.id)
+        self.assertIn('sent+order:', result)
+        image_url = mock_photo.call_args[0][3]
+        self.assertIn('card_cache/', image_url)
+        photo_note = Message.objects.filter(direction='out', metadata__type='product_cards').first()
+        self.assertIsNotNone(photo_note)
+        self.assertEqual(photo_note.metadata['product_ids'], [product.id])
+        product.image.delete(save=True)
+
     @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-4a', 'mid-bot-4b'])
     @patch('inbox.services.assistant.advance_order_conversation')
     def test_does_not_duplicate_recent_order(self, mock_advance, mock_deliver):
