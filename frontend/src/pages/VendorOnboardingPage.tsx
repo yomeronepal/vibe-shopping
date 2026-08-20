@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { vendorApi, saveAiSetup } from '../api/vendor';
+import { vendorApi, saveAiSetup, generateStoreBio } from '../api/vendor';
 import { getConnectUrl, importPageProfile, listConnectedPages } from '../api/socials';
 import { useShopTheme, type ShopTheme } from '../contexts/ShopThemeContext';
 
-const VIBES = ['Minimal', 'Bold', 'Luxury', 'Y2K', 'Streetwear', 'Sustainable', 'Vintage', 'Bohemian'];
 const AI_PREVIEWS: Record<string, string> = {
     professional: 'Namaste! Yo product Rs. 2,200 ma available chha. Order garna chahanuhunchha bhane details share garnus.',
     casual: 'Namaste! 😍 Yo ta Rs. 2,200 ma paincha ni! Linus na — details pathaunus matra!',
@@ -105,7 +104,10 @@ const VendorOnboardingPage: React.FC = () => {
     const [pageConnected, setPageConnected] = useState(false);
     const [importing, setImporting] = useState(false);
     const [bio, setBio] = useState('');
-    const [selectedVibes, setSelectedVibes] = useState<string[]>(['Minimal']);
+    const [bioSells, setBioSells] = useState('');
+    const [bioAudience, setBioAudience] = useState('');
+    const [bioSpecial, setBioSpecial] = useState('');
+    const [generatingBio, setGeneratingBio] = useState(false);
     const [aiPersona, setAiPersona] = useState(65);
     const [logo, setLogo] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -188,11 +190,24 @@ const VendorOnboardingPage: React.FC = () => {
         }
     };
 
-    const toggleVibe = (vibe: string) => {
-        if (selectedVibes.includes(vibe)) {
-            setSelectedVibes(selectedVibes.filter(v => v !== vibe));
-        } else {
-            setSelectedVibes([...selectedVibes, vibe]);
+    const handleGenerateBio = async () => {
+        if (bioSells.trim().length < 3) {
+            toast.error('Tell us what you sell first');
+            return;
+        }
+        setGeneratingBio(true);
+        try {
+            const result = await generateStoreBio({
+                sells: bioSells.trim(),
+                audience: bioAudience.trim(),
+                special: bioSpecial.trim(),
+            });
+            setBio(result.bio);
+            toast.success('Bio drafted — edit it however you like');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not generate the bio');
+        } finally {
+            setGeneratingBio(false);
         }
     };
 
@@ -242,7 +257,6 @@ const VendorOnboardingPage: React.FC = () => {
                 await vendorApi.saveOnboardingProfile({
                     bio,
                     category,
-                    brand_vibes: selectedVibes,
                     ai_persona: aiPersona,
                     offering,
                     phone: contactPhone,
@@ -649,7 +663,40 @@ const VendorOnboardingPage: React.FC = () => {
                                     </select>
                                 </label>
                                 <label className="flex flex-col gap-2 md:col-span-2">
-                                    <span className="text-sm font-bold">Short Bio</span>
+                                    <span className="text-sm font-bold">Short Bio <span className="font-normal text-xs" style={{ color: themeConfig.textSecondary }}>— your AI learns your shop from this</span></span>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="What do you sell? (e.g. Italian-style menswear)"
+                                            value={bioSells}
+                                            onChange={(e) => setBioSells(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="Who is it for? (e.g. young professionals in KTM)"
+                                            value={bioAudience}
+                                            onChange={(e) => setBioAudience(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="What makes you special? (e.g. imported fabric)"
+                                            value={bioSpecial}
+                                            onChange={(e) => setBioSpecial(e.target.value)}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateBio}
+                                        disabled={generatingBio}
+                                        className="self-start flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                                        style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                                        {generatingBio ? 'Writing…' : 'Generate bio with AI'}
+                                    </button>
                                     <textarea
                                         className="border rounded-xl px-4 py-3 focus:outline-none resize-none transition-colors duration-500"
                                         style={{
@@ -657,43 +704,12 @@ const VendorOnboardingPage: React.FC = () => {
                                             borderColor: themeConfig.border,
                                             color: themeConfig.text
                                         }}
-                                        placeholder="Describe your shop..."
-                                        rows={2}
+                                        placeholder="We sell [what] for [who] in [city]. Known for [what makes you special]."
+                                        rows={3}
                                         value={bio}
                                         onChange={(e) => setBio(e.target.value)}
                                     />
                                 </label>
-                            </div>
-                        </div>
-
-                        {/* Brand Vibe Card */}
-                        <div
-                            className="md:col-span-4 backdrop-blur-xl rounded-[2rem] p-6 shadow-sm border transition-colors duration-500"
-                            style={{
-                                backgroundColor: `${themeConfig.cardBg}ee`,
-                                borderColor: `${themeConfig.border}60`
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="material-symbols-outlined" style={{ color: primaryColor }}>palette</span>
-                                <h3 className="text-xl font-bold">Brand Vibe</h3>
-                            </div>
-                            <p className="text-sm mb-6" style={{ color: themeConfig.textSecondary }}>Select keywords that match your aesthetic.</p>
-                            <div className="flex flex-wrap gap-2">
-                                {VIBES.map(vibe => (
-                                    <button
-                                        key={vibe}
-                                        onClick={() => toggleVibe(vibe)}
-                                        className="px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-300"
-                                        style={{
-                                            borderColor: selectedVibes.includes(vibe) ? primaryColor : themeConfig.border,
-                                            backgroundColor: selectedVibes.includes(vibe) ? `${primaryColor}10` : themeConfig.surface,
-                                            color: selectedVibes.includes(vibe) ? primaryColor : themeConfig.textSecondary
-                                        }}
-                                    >
-                                        {vibe} {selectedVibes.includes(vibe) && '✓'}
-                                    </button>
-                                ))}
                             </div>
                         </div>
 

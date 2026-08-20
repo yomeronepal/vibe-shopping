@@ -509,6 +509,15 @@ export const saveAiSetup = async (data: {
     return response.data;
 };
 
+export const generateStoreBio = async (data: {
+    sells: string;
+    audience?: string;
+    special?: string;
+}): Promise<{ bio: string }> => {
+    const response = await apiClient.post('/store/generate-bio/', data);
+    return response.data;
+};
+
 export const updateStoreProfile = async (data: UpdateStoreProfileData): Promise<StoreProfile> => {
     const formData = new FormData();
     if (data.store_name !== undefined) formData.append('store_name', data.store_name);

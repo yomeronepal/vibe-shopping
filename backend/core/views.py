@@ -158,6 +158,46 @@ def list_gemini_models(request):
 
 @api_view(['POST'])
 @throttle_classes([AIAnalysisThrottle])
+def generate_store_bio(request):
+    """Generate a short store bio from the vendor's guided answers.
+
+    Request data:
+        sells: What the business sells or offers (required).
+        audience: Who the customers are (optional).
+        special: What makes the business stand out (optional).
+    """
+    profile = getattr(request.user, 'vendor_profile', None)
+    tenant = profile.tenant if profile else None
+    if tenant is None:
+        return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+    sells = (request.data.get('sells') or '').strip()
+    audience = (request.data.get('audience') or '').strip()
+    special = (request.data.get('special') or '').strip()
+    if len(sells) < 3:
+        return Response({'error': 'Tell us what you sell first.'}, status=status.HTTP_400_BAD_REQUEST)
+    from inbox.services.assistant import AssistantError, call_gemini, get_offering
+
+    prompt = f"""Write a short bio for a small business in Nepal. The bio is shown to customers and also teaches the business's AI assistant what the shop is about.
+
+Store name: {tenant.name}
+Business type: {get_offering(tenant)}
+What they sell or offer: {sells}
+Who their customers are: {audience or '(not stated)'}
+What makes them special: {special or '(not stated)'}
+
+Rules: 2-3 short sentences, plain text only, no markdown, no hashtags, no emojis. Warm but factual. Use ONLY the facts above — never invent locations, years, or claims. Return ONLY the bio text."""
+    try:
+        bio = call_gemini(prompt, tenant, 'bio_generation')
+    except AssistantError:
+        return Response(
+            {'error': 'The AI could not write the bio right now. Try again.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    return Response({'bio': bio.strip()[:1000]})
+
+
+@api_view(['POST'])
+@throttle_classes([AIAnalysisThrottle])
 def generate_product_details_from_text(request):
     """Generate product details from the vendor's written description.
 
