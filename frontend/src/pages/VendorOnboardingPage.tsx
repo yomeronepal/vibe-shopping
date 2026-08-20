@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { vendorApi, saveAiSetup, generateStoreBio } from '../api/vendor';
-import { getConnectUrl, importPageProfile, listConnectedPages } from '../api/socials';
+import { getConnectUrl, getInstagramConnectUrl, importPageProfile, listConnectedPages } from '../api/socials';
 import { useShopTheme, type ShopTheme } from '../contexts/ShopThemeContext';
 
 const AI_PREVIEWS: Record<string, string> = {
@@ -217,6 +217,16 @@ const VendorOnboardingPage: React.FC = () => {
             .then((pages) => setPageConnected(pages.some((p) => p.status === 'connected')))
             .catch(() => {});
     }, [step]);
+
+    const handleStartInstagramConnect = async () => {
+        try {
+            const url = await getInstagramConnectUrl();
+            window.open(url, '_blank');
+            toast('Finish connecting in the new tab, then come back here.', { icon: '🔗' });
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not start the Instagram connection.');
+        }
+    };
 
     const handleStartConnect = async () => {
         try {
@@ -906,12 +916,24 @@ const VendorOnboardingPage: React.FC = () => {
                                     </button>
                                 </div>
                             ) : (
-                                <button
-                                    onClick={handleStartConnect}
-                                    className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all"
-                                >
-                                    <span className="text-lg">Connect Facebook Page</span>
-                                </button>
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={handleStartConnect}
+                                        className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all"
+                                    >
+                                        <span className="text-lg">Connect Facebook Page</span>
+                                    </button>
+                                    <button
+                                        onClick={handleStartInstagramConnect}
+                                        className="w-full flex items-center justify-center gap-3 text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all"
+                                        style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}
+                                    >
+                                        <span className="text-lg">Connect Instagram only</span>
+                                    </button>
+                                    <p className="text-xs text-center" style={{ color: themeConfig.textSecondary }}>
+                                        Have both? Connect the Facebook Page — a linked Instagram comes with it.
+                                    </p>
+                                </div>
                             )}
                             <p className="text-center text-sm mt-6" style={{ color: themeConfig.textSecondary }}>
                                 Instagram comes along automatically when it is linked to your Page.

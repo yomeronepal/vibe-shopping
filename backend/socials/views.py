@@ -247,6 +247,86 @@ class PageConnectView(APIView):
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
+class InstagramConnectUrlView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Return the Instagram Business Login URL, or setup guidance."""
+        from socials.services.instagram_login import (
+            build_instagram_connect_url,
+            instagram_login_configured,
+        )
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        if not instagram_login_configured():
+            return Response(
+                {'error': 'Instagram Login is not configured yet. Add the Instagram product '
+                          'to the Meta app and set INSTAGRAM_LOGIN_APP_ID / INSTAGRAM_LOGIN_APP_SECRET.'},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+        return Response({'url': build_instagram_connect_url(tenant)})
+
+
+class InstagramOAuthCallbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Finish Instagram Login: store the account as a direct connection."""
+        from socials.services.instagram_login import (
+            exchange_instagram_code,
+            fetch_instagram_profile,
+            subscribe_instagram_webhooks,
+            validate_instagram_state,
+        )
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        code = request.data.get('code')
+        state = request.data.get('state')
+        if not code or not state:
+            return Response({'error': 'code and state are required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not validate_instagram_state(state, tenant):
+            return Response({'error': 'Invalid or expired state'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = exchange_instagram_code(code)
+            profile = fetch_instagram_profile(token['access_token'])
+        except MetaGraphError as exc:
+            logger.warning('Instagram OAuth callback failed: %s', exc)
+            return Response(
+                {'error': 'Could not connect to Instagram. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        ig_id = profile['id'] or token['user_id']
+        expires_at = None
+        if token.get('expires_in'):
+            expires_at = timezone.now() + timedelta(seconds=token['expires_in'])
+        connection, _ = MetaConnection.objects.update_or_create(
+            tenant=tenant,
+            defaults={'fb_user_id': f'ig-{ig_id}', 'token_expires_at': expires_at, 'status': 'connected'},
+        )
+        connection.set_access_token(token['access_token'])
+        connection.save()
+        page, _ = ConnectedPage.objects.update_or_create(
+            page_id=ig_id,
+            defaults={
+                'tenant': tenant,
+                'connection': connection,
+                'name': profile['name'] or f"@{profile['username']}",
+                'instagram_account_id': ig_id,
+                'instagram_username': profile['username'],
+                'connection_type': 'instagram_direct',
+                'status': 'connected',
+            },
+        )
+        page.set_access_token(token['access_token'])
+        page.save()
+        subscribe_instagram_webhooks(ig_id, token['access_token'])
+        return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
+
+
 class PageProfileImportView(APIView):
     permission_classes = [IsAuthenticated]
 

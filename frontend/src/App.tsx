@@ -15,6 +15,7 @@ import VendorProductCreatePage from './pages/VendorProductCreatePage';
 import VendorProductListPage from './pages/VendorProductListPage';
 import ConnectedAccountsPage from './pages/ConnectedAccountsPage';
 import MetaCallbackPage from './pages/MetaCallbackPage';
+import InstagramCallbackPage from './pages/InstagramCallbackPage';
 import InboxPage from './pages/InboxPage';
 import VendorOrdersPage from './pages/VendorOrdersPage';
 import VendorProductDetailPage from './pages/VendorProductDetailPage';
@@ -67,6 +68,7 @@ function App() {
               <Route path="/vendor/settings/assistant" element={<VendorAssistantSettingsPage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
               <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
+              <Route path="/vendor/settings/instagram-callback" element={<InstagramCallbackPage />} />
               <Route path="/vendor/inbox" element={<InboxPage />} />
               <Route path="/vendor/orders" element={<VendorOrdersPage />} />
               <Route path="/vendor/calendar" element={<PublishingCalendarPage />} />

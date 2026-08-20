@@ -17,7 +17,9 @@ PROFILE_FIELDS = 'name,profile_pic'
 
 def fetch_customer_profile(page, user_id):
     """Best-effort Graph profile lookup; blank fields on failure."""
-    client = MetaGraphClient()
+    from socials.services.meta_graph import graph_client_for
+
+    client = graph_client_for(page)
     try:
         detail = client.get(f'/{user_id}', {
             'access_token': page.get_access_token(),

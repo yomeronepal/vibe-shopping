@@ -6,6 +6,7 @@ export interface MetaPage {
 }
 
 export interface ConnectedPage {
+    connection_type?: 'facebook_page' | 'instagram_direct';
     id: number;
     page_id: string;
     name: string;
@@ -14,6 +15,16 @@ export interface ConnectedPage {
     status: 'connected' | 'disconnected' | 'token_expired';
     created_at: string;
 }
+
+export const getInstagramConnectUrl = async (): Promise<string> => {
+    const response = await apiClient.get('/socials/instagram/connect-url/');
+    return response.data.url;
+};
+
+export const completeInstagramOAuth = async (code: string, state: string): Promise<ConnectedPage> => {
+    const response = await apiClient.post('/socials/instagram/oauth/callback/', { code, state });
+    return response.data;
+};
 
 export const getConnectUrl = async (): Promise<string> => {
     const response = await apiClient.get('/socials/connect-url/');

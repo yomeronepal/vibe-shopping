@@ -33,6 +33,8 @@ def build_messenger_profile(tenant):
 
 def setup_messenger_profile(page):
     """Apply the storefront chat profile to the page; returns success."""
+    if page.connection_type == 'instagram_direct':
+        return False
     try:
         MetaGraphClient().set_messenger_profile(
             page.page_id, page.get_access_token(), build_messenger_profile(page.tenant),

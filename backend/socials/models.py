@@ -62,6 +62,13 @@ class ConnectedPage(TimeStampedModel, EncryptedTokenMixin):
     name = models.CharField(max_length=255)
     instagram_account_id = models.CharField(max_length=64, blank=True, default='')
     instagram_username = models.CharField(max_length=255, blank=True, default='')
+    CONNECTION_TYPES = [
+        ('facebook_page', 'Facebook Page'),
+        ('instagram_direct', 'Instagram (direct login)'),
+    ]
+    connection_type = models.CharField(
+        max_length=20, choices=CONNECTION_TYPES, default='facebook_page'
+    )
     status = models.CharField(
         max_length=20, choices=PAGE_STATUSES, default='connected'
     )

@@ -6,7 +6,7 @@ from django.utils import timezone
 from inbox.models import Conversation, Message
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
-from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+from socials.services.meta_graph import MetaGraphClient, MetaGraphError, graph_client_for
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def resolve_reply_route(conversation):
 def show_read_and_typing(conversation):
     """Mark the thread seen and show typing dots; never raises."""
     page = conversation.page
-    client = MetaGraphClient()
+    client = graph_client_for(page)
     try:
         for action in ('mark_seen', 'typing_on'):
             client.send_sender_action(
@@ -65,8 +65,8 @@ def show_read_and_typing(conversation):
 
 def deliver_via_meta(conversation, text, quick_replies=None):
     """Send the text through Meta; return the platform message id."""
-    client = MetaGraphClient()
     page = conversation.page
+    client = graph_client_for(page)
     route, target = resolve_reply_route(conversation)
     try:
         if route == 'comment':
@@ -158,7 +158,7 @@ def send_card_carousel(conversation, page, target, products):
     """Send rich template cards with tappable product links."""
     elements = [build_product_card(product) for product in products]
     try:
-        message_id = MetaGraphClient().send_generic_template(
+        message_id = graph_client_for(page).send_generic_template(
             page.page_id, page.get_access_token(), target, elements,
         )
     except MetaGraphError as exc:
@@ -169,7 +169,7 @@ def send_card_carousel(conversation, page, target, products):
 
 def send_card_photos(conversation, page, target, products):
     """Send labeled photo messages, remembering which mid shows which product."""
-    client = MetaGraphClient()
+    client = graph_client_for(page)
     message_id = ''
     sent = []
     photo_mids = {}

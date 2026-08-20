@@ -10,7 +10,7 @@ class ConnectedPageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'page_id', 'name',
             'instagram_account_id', 'instagram_username',
-            'status', 'created_at',
+            'connection_type', 'status', 'created_at',
         ]
 
 

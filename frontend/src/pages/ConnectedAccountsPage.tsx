@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { getInstagramConnectUrl } from '../api/socials';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import SettingsTabs from '../components/vendor/SettingsTabs';
@@ -93,6 +94,15 @@ export default function ConnectedAccountsPage() {
         dispatch(fetchConnectedPages());
     }, [dispatch]);
 
+    const handleConnectInstagram = async () => {
+        try {
+            const url = await getInstagramConnectUrl();
+            window.location.href = url;
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not start the Instagram connection.');
+        }
+    };
+
     const handleConnect = async () => {
         try {
             const url = await dispatch(startConnect()).unwrap();
@@ -130,13 +140,26 @@ export default function ConnectedAccountsPage() {
                             </div>
                         )}
                     </div>
-                    <button
-                        onClick={handleConnect}
-                        className="mt-8 rounded-xl px-5 py-2.5 text-white font-semibold shadow-sm transition-transform hover:scale-[0.99]"
-                        style={{ backgroundColor: themeConfig.primary }}
-                    >
-                        Connect Facebook Page
-                    </button>
+                    <div className="mt-8 flex flex-wrap gap-3">
+                        <button
+                            onClick={handleConnect}
+                            className="rounded-xl px-5 py-2.5 text-white font-semibold shadow-sm transition-transform hover:scale-[0.99]"
+                            style={{ backgroundColor: '#1877F2' }}
+                        >
+                            Connect Facebook Page
+                        </button>
+                        <button
+                            onClick={handleConnectInstagram}
+                            className="rounded-xl px-5 py-2.5 text-white font-semibold shadow-sm transition-transform hover:scale-[0.99]"
+                            style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}
+                        >
+                            Connect Instagram only
+                        </button>
+                    </div>
+                    <p className="mt-3 text-xs" style={{ color: themeConfig.textSecondary }}>
+                        Have both? Connect the Facebook Page — a linked Instagram comes with it.
+                        "Instagram only" is for professional accounts without a Facebook Page.
+                    </p>
                 </div>
             </div>
         </VendorShell>

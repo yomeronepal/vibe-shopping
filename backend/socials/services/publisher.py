@@ -114,7 +114,10 @@ def publish_post_record(record):
     image_field = resolve_image_source(record.image, record.product)
     if not image_field:
         return mark_failed(record, 'Post has no image')
-    client = MetaGraphClient()
+    from socials.services.meta_graph import INSTAGRAM_GRAPH_BASE_URL
+
+    ig_direct = page.connection_type == 'instagram_direct'
+    client = MetaGraphClient(base_url=INSTAGRAM_GRAPH_BASE_URL if ig_direct else None)
     try:
         outcome = select_publisher(record)(client, page, image_field, record.caption)
     except MetaGraphError as exc:
