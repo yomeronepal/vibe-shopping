@@ -102,6 +102,31 @@ class TypingIndicatorTests(ChatUxTestBase):
         self.assertIn('typing_on', actions)
 
 
+class ChoiceBeforeConfirmTests(ChatUxTestBase):
+    @patch('socials.services.meta_graph.MetaGraphClient.send_sender_action')
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-out-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_choice_question_suppresses_confirm_form(self, mock_advance, mock_deliver, mock_action):
+        inbound = Message.objects.create(
+            conversation=self.convo, direction='in', text='shoes chahiyo',
+            platform_message_id='mid-ux-3', sent_at=timezone.now(),
+        )
+        mock_advance.return_value = {
+            'reply': 'Kun size — 40 ki 41?', 'ordering': True, 'order_ready': False,
+            'items': [{'product_id': self.product.id, 'quantity': 1, 'size': '', 'color': '',
+                       'item_type': 'physical', 'name': 'Canvas Shoes', 'sku': '', 'price': '1800', 'stock': 6}],
+            'collected': {'Full name': 'Maya', 'Phone number': '980', 'Delivery address': 'Patan'},
+            'missing': [], 'sentiment': 'neutral', 'needs_human': False,
+            'recommended_products': [], 'update_order_id': None,
+            'quick_replies': ['40', '41'],
+            'required_fields': ['Full name', 'Phone number', 'Delivery address'],
+        }
+        auto_reply_to_message(inbound.id)
+        self.assertEqual(mock_deliver.call_args.kwargs['quick_replies'], ['40', '41'])
+        sent = Message.objects.get(direction='out')
+        self.assertNotIn('Hami sanga bhayeko details', sent.text)
+
+
 class ConfirmChipTests(ChatUxTestBase):
     @patch('socials.services.meta_graph.MetaGraphClient.send_sender_action')
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-out-1')

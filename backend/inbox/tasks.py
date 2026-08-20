@@ -96,9 +96,13 @@ def auto_reply_to_message(message_id):
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
     apply_conversation_signals(conversation, outcome)
+    quick_replies = outcome.get('quick_replies') or []
     form, confirming = build_order_details_form(conversation, outcome)
+    if quick_replies:
+        form, confirming = '', False
+    if confirming:
+        quick_replies = ['Confirm', 'Change garnu cha']
     reply = outcome['reply'] + form
-    quick_replies = ['Confirm', 'Change garnu cha'] if confirming else outcome.get('quick_replies') or []
     order = None
     if outcome['order_ready']:
         from inbox.services.chat_orders import exceeds_order_cap
