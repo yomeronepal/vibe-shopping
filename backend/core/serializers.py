@@ -33,10 +33,10 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'tenant', 'name', 'description', 'price',
-            'stock', 'is_active', 'status', 'image', 'processed_image', 'images', 'variants',
+            'stock', 'is_active', 'status', 'item_type', 'image', 'processed_image', 'images', 'variants',
             'product_code', 'qr_code',
             'ai_generated_title', 'ai_generated_description',
-            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size',
+            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size', 'item_type',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['tenant', 'product_code', 'qr_code', 'created_at', 'updated_at']
@@ -57,7 +57,7 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             'stock', 'image', 'gallery_images',
             'status',
             'ai_generated_title', 'ai_generated_description',
-            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size'
+            'tags', 'vibe_tags', 'weather_tags', 'category', 'subcategory', 'metadata', 'stock_by_size', 'item_type'
         ]
 
     def create(self, validated_data):

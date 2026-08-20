@@ -28,6 +28,7 @@ export default function VendorProductEditPage() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [posts, setPosts] = useState<AnalyticsPost[]>([]);
     const [syncSocial, setSyncSocial] = useState(true);
+    const [itemType, setItemType] = useState<'physical' | 'service'>('physical');
 
     useEffect(() => {
         if (!id) return;
@@ -41,6 +42,7 @@ export default function VendorProductEditPage() {
                 setVibeTags(data.product.vibe_tags ?? []);
                 setCurrentImage(mediaUrl(data.product.processed_image || data.product.image));
                 setSku(data.product.product_code || '');
+                setItemType(data.product.item_type === 'service' ? 'service' : 'physical');
                 setPosts(data.posts);
             })
             .catch(() => setNotFound(true))
@@ -225,6 +227,7 @@ export default function VendorProductEditPage() {
                                                     />
                                                 </div>
                                             </div>
+                                            {itemType === 'physical' ? (
                                             <div>
                                                 <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Stock (units)</label>
                                                 <input
@@ -237,6 +240,18 @@ export default function VendorProductEditPage() {
                                                     style={fieldStyle}
                                                 />
                                             </div>
+                                            ) : (
+                                            <div>
+                                                <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Type</label>
+                                                <div
+                                                    className="w-full rounded-xl text-base font-semibold py-3 px-4 shadow-sm flex items-center gap-2"
+                                                    style={fieldStyle}
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">design_services</span>
+                                                    Service — always bookable
+                                                </div>
+                                            </div>
+                                            )}
                                         </div>
                                         <TagEditor label="Search tags" tags={tags} placeholder="Add tag, press Enter" onChange={setTags} />
                                         <TagEditor label="Vibe tags" tags={vibeTags} placeholder="Add vibe, press Enter" onChange={setVibeTags} />

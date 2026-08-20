@@ -16,6 +16,23 @@ class OrderRevisionError(Exception):
     """Raised inside the revision transaction to roll everything back."""
 
 
+def resolve_line_quantity(product, requested):
+    """Clamp the quantity to stock; services have no stock limit."""
+    quantity = max(1, int(requested))
+    if product.is_service:
+        return quantity
+    return min(quantity, product.stock) if product.stock > 0 else 0
+
+
+def apply_line_stock(product, quantity, note):
+    """Deduct stock for a physical line; services are untouched."""
+    if product.is_service:
+        return
+    product.stock -= quantity
+    product.save(update_fields=['stock'])
+    record_stock_change(product, -quantity, 'chat_order', note)
+
+
 def find_recent_chat_order(conversation):
     """Return a recent bot-created order for this conversation, if any."""
     cutoff = timezone.now() - timedelta(minutes=DUPLICATE_WINDOW_MINUTES)
@@ -79,10 +96,10 @@ def find_updatable_order(conversation, order_id):
 
 
 def restore_order_stock(order, products):
-    """Give the order's current items their stock back."""
+    """Give the order's current physical items their stock back."""
     for line in order.items.select_related('product'):
         product = products.get(line.product_id)
-        if product is None:
+        if product is None or product.is_service:
             continue
         product.stock += line.quantity
         product.save(update_fields=['stock'])
@@ -96,16 +113,14 @@ def add_revised_items(order, items, products):
         product = products.get(item['product_id'])
         if product is None or product.status != 'published' or not product.is_active:
             continue
-        quantity = min(max(1, int(item['quantity'])), product.stock) if product.stock > 0 else 0
+        quantity = resolve_line_quantity(product, item['quantity'])
         if quantity < 1:
             continue
         OrderItem.objects.create(
             order=order, product=product, quantity=quantity, price=product.price,
             size=item.get('size', ''), color=item.get('color', ''),
         )
-        product.stock -= quantity
-        product.save(update_fields=['stock'])
-        record_stock_change(product, -quantity, 'chat_order', f'Order #{order.id} revised')
+        apply_line_stock(product, quantity, f'Order #{order.id} revised')
         total += product.price * quantity
     if not order.items.exists():
         raise OrderRevisionError()
@@ -195,7 +210,7 @@ def create_chat_order(conversation, items, collected):
             product = by_id.get(item['product_id'])
             if product is None:
                 continue
-            quantity = min(max(1, int(item['quantity'])), product.stock) if product.stock > 0 else 0
+            quantity = resolve_line_quantity(product, item['quantity'])
             if quantity < 1:
                 continue
             lines.append((product, quantity, item.get('size', ''), item.get('color', '')))
@@ -223,9 +238,7 @@ def create_chat_order(conversation, items, collected):
                 order=order, product=product, quantity=quantity, price=product.price,
                 size=size, color=color,
             )
-            product.stock -= quantity
-            product.save(update_fields=['stock'])
-            record_stock_change(product, -quantity, 'chat_order', f'Order #{order.id}')
+            apply_line_stock(product, quantity, f'Order #{order.id}')
     from inbox.services.crm import apply_collected_contact
     apply_collected_contact(conversation.customer, collected)
     logger.info('Chat bot created order %s for conversation %s', order.id, conversation.id)

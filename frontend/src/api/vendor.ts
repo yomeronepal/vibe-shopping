@@ -28,6 +28,7 @@ export interface PublishProductData {
     metadata?: Record<string, any>;
     stock_by_size?: Record<string, number>;
     stock?: number;
+    item_type?: 'physical' | 'service';
     variants?: ProductVariantData[];
 }
 
@@ -83,6 +84,7 @@ export interface Product {
     price: string;
     image: string | null;
     processed_image: string | null;
+    item_type?: 'physical' | 'service';
     status: string;
     stock: number;
     is_active?: boolean;
@@ -139,6 +141,7 @@ export const vendorApi = {
         }
         formData.append('stock', productData.stock?.toString() || '0');
         formData.append('status', productData.status || 'published');
+        formData.append('item_type', productData.item_type || 'physical');
 
         if (productData.ai_generated_title) {
             formData.append('ai_generated_title', productData.ai_generated_title);

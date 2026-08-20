@@ -90,9 +90,9 @@ const VendorProductListPage: React.FC = () => {
             case 'drafts':
                 return product.status === 'draft';
             case 'low-stock':
-                return product.stock > 0 && product.stock < 10;
+                return product.item_type !== 'service' && product.stock > 0 && product.stock < 10;
             case 'out-of-stock':
-                return product.stock === 0;
+                return product.item_type !== 'service' && product.stock === 0;
             case 'archived':
                 return product.status === 'archived';
             default:
@@ -103,9 +103,9 @@ const VendorProductListPage: React.FC = () => {
     const productCounts = {
         all: Array.isArray(products) ? products.length : 0,
         drafts: Array.isArray(products) ? products.filter(p => p.status === 'draft').length : 0,
-        'low-stock': Array.isArray(products) ? products.filter(p => p.stock > 0 && p.stock < 10).length : 0,
+        'low-stock': Array.isArray(products) ? products.filter(p => p.item_type !== 'service' && p.stock > 0 && p.stock < 10).length : 0,
         archived: Array.isArray(products) ? products.filter(p => p.status === 'archived').length : 0,
-        'out-of-stock': Array.isArray(products) ? products.filter(p => p.stock === 0).length : 0,
+        'out-of-stock': Array.isArray(products) ? products.filter(p => p.item_type !== 'service' && p.stock === 0).length : 0,
     };
 
     const toggleProductSelection = (productId: number) => {
@@ -224,10 +224,14 @@ const VendorProductListPage: React.FC = () => {
         action();
     };
 
-    const getStockStatus = (stock: number) => {
+    const getStockStatus = (stock: number, itemType?: string) => {
+        if (itemType === 'service') {
+            return { label: 'Service', bg: '#ede9fe', color: '#6d28d9' };
+        }
         if (stock === 0) {
             return { label: 'Out of Stock', bg: '#fef2f2', color: '#dc2626' };
-        } else if (stock < 10) {
+        }
+        if (stock < 10) {
             return { label: 'Low Stock', bg: '#fff7ed', color: '#ea580c' };
         }
         return { label: 'In Stock', bg: '#dcfce7', color: '#16a34a' };
@@ -358,7 +362,7 @@ const VendorProductListPage: React.FC = () => {
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredProducts.map((product) => {
-                            const stockStatus = getStockStatus(product.stock);
+                            const stockStatus = getStockStatus(product.stock, product.item_type);
                             const isSelected = selectedProducts.has(product.id);
 
                             return (

@@ -231,8 +231,8 @@ export default function VendorDashboardPage() {
                             </div>
 
                             {(() => {
-                                const lowStock = products.filter((p) => p.status === 'published' && p.stock > 0 && p.stock < 10);
-                                const outOfStock = products.filter((p) => p.status === 'published' && p.stock === 0);
+                                const lowStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock > 0 && p.stock < 10);
+                                const outOfStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock === 0);
                                 if (lowStock.length === 0 && outOfStock.length === 0) return null;
                                 return (
                                     <div
@@ -374,7 +374,7 @@ export default function VendorDashboardPage() {
                                                     <div className="min-w-0 flex-1">
                                                         <p className="text-sm font-bold truncate group-hover:underline" style={{ color: themeConfig.text }}>{product.name}</p>
                                                         <p className="text-xs" style={{ color: themeConfig.textSecondary }}>
-                                                            Rs. {parseFloat(product.price).toLocaleString()} · {product.stock} in stock
+                                                            Rs. {parseFloat(product.price).toLocaleString()} · {product.item_type === 'service' ? 'Service' : `${product.stock} in stock`}
                                                         </p>
                                                     </div>
                                                     {product.status !== 'published' && (

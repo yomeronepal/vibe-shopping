@@ -142,12 +142,18 @@ def format_sku_tag(product):
     return f' | SKU {product.product_code}' if product.product_code else ''
 
 
+def format_stock_label(product):
+    """Render availability: services are always bookable."""
+    if product.is_service:
+        return 'SERVICE — always bookable'
+    return f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
+
+
 def format_product_line(product):
     """Render one catalog line the model may quote from."""
-    stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
     description = (product.description or '').replace('\n', ' ')[:120]
-    line = f'- {product.name}{format_sku_tag(product)} — Rs. {format_price(product.price)} — {stock}'
-    availability = format_availability_details(product)
+    line = f'- {product.name}{format_sku_tag(product)} — Rs. {format_price(product.price)} — {format_stock_label(product)}'
+    availability = '' if product.is_service else format_availability_details(product)
     if availability:
         line += f' — {availability}'
     return f'{line} — {description}'
@@ -377,9 +383,11 @@ def is_auto_reply_enabled(tenant):
 
 def format_order_product_line(product):
     """Render one catalog line with the id the model must reference."""
-    stock = f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
-    line = f'- [id {product.id}{format_sku_tag(product)}] {product.name} — Rs. {format_price(product.price)} — {stock}'
-    availability = format_availability_details(product)
+    line = (
+        f'- [id {product.id}{format_sku_tag(product)}] {product.name}'
+        f' — Rs. {format_price(product.price)} — {format_stock_label(product)}'
+    )
+    availability = '' if product.is_service else format_availability_details(product)
     if availability:
         line += f' — {availability}'
     return line
@@ -603,6 +611,7 @@ Respond with ONLY a JSON object, no markdown, in this exact shape:
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
 2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. Sizes and colors listed in a catalog line (with their per-size stock counts) are the ONLY sizes and colors that exist for that product; a size with count 0 is out of stock.
+2b. Catalog lines marked SERVICE are bookable services (photography, repairs, consultations, and similar), not physical goods: they have no stock, sizes, or colors, and can always be ordered. When a customer books a service, capture any preferences they state (date, time, location, requirements) inside collected, and mention that the business will confirm the schedule.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
 3b. Never mention any product that is not in the catalog, and always use the exact catalog names.
 3c. If the customer's latest message is unclear, only an emoji or short reaction, or an attachment you cannot see, reply with ONE short friendly question asking what they would like — do not guess or apologize repeatedly.

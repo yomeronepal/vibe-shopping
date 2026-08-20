@@ -217,6 +217,7 @@ const VendorProductCreatePage: React.FC = () => {
     const [aiSuggestions, setAiSuggestions] = useState<any>(null);
     const [productBrief, setProductBrief] = useState('');
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
+    const [itemType, setItemType] = useState<'physical' | 'service'>('physical');
     const [mrp, setMrp] = useState(0);
     const [costPrice, setCostPrice] = useState(0);
     const [discountEnabled, setDiscountEnabled] = useState(false);
@@ -358,9 +359,10 @@ const VendorProductCreatePage: React.FC = () => {
         category: aiSuggestions?.category || '',
         subcategory: aiSuggestions?.subcategory || '',
         metadata: aiSuggestions || {},
-        stock_by_size: colorVariants.length > 0 ? {} : stockBySize,
-        stock: colorVariants.length > 0 ? totalVariantStock : totalStock,
-        variants: colorVariants.length > 0 ? colorVariants.map((v) => ({
+        item_type: itemType,
+        stock_by_size: itemType === 'service' || colorVariants.length > 0 ? {} : stockBySize,
+        stock: itemType === 'service' ? 0 : (colorVariants.length > 0 ? totalVariantStock : totalStock),
+        variants: itemType === 'physical' && colorVariants.length > 0 ? colorVariants.map((v) => ({
             color_name: v.color_name,
             color_hex: v.color_hex,
             stock_by_size: v.stock_by_size,
@@ -969,6 +971,34 @@ const VendorProductCreatePage: React.FC = () => {
                             </div>
 
                             <div className="rounded-3xl shadow-lg p-6" style={cardStyle}>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>category</span>
+                                    <h3 className="font-bold" style={{ color: themeConfig.text }}>What are you selling?</h3>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        ['physical', 'Product', 'inventory_2', 'Clothes, gadgets, accessories — anything you deliver'],
+                                        ['service', 'Service', 'design_services', 'Photography, repairs, packages — anything you book'],
+                                    ] as const).map(([value, label, icon, hint]) => (
+                                        <button
+                                            key={value}
+                                            onClick={() => setItemType(value)}
+                                            className="rounded-2xl border-2 p-3 text-left transition-all"
+                                            style={{
+                                                borderColor: itemType === value ? primaryColor : `${themeConfig.border}60`,
+                                                backgroundColor: itemType === value ? `${primaryColor}0d` : 'transparent',
+                                            }}
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]" style={{ color: itemType === value ? primaryColor : themeConfig.textSecondary }}>{icon}</span>
+                                            <p className="text-sm font-bold mt-1" style={{ color: themeConfig.text }}>{label}</p>
+                                            <p className="text-[11px] mt-0.5 leading-snug" style={{ color: themeConfig.textSecondary }}>{hint}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {itemType === 'physical' && (
+                            <div className="rounded-3xl shadow-lg p-6" style={cardStyle}>
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>inventory_2</span>
@@ -1103,6 +1133,7 @@ const VendorProductCreatePage: React.FC = () => {
                                     Add color variant
                                 </button>
                             </div>
+                            )}
                         </div>
                     </div>
                 </div>
