@@ -159,9 +159,13 @@ def build_order_details_form(conversation, outcome):
     blanks = 0
     for field in get_order_fields(conversation.tenant):
         value = str(collected.get(field) or '').strip() or lookup_customer_value(customer, field)
+        if value.lower() == 'n/a':
+            continue
         if not value:
             blanks += 1
         lines.append(f'{field}: {value}'.rstrip())
+    if not lines:
+        return ''
     form = '\n'.join(lines)
     if blanks == 0:
         return (

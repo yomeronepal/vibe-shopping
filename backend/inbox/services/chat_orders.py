@@ -33,6 +33,14 @@ def apply_line_stock(product, quantity, note):
     record_stock_change(product, -quantity, 'chat_order', note)
 
 
+def clean_collected(collected):
+    """Drop inapplicable N/A entries before storing order details."""
+    return {
+        key: value for key, value in (collected or {}).items()
+        if str(value).strip() and str(value).strip().lower() != 'n/a'
+    }
+
+
 def find_recent_chat_order(conversation, items):
     """Return a recent bot order already covering these items, if any.
 
@@ -158,7 +166,7 @@ def apply_order_revision(order, conversation, items, collected):
         order.customer_phone = phone
     metadata = order.metadata or {}
     merged = dict(metadata.get('collected') or {})
-    merged.update({key: value for key, value in collected.items() if str(value).strip()})
+    merged.update(clean_collected(collected))
     metadata['collected'] = merged
     metadata['updated_via_chat_at'] = timezone.now().isoformat()
     order.metadata = metadata
@@ -241,7 +249,7 @@ def create_chat_order(conversation, items, collected):
                 'source': 'chat_bot',
                 'conversation_id': conversation.id,
                 'platform': conversation.platform,
-                'collected': collected,
+                'collected': clean_collected(collected),
             },
         )
         for product, quantity, size, color in lines:
