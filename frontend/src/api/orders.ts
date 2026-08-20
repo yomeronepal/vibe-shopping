@@ -37,6 +37,18 @@ export const ORDER_STATUSES = [
     'disputed',
 ] as const;
 
+export const STATUS_LABELS: Record<string, string> = {
+    pending_payment: 'Pending payment',
+    pending_delivery: 'Pending delivery',
+    preparing: 'Preparing',
+    returned: 'Returned',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    disputed: 'Disputed',
+};
+
 export const listVendorOrders = async (q?: string, status?: string, sort?: string): Promise<VendorOrder[]> => {
     const params: Record<string, string> = {};
     if (q && q.trim()) params.q = q.trim();

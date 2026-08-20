@@ -58,7 +58,14 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <div className="flex items-center gap-3">
-                        <span className="font-bold" style={{ color: themeConfig.text }}>Order #{order.id}</span>
+                        <Link
+                            to={`/vendor/orders/${order.id}`}
+                            className="font-bold hover:underline flex items-center gap-1"
+                            style={{ color: themeConfig.text }}
+                        >
+                            Order #{order.id}
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: themeConfig.textSecondary }}>open_in_new</span>
+                        </Link>
                         <StatusPill status={order.status} />
                         {order.metadata?.source === 'chat_bot' && (
                             <span
