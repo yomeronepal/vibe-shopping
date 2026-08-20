@@ -65,20 +65,21 @@ class VendorOrderListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """List the tenant's orders, newest first.
+        """List the tenant's orders, newest first by default.
 
-        Supports ?status= and ?q= (order id, customer name/phone,
-        or product name).
+        Supports ?status=, ?q= (order id, customer name/phone, or
+        product name), and ?sort=oldest|newest.
         """
         from django.db.models import Q
 
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        ordering = 'created_at' if request.query_params.get('sort') == 'oldest' else '-created_at'
         orders = (
             Order.objects.filter(tenant=tenant)
             .prefetch_related('items__product')
-            .order_by('-created_at')
+            .order_by(ordering)
         )
         status_filter = request.query_params.get('status')
         if status_filter:

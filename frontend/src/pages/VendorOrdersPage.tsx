@@ -175,9 +175,10 @@ export default function VendorOrdersPage() {
     const [creating, setCreating] = useState(false);
     const [search, setSearch] = useState(searchParams.get('q') ?? '');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
-    const loadOrders = (q = search, status = statusFilter) => {
-        listVendorOrders(q, status)
+    const loadOrders = (q = search, status = statusFilter, sort = sortOrder) => {
+        listVendorOrders(q, status, sort)
             .then(setOrders)
             .catch(() => toast.error('Could not load orders. Refresh to retry.'))
             .finally(() => setLoading(false));
@@ -186,7 +187,7 @@ export default function VendorOrdersPage() {
     useEffect(() => {
         const handle = window.setTimeout(() => loadOrders(), search ? 350 : 0);
         return () => window.clearTimeout(handle);
-    }, [search, statusFilter]);
+    }, [search, statusFilter, sortOrder]);
 
     const handleStatusChange = async (order: VendorOrder, status: string) => {
         try {
@@ -258,6 +259,15 @@ export default function VendorOrdersPage() {
                             {ORDER_STATUSES.map((value) => (
                                 <option key={value} value={value}>{STATUS_LABELS[value]}</option>
                             ))}
+                        </select>
+                        <select
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+                            className="rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none"
+                            style={{ backgroundColor: themeConfig.surface, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                        >
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
                         </select>
                     </div>
                     <div className="mt-6 space-y-4">

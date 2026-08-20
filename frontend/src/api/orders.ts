@@ -37,10 +37,11 @@ export const ORDER_STATUSES = [
     'disputed',
 ] as const;
 
-export const listVendorOrders = async (q?: string, status?: string): Promise<VendorOrder[]> => {
+export const listVendorOrders = async (q?: string, status?: string, sort?: string): Promise<VendorOrder[]> => {
     const params: Record<string, string> = {};
     if (q && q.trim()) params.q = q.trim();
     if (status && status !== 'all') params.status = status;
+    if (sort === 'oldest') params.sort = 'oldest';
     const response = await apiClient.get('/vendor/orders/', { params });
     return response.data;
 };
