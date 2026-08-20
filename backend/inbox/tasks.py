@@ -92,7 +92,7 @@ def auto_reply_to_message(message_id):
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
     apply_conversation_signals(conversation, outcome)
-    reply = outcome['reply']
+    reply = outcome['reply'] + build_missing_fields_form(outcome)
     order = None
     if outcome['order_ready']:
         from inbox.services.chat_orders import exceeds_order_cap
@@ -131,6 +131,17 @@ def send_order_item_cards(conversation, order):
         send_product_cards(conversation, products)
     except Exception:
         logger.warning('Order photo send failed for conversation %s', conversation.id, exc_info=True)
+
+
+def build_missing_fields_form(outcome):
+    """Return a copyable fill-in form for the fields still missing."""
+    if not outcome.get('ordering') or outcome.get('order_ready') or outcome.get('needs_human'):
+        return ''
+    missing = outcome.get('missing') or []
+    if not missing:
+        return ''
+    lines = '\n'.join(f'{field}:' for field in missing)
+    return f'\n\nYo copy garera bharnus 👇\n{lines}'
 
 
 def resolve_ready_order(conversation, outcome):

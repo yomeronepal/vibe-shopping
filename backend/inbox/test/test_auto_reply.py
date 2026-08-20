@@ -136,6 +136,39 @@ class AutoReplyTaskTests(AutoReplyTestBase):
         self.assertFalse(Message.objects.filter(direction='out').exists())
 
 
+class MissingFieldsFormTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_missing_fields_appended_as_form(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details bharnus hai!',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma'},
+            missing=['Phone number', 'Delivery address'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('copy garera bharnus', sent.text)
+        self.assertIn('Phone number:', sent.text)
+        self.assertIn('Delivery address:', sent.text)
+        self.assertNotIn('Full name:', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_no_form_when_not_ordering(self, mock_advance, mock_deliver):
+        mock_advance.return_value = outcome(
+            reply='Namaste! K help garna sakchhu?',
+            ordering=False,
+            missing=['Phone number'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertNotIn('copy garera', sent.text)
+
+
 class ChatOrderCreationTests(AutoReplyTestBase):
     def ready_outcome(self):
         product = Product.objects.get(name='Linen Shirt')
