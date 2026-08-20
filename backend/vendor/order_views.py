@@ -55,6 +55,25 @@ def compose_invoice_text(order):
     return '\n'.join(lines)
 
 
+def paginated_list_response(request, queryset, serialize, page_size=20):
+    """Return the whole list, or a page when ?page= is given."""
+    page_param = request.query_params.get('page')
+    if page_param is None:
+        return Response(serialize(queryset))
+    try:
+        page = max(1, int(page_param))
+    except (TypeError, ValueError):
+        page = 1
+    total = queryset.count()
+    start = (page - 1) * page_size
+    items = queryset[start:start + page_size]
+    return Response({
+        'count': total,
+        'next': page + 1 if start + page_size < total else None,
+        'results': serialize(items),
+    })
+
+
 def get_request_tenant(request):
     """Return the tenant for the authenticated user or None."""
     profile = getattr(request.user, 'vendor_profile', None)
@@ -94,7 +113,9 @@ class VendorOrderListView(APIView):
             if search.isdigit():
                 query = query | Q(id=int(search))
             orders = orders.filter(query).distinct()
-        return Response(VendorOrderSerializer(orders, many=True).data)
+        return paginated_list_response(
+            request, orders, lambda qs: VendorOrderSerializer(qs, many=True).data,
+        )
 
 
 class VendorOrderDetailView(APIView):

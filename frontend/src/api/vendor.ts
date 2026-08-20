@@ -252,8 +252,22 @@ export const vendorApi = {
         return response.data;
     },
 
-    getProducts: async () => {
-        const response = await apiClient.get('/vendor/products/');
+    getProducts: async (params?: { page?: number; status?: string; stock?: string; q?: string }) => {
+        const response = await apiClient.get('/vendor/products/', { params });
+        return response.data;
+    },
+
+    getProductStats: async (): Promise<{
+        all: number;
+        published: number;
+        draft: number;
+        archived: number;
+        low_stock: number;
+        out_of_stock: number;
+        low_stock_products: { id: number; name: string; stock: number }[];
+        out_of_stock_products: { id: number; name: string }[];
+    }> => {
+        const response = await apiClient.get('/vendor/products/stats/');
         return response.data;
     },
 

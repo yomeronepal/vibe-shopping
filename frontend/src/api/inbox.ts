@@ -38,6 +38,16 @@ export interface InboxMessage {
     sent_by_ai: boolean;
 }
 
+export const listConversationsPage = async (
+    page: number, status?: string, q?: string,
+): Promise<{ count: number; next: number | null; results: InboxConversation[] }> => {
+    const params: Record<string, string | number> = { page };
+    if (status && status !== 'all') params.status = status;
+    if (q && q.trim()) params.q = q.trim();
+    const response = await apiClient.get('/inbox/conversations/', { params });
+    return response.data;
+};
+
 export const listConversations = async (status?: string, q?: string): Promise<InboxConversation[]> => {
     const params: Record<string, string> = {};
     if (status && status !== 'all') params.status = status;
@@ -131,6 +141,15 @@ export interface CustomerCard {
 
 export const listCustomers = async (q?: string): Promise<CustomerCard[]> => {
     const params = q && q.trim() ? { q: q.trim() } : {};
+    const response = await apiClient.get('/inbox/customers/', { params });
+    return response.data;
+};
+
+export const listCustomersPage = async (
+    page: number, q?: string,
+): Promise<{ count: number; next: number | null; results: CustomerCard[] }> => {
+    const params: Record<string, string | number> = { page };
+    if (q && q.trim()) params.q = q.trim();
     const response = await apiClient.get('/inbox/customers/', { params });
     return response.data;
 };

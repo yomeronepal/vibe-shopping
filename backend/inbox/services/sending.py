@@ -6,11 +6,18 @@ from django.utils import timezone
 from inbox.models import Conversation, Message
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
-from socials.services.meta_graph import MetaGraphClient, MetaGraphError, graph_client_for
+from socials.services.meta_graph import INSTAGRAM_GRAPH_BASE_URL, MetaGraphClient, MetaGraphError
 
 logger = logging.getLogger(__name__)
 
 WINDOW_CLOSED_ERROR = 'The 24-hour reply window for this conversation has closed.'
+
+
+def client_for(page):
+    """Return a Graph client on the right host for this connection."""
+    if getattr(page, 'connection_type', '') == 'instagram_direct':
+        return MetaGraphClient(base_url=INSTAGRAM_GRAPH_BASE_URL)
+    return MetaGraphClient()
 
 
 class ConversationSendError(Exception):
@@ -52,7 +59,7 @@ def resolve_reply_route(conversation):
 def show_read_and_typing(conversation):
     """Mark the thread seen and show typing dots; never raises."""
     page = conversation.page
-    client = graph_client_for(page)
+    client = client_for(page)
     try:
         for action in ('mark_seen', 'typing_on'):
             client.send_sender_action(
@@ -66,7 +73,7 @@ def show_read_and_typing(conversation):
 def deliver_via_meta(conversation, text, quick_replies=None):
     """Send the text through Meta; return the platform message id."""
     page = conversation.page
-    client = graph_client_for(page)
+    client = client_for(page)
     route, target = resolve_reply_route(conversation)
     try:
         if route == 'comment':
@@ -158,7 +165,7 @@ def send_card_carousel(conversation, page, target, products):
     """Send rich template cards with tappable product links."""
     elements = [build_product_card(product) for product in products]
     try:
-        message_id = graph_client_for(page).send_generic_template(
+        message_id = client_for(page).send_generic_template(
             page.page_id, page.get_access_token(), target, elements,
         )
     except MetaGraphError as exc:
@@ -169,7 +176,7 @@ def send_card_carousel(conversation, page, target, products):
 
 def send_card_photos(conversation, page, target, products):
     """Send labeled photo messages, remembering which mid shows which product."""
-    client = graph_client_for(page)
+    client = client_for(page)
     message_id = ''
     sent = []
     photo_mids = {}

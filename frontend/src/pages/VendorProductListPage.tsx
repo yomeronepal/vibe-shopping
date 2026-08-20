@@ -32,40 +32,52 @@ const VendorProductListPage: React.FC = () => {
     const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+    const [totalCount, setTotalCount] = useState(0);
+    const [nextPage, setNextPage] = useState<number | null>(null);
+    const [stats, setStats] = useState<{ all: number; draft: number; archived: number; low_stock: number; out_of_stock: number } | null>(null);
     const [, setVendorProfile] = useState<VendorProfile>({});
 
     const primaryColor = themeConfig.primary;
 
-    useEffect(() => {
-        loadProducts();
-        loadVendorProfile();
-    }, []);
+    const filterParams = (filter: ProductFilter, query: string) => {
+        const params: { status?: string; stock?: string; q?: string } = {};
+        if (filter === 'drafts') params.status = 'draft';
+        if (filter === 'archived') params.status = 'archived';
+        if (filter === 'low-stock') params.stock = 'low';
+        if (filter === 'out-of-stock') params.stock = 'out';
+        if (query.trim()) params.q = query.trim();
+        return params;
+    };
 
-    const loadProducts = async () => {
+    const loadProducts = async (page = 1, filter = activeFilter, query = searchQuery) => {
         try {
-            setLoading(true);
-            const data = await vendorApi.getProducts();
-            console.log('Products API response:', data);
-
-            if (Array.isArray(data)) {
-                setProducts(data);
-            } else if (data && Array.isArray(data.results)) {
-                setProducts(data.results);
-            } else if (data && Array.isArray(data.products)) {
-                setProducts(data.products);
-            } else {
-                console.error('Unexpected API response format:', data);
-                setProducts([]);
-                toast.error('Unexpected data format from server');
-            }
+            if (page === 1) setLoading(true);
+            const data = await vendorApi.getProducts({ page, ...filterParams(filter, query) });
+            const results: Product[] = Array.isArray(data) ? data : data?.results ?? [];
+            setProducts((prev) => (page === 1 ? results : [...prev, ...results]));
+            setTotalCount(Array.isArray(data) ? results.length : data?.count ?? results.length);
+            setNextPage(!Array.isArray(data) && data?.next ? page + 1 : null);
         } catch (error) {
             toast.error('Failed to load products');
-            console.error('Error loading products:', error);
-            setProducts([]);
+            if (page === 1) setProducts([]);
         } finally {
             setLoading(false);
         }
     };
+
+    const loadStats = () => {
+        vendorApi.getProductStats().then(setStats).catch(() => {});
+    };
+
+    useEffect(() => {
+        const handle = window.setTimeout(() => loadProducts(1), searchQuery ? 350 : 0);
+        return () => window.clearTimeout(handle);
+    }, [activeFilter, searchQuery]);
+
+    useEffect(() => {
+        loadStats();
+        loadVendorProfile();
+    }, []);
 
     const loadVendorProfile = async () => {
         try {
@@ -79,33 +91,14 @@ const VendorProductListPage: React.FC = () => {
         }
     };
 
-    const filteredProducts = Array.isArray(products) ? products.filter((product) => {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = product.name.toLowerCase().includes(query)
-            || (product.product_code ?? '').toLowerCase().includes(query);
-
-        if (!matchesSearch) return false;
-
-        switch (activeFilter) {
-            case 'drafts':
-                return product.status === 'draft';
-            case 'low-stock':
-                return product.item_type !== 'service' && product.stock > 0 && product.stock < 10;
-            case 'out-of-stock':
-                return product.item_type !== 'service' && product.stock === 0;
-            case 'archived':
-                return product.status === 'archived';
-            default:
-                return true;
-        }
-    }) : [];
+    const filteredProducts = products;
 
     const productCounts = {
-        all: Array.isArray(products) ? products.length : 0,
-        drafts: Array.isArray(products) ? products.filter(p => p.status === 'draft').length : 0,
-        'low-stock': Array.isArray(products) ? products.filter(p => p.item_type !== 'service' && p.stock > 0 && p.stock < 10).length : 0,
-        archived: Array.isArray(products) ? products.filter(p => p.status === 'archived').length : 0,
-        'out-of-stock': Array.isArray(products) ? products.filter(p => p.item_type !== 'service' && p.stock === 0).length : 0,
+        all: stats?.all ?? totalCount,
+        drafts: stats?.draft ?? 0,
+        'low-stock': stats?.low_stock ?? 0,
+        archived: stats?.archived ?? 0,
+        'out-of-stock': stats?.out_of_stock ?? 0,
     };
 
     const toggleProductSelection = (productId: number) => {
@@ -533,6 +526,17 @@ const VendorProductListPage: React.FC = () => {
                                 Upload images or import from CSV
                             </span>
                         </div>
+                    </div>
+                )}
+                {nextPage && !loading && (
+                    <div className="flex justify-center py-6">
+                        <button
+                            onClick={() => loadProducts(nextPage)}
+                            className="px-6 py-2.5 rounded-xl font-bold text-sm border"
+                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                        >
+                            Load more ({products.length} of {totalCount})
+                        </button>
                     </div>
                 )}
             </main>
