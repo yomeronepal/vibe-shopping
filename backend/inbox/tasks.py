@@ -134,14 +134,21 @@ def send_order_item_cards(conversation, order):
 
 
 def build_missing_fields_form(outcome):
-    """Return a copyable fill-in form for the fields still missing."""
+    """Attach a blank form for missing fields, or a prefilled one to confirm."""
     if not outcome.get('ordering') or outcome.get('order_ready') or outcome.get('needs_human'):
         return ''
     missing = outcome.get('missing') or []
-    if not missing:
+    if missing:
+        lines = '\n'.join(f'{field}:' for field in missing)
+        return f'\n\nYo copy garera bharnus 👇\n{lines}'
+    collected = outcome.get('collected') or {}
+    if not collected:
         return ''
-    lines = '\n'.join(f'{field}:' for field in missing)
-    return f'\n\nYo copy garera bharnus 👇\n{lines}'
+    lines = '\n'.join(f'{field}: {value}' for field, value in collected.items())
+    return (
+        f'\n\nHami sanga bhayeko details 👇\n{lines}\n'
+        'Thik chha bhane "confirm" bhannus, change garnu parne bhaye copy garera milaera pathaunus.'
+    )
 
 
 def resolve_ready_order(conversation, outcome):

@@ -156,6 +156,25 @@ class MissingFieldsFormTests(AutoReplyTestBase):
         self.assertIn('Delivery address:', sent.text)
         self.assertNotIn('Full name:', sent.text)
 
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-3')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_prefilled_form_when_confirming_known_details(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details thik chha?',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001'},
+            missing=[],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('Hami sanga bhayeko details', sent.text)
+        self.assertIn('Full name: Sita Sharma', sent.text)
+        self.assertIn('Phone number: 9800000001', sent.text)
+        self.assertIn('"confirm"', sent.text)
+
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-2')
     @patch('inbox.services.assistant.advance_order_conversation')
     def test_no_form_when_not_ordering(self, mock_advance, mock_deliver):
