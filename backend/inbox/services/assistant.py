@@ -76,7 +76,9 @@ def extract_search_terms(conversation):
     words = []
     recent = conversation.messages.filter(direction='in').order_by('-sent_at')[:8]
     for message in recent:
-        source = f"{message.text or ''} {(message.metadata or {}).get('product_name', '')}"
+        meta = message.metadata or {}
+        replied = (meta.get('reply_to_product') or {}).get('name', '')
+        source = f"{message.text or ''} {meta.get('product_name', '')} {replied}"
         words.extend(re.findall(r'[a-z0-9][a-z0-9\-]{2,}', source.lower()))
     terms = []
     for word in words:
@@ -204,6 +206,12 @@ def format_history_line(message):
     text = message.text or describe_attachments(message)
     if message.direction != 'in':
         return f'Business: {text}'
+    replied = (message.metadata or {}).get('reply_to_product') or {}
+    if replied.get('name'):
+        return (
+            f"Customer (replying to your photo of {replied['name']}"
+            f" [id {replied.get('id')}] — \"this/yo\" means that product): {text}"
+        )
     if message.source == 'comment':
         product = (message.metadata or {}).get('product_name', '')
         context = f' about {product}' if product else ''

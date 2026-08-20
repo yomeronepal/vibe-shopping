@@ -69,6 +69,25 @@ def resolve_sent_at(messaging_event):
     return datetime.fromtimestamp(raw_timestamp / 1000, tz=dt_timezone.utc)
 
 
+def resolve_photo_reply(conversation, message):
+    """Map a reply-to mid back to the product photo it answers."""
+    reply_mid = ((message.get('reply_to') or {}).get('mid')) or ''
+    if not reply_mid:
+        return {}
+    source = (
+        Message.objects.filter(
+            conversation=conversation,
+            direction='out',
+            metadata__photo_mids__has_key=reply_mid,
+        )
+        .order_by('-sent_at')
+        .first()
+    )
+    if source is None:
+        return {}
+    return {'reply_to_product': source.metadata['photo_mids'][reply_mid]}
+
+
 def store_message(page, platform, messaging_event):
     """Persist one messaging event; returns the Message or None."""
     message = messaging_event.get('message') or {}
@@ -105,6 +124,7 @@ def store_message(page, platform, messaging_event):
             'text': message.get('text', '') or '',
             'attachments': attachments,
             'sent_at': sent_at,
+            'metadata': resolve_photo_reply(conversation, message) if direction == 'in' else {},
         },
     )
     if not created:
