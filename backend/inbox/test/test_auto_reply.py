@@ -167,6 +167,29 @@ class ChatOrderCreationTests(AutoReplyTestBase):
         self.assertIn(f'Order #{order.id}', sent.text)
         self.assertIn('2,400', sent.text)
 
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-5a', 'mid-bot-5b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_different_product_creates_second_order(self, mock_advance, mock_deliver):
+        mock_advance.return_value = self.ready_outcome()
+        auto_reply_to_message(self.inbound.id)
+        other = Product.objects.create(
+            tenant=self.tenant, name='Canvas Tote', price=600, stock=5,
+            status='published', is_active=True,
+        )
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='tote pani chahiyo',
+            platform_message_id='mid-tote', sent_at=timezone.now(),
+        )
+        second = outcome(
+            reply='Tote order placing!', ordering=True, order_ready=True,
+            items=[{'product_id': other.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001', 'Delivery address': 'Thamel, Kathmandu'},
+        )
+        mock_advance.return_value = second
+        result = auto_reply_to_message(newer.id)
+        self.assertIn('sent+order:', result)
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 2)
+
     @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment', return_value='mid-photo-9')
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-bot-9')
     @patch('inbox.services.assistant.advance_order_conversation')

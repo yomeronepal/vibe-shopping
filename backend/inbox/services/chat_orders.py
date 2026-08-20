@@ -33,10 +33,15 @@ def apply_line_stock(product, quantity, note):
     record_stock_change(product, -quantity, 'chat_order', note)
 
 
-def find_recent_chat_order(conversation):
-    """Return a recent bot-created order for this conversation, if any."""
+def find_recent_chat_order(conversation, items):
+    """Return a recent bot order already covering these items, if any.
+
+    Only an order containing every product in the new items counts as
+    a duplicate — ordering a different product right after a completed
+    order is a genuine second purchase.
+    """
     cutoff = timezone.now() - timedelta(minutes=DUPLICATE_WINDOW_MINUTES)
-    return (
+    recent = (
         Order.objects.filter(
             tenant=conversation.tenant,
             created_at__gte=cutoff,
@@ -44,8 +49,14 @@ def find_recent_chat_order(conversation):
             metadata__conversation_id=conversation.id,
         )
         .exclude(status='cancelled')
-        .first()
+        .prefetch_related('items')[:5]
     )
+    new_ids = {item['product_id'] for item in items}
+    for order in recent:
+        existing_ids = {line.product_id for line in order.items.all()}
+        if new_ids <= existing_ids:
+            return order
+    return None
 
 
 def pick_customer_details(conversation, collected):
@@ -191,7 +202,7 @@ def create_chat_order(conversation, items, collected):
     """
     if not items:
         return None
-    if find_recent_chat_order(conversation):
+    if find_recent_chat_order(conversation, items):
         logger.info('Skipping duplicate chat order for conversation %s', conversation.id)
         return None
     tenant = conversation.tenant
