@@ -556,7 +556,7 @@ const VendorProductCreatePage: React.FC = () => {
                                 Tell us about the product and AI writes the listing for you.
                             </p>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="hidden md:flex gap-3">
                             <button
                                 onClick={handleSaveDraft}
                                 disabled={isSavingDraft || isPublishing}
@@ -582,7 +582,35 @@ const VendorProductCreatePage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                    <div
+                        className="md:hidden fixed left-0 right-0 z-40 flex gap-2 px-4 pt-2 backdrop-blur-xl border-t"
+                        style={{
+                            bottom: 'calc(3.5rem + env(safe-area-inset-bottom))',
+                            backgroundColor: `${themeConfig.surface}f0`,
+                            borderColor: `${themeConfig.border}60`,
+                            paddingBottom: '0.5rem',
+                        }}
+                    >
+                        <button
+                            onClick={handleSaveDraft}
+                            disabled={isSavingDraft || isPublishing}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border disabled:opacity-50"
+                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                        >
+                            {isSavingDraft ? 'Saving…' : 'Save draft'}
+                        </button>
+                        <button
+                            onClick={handlePublish}
+                            disabled={isPublishing || isSavingDraft}
+                            className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm disabled:opacity-50"
+                            style={{ backgroundColor: themeConfig.buttonBg, color: themeConfig.buttonText }}
+                        >
+                            <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+                            {isPublishing ? 'Publishing…' : itemType === 'service' ? 'Publish service' : 'Publish product'}
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pb-24 md:pb-0">
                         <div className="md:col-span-4 flex flex-col gap-6">
                             <div className="rounded-3xl shadow-lg overflow-hidden" style={cardStyle}>
                                 {images.length === 0 ? (
