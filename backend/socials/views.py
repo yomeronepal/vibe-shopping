@@ -247,7 +247,82 @@ class PageConnectView(APIView):
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
+class PageProfileImportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Copy the connected Page's public profile onto the store.
+
+        Fills only fields the vendor has not set yet: bio from the
+        Page about text, contact phone and address, and the Page
+        picture as the store logo.
+        """
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        page = ConnectedPage.objects.filter(tenant=tenant, status='connected').first()
+        if page is None:
+            return Response({'error': 'Connect a Facebook Page first.'}, status=status.HTTP_400_BAD_REQUEST)
+        client = MetaGraphClient()
+        try:
+            payload = client.get(f'/{page.page_id}', {
+                'access_token': page.get_access_token(),
+                'fields': 'about,phone,single_line_address,picture.width(400){url}',
+            })
+        except MetaGraphError as exc:
+            logger.warning('Page profile import failed: %s', exc)
+            return Response({'error': 'Could not read the Page profile.'}, status=status.HTTP_502_BAD_GATEWAY)
+        imported = apply_page_profile(tenant, payload)
+        return Response({'imported': imported})
+
+
+def apply_page_profile(tenant, payload):
+    """Merge Page profile data into empty tenant fields; returns what changed."""
+    metadata = tenant.metadata or {}
+    contact = metadata.get('contact', {})
+    imported = []
+    if payload.get('about') and not metadata.get('bio'):
+        metadata['bio'] = payload['about'][:1000]
+        imported.append('bio')
+    if payload.get('phone') and not contact.get('phone'):
+        contact['phone'] = payload['phone'][:30]
+        imported.append('phone')
+    if payload.get('single_line_address') and not contact.get('address'):
+        contact['address'] = payload['single_line_address'][:255]
+        imported.append('address')
+    metadata['contact'] = contact
+    picture_url = ((payload.get('picture') or {}).get('data') or {}).get('url', '')
+    if picture_url and not metadata.get('logo'):
+        logo_path = download_page_picture(tenant, picture_url)
+        if logo_path:
+            metadata['logo'] = logo_path
+            imported.append('logo')
+    tenant.metadata = metadata
+    tenant.save(update_fields=['metadata'])
+    return imported
+
+
+def download_page_picture(tenant, url):
+    """Save the Page picture as the store logo; empty string on failure."""
+    import requests as http
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    try:
+        response = http.get(url, timeout=10)
+        response.raise_for_status()
+    except http.exceptions.RequestException:
+        logger.info('Page picture download failed for tenant %s', tenant.id)
+        return ''
+    slug = tenant.subdomain or 'default'
+    return default_storage.save(
+        f'uploads/{slug}/logo/page-logo.jpg', ContentFile(response.content),
+    )
+
+
 class PageDisconnectView(APIView):
+
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request, page_id):

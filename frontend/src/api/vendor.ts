@@ -321,6 +321,9 @@ export const vendorApi = {
         brand_vibes?: string[];
         ai_persona?: number;
         offering?: 'products' | 'services' | 'both';
+        phone?: string;
+        email?: string;
+        address?: string;
     }, logo?: File | null) => {
         const formData = new FormData();
 
@@ -329,6 +332,9 @@ export const vendorApi = {
         if (data.brand_vibes) formData.append('brand_vibes', JSON.stringify(data.brand_vibes));
         if (data.ai_persona !== undefined) formData.append('ai_persona', data.ai_persona.toString());
         if (data.offering) formData.append('offering', data.offering);
+        if (data.phone) formData.append('phone', data.phone);
+        if (data.email) formData.append('email', data.email);
+        if (data.address) formData.append('address', data.address);
         if (logo) formData.append('logo', logo);
 
         const response = await apiClient.post('/vendor/onboarding/profile/', formData);
@@ -490,6 +496,16 @@ export const updateAssistantSettings = async (
         ai_max_discount: maxDiscount,
         max_auto_order_value: maxAutoOrderValue,
     });
+    return response.data;
+};
+
+export const saveAiSetup = async (data: {
+    ai_knowledge?: string;
+    ai_auto_reply?: boolean;
+    ai_tone?: string;
+    ai_language?: string;
+}): Promise<StoreProfile> => {
+    const response = await apiClient.patch('/vendor/profile/', data);
     return response.data;
 };
 

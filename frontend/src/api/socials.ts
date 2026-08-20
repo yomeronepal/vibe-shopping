@@ -25,6 +25,11 @@ export const completeOAuth = async (code: string, state: string): Promise<MetaPa
     return response.data.pages;
 };
 
+export const importPageProfile = async (): Promise<{ imported: string[] }> => {
+    const response = await apiClient.post('/socials/pages/import-profile/');
+    return response.data;
+};
+
 export const listConnectedPages = async (): Promise<ConnectedPage[]> => {
     const response = await apiClient.get('/socials/pages/');
     return response.data;
