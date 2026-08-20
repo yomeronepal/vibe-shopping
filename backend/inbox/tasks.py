@@ -4,7 +4,7 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
-AUTO_REPLY_DEBOUNCE_SECONDS = 60
+AUTO_REPLY_DEBOUNCE_SECONDS = 10
 
 
 def is_latest_inbound(conversation, message):
@@ -92,7 +92,7 @@ def auto_reply_to_message(message_id):
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
     apply_conversation_signals(conversation, outcome)
-    reply = outcome['reply']
+    reply = outcome['reply'] + build_order_details_form(conversation, outcome)
     order = None
     if outcome['order_ready']:
         from inbox.services.chat_orders import exceeds_order_cap
@@ -107,16 +107,148 @@ def auto_reply_to_message(message_id):
             )
             logger.info('Order over auto-confirm cap; handing conversation %s to a human', conversation.id)
         else:
-            order = create_chat_order(conversation, outcome['items'], outcome['collected'])
-            if order is not None:
-                reply = f'{reply}\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+            order, note = resolve_ready_order(conversation, outcome)
+            reply = f'{reply}{note}'
     track_order_intent(conversation, outcome, order)
     try:
         send_conversation_text(conversation, reply, sent_by_ai=True)
     except ConversationSendError as exc:
         logger.warning('Auto-reply send failed for conversation %s: %s', conversation.id, exc)
         return 'failed'
+    if order is not None:
+        send_order_item_cards(conversation, order)
+    elif not outcome['order_ready']:
+        send_recommendation_cards(conversation, outcome)
     return f'sent+order:{order.id}' if order else 'sent'
+
+
+def send_order_item_cards(conversation, order):
+    """Follow the confirmation with photos of the ordered products."""
+    from inbox.services.sending import send_product_cards
+
+    products = [item.product for item in order.items.select_related('product')[:3]]
+    try:
+        send_product_cards(conversation, products)
+    except Exception:
+        logger.warning('Order photo send failed for conversation %s', conversation.id, exc_info=True)
+
+
+def lookup_customer_value(customer, field):
+    """Map an order field label to the customer's stored contact info."""
+    lowered = field.lower()
+    if 'phone' in lowered or 'number' in lowered:
+        return customer.phone or ''
+    if 'email' in lowered:
+        return customer.email or ''
+    if 'address' in lowered or 'location' in lowered:
+        return customer.location or ''
+    if 'name' in lowered:
+        return customer.name or ''
+    return ''
+
+
+def build_order_details_form(conversation, outcome):
+    """Attach one full form: known fields prefilled, unknown fields blank."""
+    if not outcome.get('ordering') or outcome.get('order_ready') or outcome.get('needs_human'):
+        return ''
+    from inbox.services.assistant import get_order_fields
+
+    collected = outcome.get('collected') or {}
+    customer = conversation.customer
+    lines = []
+    blanks = 0
+    for field in get_order_fields(conversation.tenant):
+        value = str(collected.get(field) or '').strip() or lookup_customer_value(customer, field)
+        if value.lower() == 'n/a':
+            continue
+        if not value:
+            blanks += 1
+        lines.append(f'{field}: {value}'.rstrip())
+    if not lines:
+        return ''
+    form = '\n'.join(lines)
+    if blanks == 0:
+        return (
+            f'\n\nHami sanga bhayeko details 👇\n{form}\n'
+            'Thik chha bhane "confirm" bhannus, change garnu parne bhaye copy garera milaera pathaunus.'
+        )
+    return (
+        f'\n\nYo copy garera khali details bharera pathaunus 👇\n{form}'
+    )
+
+
+def resolve_ready_order(conversation, outcome):
+    """Place or revise the order; returns (order, reply note)."""
+    from inbox.services.chat_orders import create_chat_order, update_chat_order
+
+    if outcome.get('update_order_id'):
+        order = update_chat_order(
+            conversation, outcome['update_order_id'], outcome['items'], outcome['collected'],
+        )
+        if order is None:
+            from inbox.models import Conversation
+
+            Conversation.objects.filter(pk=conversation.pk).update(ai_paused=True)
+            logger.info('Order revision needs a human; pausing conversation %s', conversation.id)
+            return None, (
+                '\n\nYo change ko lagi hamro team member le tapailai '
+                'chittai contact garnu hunecha. Dhanyabad!'
+            )
+        return order, f'\n\nOrder #{order.id} updated — New total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+    order = create_chat_order(conversation, outcome['items'], outcome['collected'])
+    if order is None:
+        revised = revise_recent_duplicate(conversation, outcome)
+        if revised is not None:
+            return revised, f'\n\nOrder #{revised.id} updated — New total Rs. {revised.total_amount:,.0f}. Dhanyabad!'
+        return None, ''
+    return order, f'\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+
+
+def order_matches_items(order, items):
+    """Whether the order already holds exactly these lines."""
+    existing = {
+        (line.product_id, line.quantity, line.size or '', line.color or '')
+        for line in order.items.all()
+    }
+    requested = {
+        (item['product_id'], item['quantity'], item.get('size', ''), item.get('color', ''))
+        for item in items
+    }
+    return existing == requested
+
+
+def revise_recent_duplicate(conversation, outcome):
+    """Turn a blocked duplicate into a revision when the items changed.
+
+    A repeat of the exact same lines stays blocked (true duplicate);
+    different lines mean the customer changed their mind about the
+    just-placed order even if the model forgot update_order_id.
+    """
+    from inbox.services.chat_orders import (
+        UPDATABLE_ORDER_STATUSES,
+        find_recent_chat_order,
+        update_chat_order,
+    )
+
+    recent = find_recent_chat_order(conversation, outcome['items'])
+    if recent is None or recent.status not in UPDATABLE_ORDER_STATUSES:
+        return None
+    if order_matches_items(recent, outcome['items']):
+        return None
+    return update_chat_order(conversation, recent.id, outcome['items'], outcome['collected'])
+
+
+def send_recommendation_cards(conversation, outcome):
+    """Follow the reply with photo cards for recommended products."""
+    products = outcome.get('recommended_products') or []
+    if not products:
+        return
+    from inbox.services.sending import send_product_cards
+
+    try:
+        send_product_cards(conversation, products)
+    except Exception:
+        logger.warning('Product card send failed for conversation %s', conversation.id, exc_info=True)
 
 
 DEFAULT_FOLLOWUP_MESSAGE = (

@@ -290,7 +290,7 @@ class GeminiProductAnalyzer:
             dict with success status and data/error.
         """
         price_context = f"The vendor set the price at Rs. {price:g}." if price else ""
-        prompt = f"""A vendor in Nepal is listing a product in their online shop. They described it in their own words (English, Nepali, or a mix):
+        prompt = f"""A vendor in Nepal is listing a product or service in their online shop. They described it in their own words (English, Nepali, or a mix):
 
 VENDOR'S DESCRIPTION
 {brief}
@@ -299,7 +299,7 @@ VENDOR'S DESCRIPTION
 
 {PRODUCT_JSON_SPEC}
 
-Ground everything in the vendor's description: keep every fact they stated (colors, materials, sizes, features) and expand naturally around them, but do not contradict them or invent specific claims like materials or measurements they never mentioned. Where the description is silent, stay general rather than specific.
+Ground everything in the vendor's description: keep every fact they stated (colors, materials, sizes, features) and expand naturally around them, but do not contradict them or invent specific claims like materials or measurements they never mentioned. Where the description is silent, stay general rather than specific. If they are describing a service (photography, repair, consultation, event package, or similar), write it as a service offering — what is included and who it is for — and never invent physical attributes like sizes or materials.
 All field values must be plain text — no markdown, no asterisks, no bold markers.
 Return ONLY valid JSON, no markdown formatting."""
         try:

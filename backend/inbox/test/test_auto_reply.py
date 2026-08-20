@@ -136,6 +136,79 @@ class AutoReplyTaskTests(AutoReplyTestBase):
         self.assertFalse(Message.objects.filter(direction='out').exists())
 
 
+class MissingFieldsFormTests(AutoReplyTestBase):
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-1')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_missing_fields_appended_as_form(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details bharnus hai!',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma'},
+            missing=['Phone number', 'Delivery address'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('khali details bharera pathaunus', sent.text)
+        self.assertIn('Full name: Sita Sharma', sent.text)
+        self.assertIn('Phone number:', sent.text)
+        self.assertIn('Delivery address:', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-3')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_prefilled_form_when_confirming_known_details(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details thik chha?',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001', 'Delivery address': 'Thamel'},
+            missing=[],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('Hami sanga bhayeko details', sent.text)
+        self.assertIn('Full name: Sita Sharma', sent.text)
+        self.assertIn('Phone number: 9800000001', sent.text)
+        self.assertIn('"confirm"', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-4')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_returning_customer_details_prefill_the_form(self, mock_advance, mock_deliver):
+        customer = self.convo.customer
+        customer.phone = '9811111111'
+        customer.location = 'Patan Dhoka'
+        customer.save(update_fields=['phone', 'location'])
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details check garnus hai!',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={},
+            missing=['Full name', 'Phone number', 'Delivery address'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('Phone number: 9811111111', sent.text)
+        self.assertIn('Delivery address: Patan Dhoka', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-2')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_no_form_when_not_ordering(self, mock_advance, mock_deliver):
+        mock_advance.return_value = outcome(
+            reply='Namaste! K help garna sakchhu?',
+            ordering=False,
+            missing=['Phone number'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertNotIn('copy garera', sent.text)
+
+
 class ChatOrderCreationTests(AutoReplyTestBase):
     def ready_outcome(self):
         product = Product.objects.get(name='Linen Shirt')
@@ -166,6 +239,93 @@ class ChatOrderCreationTests(AutoReplyTestBase):
         sent = Message.objects.get(direction='out')
         self.assertIn(f'Order #{order.id}', sent.text)
         self.assertIn('2,400', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-5a', 'mid-bot-5b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_different_product_creates_second_order(self, mock_advance, mock_deliver):
+        mock_advance.return_value = self.ready_outcome()
+        auto_reply_to_message(self.inbound.id)
+        other = Product.objects.create(
+            tenant=self.tenant, name='Canvas Tote', price=600, stock=5,
+            status='published', is_active=True,
+        )
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='tote pani chahiyo',
+            platform_message_id='mid-tote', sent_at=timezone.now(),
+        )
+        second = outcome(
+            reply='Tote order placing!', ordering=True, order_ready=True,
+            items=[{'product_id': other.id, 'quantity': 1}],
+            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001', 'Delivery address': 'Thamel, Kathmandu'},
+        )
+        mock_advance.return_value = second
+        result = auto_reply_to_message(newer.id)
+        self.assertIn('sent+order:', result)
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 2)
+
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-6a', 'mid-bot-6b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_changed_items_revise_recent_order_without_update_id(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        first = self.ready_outcome()
+        first['items'] = [
+            {'product_id': product.id, 'quantity': 2},
+        ]
+        mock_advance.return_value = first
+        auto_reply_to_message(self.inbound.id)
+        order = Order.objects.get(tenant=self.tenant)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='euta matra chahiyo, confirm',
+            platform_message_id='mid-revise', sent_at=timezone.now(),
+        )
+        second = self.ready_outcome()
+        second['items'] = [{'product_id': product.id, 'quantity': 1}]
+        mock_advance.return_value = second
+        result = auto_reply_to_message(newer.id)
+        self.assertEqual(result, f'sent+order:{order.id}')
+        order.refresh_from_db()
+        self.assertEqual(float(order.total_amount), 1200.0)
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 1)
+        sent = Message.objects.filter(direction='out').order_by('-sent_at').first()
+        self.assertIn(f'Order #{order.id} updated', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-7a', 'mid-bot-7b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_identical_repeat_still_blocked(self, mock_advance, mock_deliver):
+        mock_advance.return_value = self.ready_outcome()
+        auto_reply_to_message(self.inbound.id)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='confirm confirm',
+            platform_message_id='mid-repeat', sent_at=timezone.now(),
+        )
+        result = auto_reply_to_message(newer.id)
+        self.assertEqual(result, 'sent')
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 1)
+
+    @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment', return_value='mid-photo-9')
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-bot-9')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_confirmation_followed_by_ordered_product_photo(self, mock_advance, mock_deliver, mock_photo):
+        import io
+
+        from django.core.files.base import ContentFile
+        from django.test import override_settings
+        from PIL import Image as PILImage
+
+        product = Product.objects.get(name='Linen Shirt')
+        buf = io.BytesIO()
+        PILImage.new('RGB', (300, 300), (200, 190, 170)).save(buf, format='JPEG')
+        product.image.save('shirt.jpg', ContentFile(buf.getvalue()), save=True)
+        mock_advance.return_value = self.ready_outcome()
+        with override_settings(PUBLIC_MEDIA_BASE_URL='https://media.example', PUBLIC_APP_BASE_URL=''):
+            result = auto_reply_to_message(self.inbound.id)
+        self.assertIn('sent+order:', result)
+        image_url = mock_photo.call_args[0][3]
+        self.assertIn('card_cache/', image_url)
+        photo_note = Message.objects.filter(direction='out', metadata__type='product_cards').first()
+        self.assertIsNotNone(photo_note)
+        self.assertEqual(photo_note.metadata['product_ids'], [product.id])
+        product.image.delete(save=True)
 
     @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-4a', 'mid-bot-4b'])
     @patch('inbox.services.assistant.advance_order_conversation')
@@ -208,7 +368,7 @@ class QueueAutoReplyTests(AutoReplyTestBase):
     @patch('inbox.tasks.auto_reply_to_message.apply_async')
     def test_queues_with_debounce_when_enabled(self, mock_apply):
         queue_auto_reply(self.inbound, self.tenant)
-        mock_apply.assert_called_once_with(args=[self.inbound.id], countdown=60)
+        mock_apply.assert_called_once_with(args=[self.inbound.id], countdown=10)
 
     @patch('inbox.tasks.auto_reply_to_message.apply_async')
     def test_does_not_queue_when_disabled(self, mock_apply):

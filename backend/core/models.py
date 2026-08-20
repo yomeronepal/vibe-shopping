@@ -151,6 +151,24 @@ class Product(TimeStampedModel):
         ('archived', 'Archived'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+
+    ITEM_TYPE_CHOICES = [
+        ('physical', 'Physical product'),
+        ('service', 'Service'),
+    ]
+    item_type = models.CharField(max_length=10, choices=ITEM_TYPE_CHOICES, default='physical')
+
+    @property
+    def is_service(self):
+        return self.item_type == 'service'
+
+    @property
+    def is_made_to_order(self):
+        return (self.metadata or {}).get('stockMode') == 'made_to_order'
+
+    @property
+    def tracks_stock(self):
+        return not self.is_service and not self.is_made_to_order
     
     def product_image_path(instance, filename):
         tenant_slug = instance.tenant.subdomain if instance.tenant and instance.tenant.subdomain else 'default'

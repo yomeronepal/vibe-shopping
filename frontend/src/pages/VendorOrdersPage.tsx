@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import { mediaUrl } from '../api/media';
 import NewOrderModal from '../components/vendor/NewOrderModal';
 import {
     listVendorOrders,
@@ -113,15 +114,52 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
                 </div>
             </div>
             {order.items.length > 0 && (
-                <div className="mt-3 pt-3 border-t space-y-1" style={{ borderColor: `${themeConfig.border}50` }}>
+                <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: `${themeConfig.border}50` }}>
                     {order.items.map((item, index) => (
-                        <p key={index} className="text-sm" style={{ color: themeConfig.textSecondary }}>
-                            {item.quantity} × {item.product_name}
-                            {(item.size || item.color) && (
-                                <span className="font-semibold"> ({[item.size, item.color].filter(Boolean).join(', ')})</span>
+                        <div key={index} className="flex items-center gap-3">
+                            {item.image ? (
+                                <img
+                                    src={mediaUrl(item.image) ?? undefined}
+                                    alt=""
+                                    className="size-11 rounded-lg object-cover shrink-0 border"
+                                    style={{ borderColor: `${themeConfig.border}60` }}
+                                />
+                            ) : (
+                                <div
+                                    className="size-11 rounded-lg flex items-center justify-center shrink-0"
+                                    style={{ backgroundColor: `${themeConfig.border}40` }}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]" style={{ color: themeConfig.textSecondary }}>inventory_2</span>
+                                </div>
                             )}
-                            {' — Rs. '}{item.price}
-                        </p>
+                            <div className="min-w-0 flex-1">
+                                <Link
+                                    to={`/vendor/products/${item.product_id}`}
+                                    className="text-sm font-semibold hover:underline block truncate"
+                                    style={{ color: themeConfig.text }}
+                                >
+                                    {item.quantity} × {item.product_name}
+                                </Link>
+                                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                    {item.sku && (
+                                        <span
+                                            className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono"
+                                            style={{ backgroundColor: `${themeConfig.primary}12`, color: themeConfig.primary }}
+                                        >
+                                            {item.sku}
+                                        </span>
+                                    )}
+                                    {(item.size || item.color) && (
+                                        <span className="text-xs font-semibold" style={{ color: themeConfig.textSecondary }}>
+                                            {[item.size && `Size ${item.size}`, item.color].filter(Boolean).join(' · ')}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-sm font-bold shrink-0" style={{ color: themeConfig.text }}>
+                                Rs. {item.price}
+                            </span>
+                        </div>
                     ))}
                 </div>
             )}
@@ -137,9 +175,10 @@ export default function VendorOrdersPage() {
     const [creating, setCreating] = useState(false);
     const [search, setSearch] = useState(searchParams.get('q') ?? '');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
-    const loadOrders = (q = search, status = statusFilter) => {
-        listVendorOrders(q, status)
+    const loadOrders = (q = search, status = statusFilter, sort = sortOrder) => {
+        listVendorOrders(q, status, sort)
             .then(setOrders)
             .catch(() => toast.error('Could not load orders. Refresh to retry.'))
             .finally(() => setLoading(false));
@@ -148,7 +187,7 @@ export default function VendorOrdersPage() {
     useEffect(() => {
         const handle = window.setTimeout(() => loadOrders(), search ? 350 : 0);
         return () => window.clearTimeout(handle);
-    }, [search, statusFilter]);
+    }, [search, statusFilter, sortOrder]);
 
     const handleStatusChange = async (order: VendorOrder, status: string) => {
         try {
@@ -220,6 +259,15 @@ export default function VendorOrdersPage() {
                             {ORDER_STATUSES.map((value) => (
                                 <option key={value} value={value}>{STATUS_LABELS[value]}</option>
                             ))}
+                        </select>
+                        <select
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+                            className="rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none"
+                            style={{ backgroundColor: themeConfig.surface, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
+                        >
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
                         </select>
                     </div>
                     <div className="mt-6 space-y-4">

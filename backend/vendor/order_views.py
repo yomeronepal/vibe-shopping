@@ -9,11 +9,19 @@ VALID_ORDER_STATUSES = {value for value, _ in Order.ORDER_STATUS_CHOICES}
 
 
 class VendorOrderItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(source='product.id')
     product_name = serializers.CharField(source='product.name')
+    sku = serializers.CharField(source='product.product_code', allow_blank=True)
+    image = serializers.SerializerMethodField()
     quantity = serializers.IntegerField()
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     size = serializers.CharField(required=False, allow_blank=True)
     color = serializers.CharField(required=False, allow_blank=True)
+
+    def get_image(self, item):
+        """Return the product's thumbnail path, or None."""
+        image = item.product.processed_image or item.product.image
+        return image.url if image else None
 
 
 class VendorOrderSerializer(serializers.ModelSerializer):
@@ -32,7 +40,10 @@ def compose_invoice_text(order):
     lines = [f'Invoice #{order.id} — {order.tenant.name}', '']
     for item in order.items.select_related('product'):
         line_total = item.price * item.quantity
-        lines.append(f'{item.quantity} x {item.product.name} — Rs. {line_total:,.0f}')
+        variant = ', '.join(part for part in (item.size, item.color) if part)
+        detail = f' ({variant})' if variant else ''
+        sku = f' [SKU {item.product.product_code}]' if item.product.product_code else ''
+        lines.append(f'{item.quantity} x {item.product.name}{detail}{sku} — Rs. {line_total:,.0f}')
     lines.extend([
         '',
         f'Total: Rs. {float(order.total_amount):,.0f}',
@@ -54,20 +65,21 @@ class VendorOrderListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """List the tenant's orders, newest first.
+        """List the tenant's orders, newest first by default.
 
-        Supports ?status= and ?q= (order id, customer name/phone,
-        or product name).
+        Supports ?status=, ?q= (order id, customer name/phone, or
+        product name), and ?sort=oldest|newest.
         """
         from django.db.models import Q
 
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        ordering = 'created_at' if request.query_params.get('sort') == 'oldest' else '-created_at'
         orders = (
             Order.objects.filter(tenant=tenant)
             .prefetch_related('items__product')
-            .order_by('-created_at')
+            .order_by(ordering)
         )
         status_filter = request.query_params.get('status')
         if status_filter:
