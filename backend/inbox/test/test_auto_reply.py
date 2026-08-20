@@ -263,6 +263,45 @@ class ChatOrderCreationTests(AutoReplyTestBase):
         self.assertIn('sent+order:', result)
         self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 2)
 
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-6a', 'mid-bot-6b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_changed_items_revise_recent_order_without_update_id(self, mock_advance, mock_deliver):
+        product = Product.objects.get(name='Linen Shirt')
+        first = self.ready_outcome()
+        first['items'] = [
+            {'product_id': product.id, 'quantity': 2},
+        ]
+        mock_advance.return_value = first
+        auto_reply_to_message(self.inbound.id)
+        order = Order.objects.get(tenant=self.tenant)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='euta matra chahiyo, confirm',
+            platform_message_id='mid-revise', sent_at=timezone.now(),
+        )
+        second = self.ready_outcome()
+        second['items'] = [{'product_id': product.id, 'quantity': 1}]
+        mock_advance.return_value = second
+        result = auto_reply_to_message(newer.id)
+        self.assertEqual(result, f'sent+order:{order.id}')
+        order.refresh_from_db()
+        self.assertEqual(float(order.total_amount), 1200.0)
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 1)
+        sent = Message.objects.filter(direction='out').order_by('-sent_at').first()
+        self.assertIn(f'Order #{order.id} updated', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', side_effect=['mid-bot-7a', 'mid-bot-7b'])
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_identical_repeat_still_blocked(self, mock_advance, mock_deliver):
+        mock_advance.return_value = self.ready_outcome()
+        auto_reply_to_message(self.inbound.id)
+        newer = Message.objects.create(
+            conversation=self.convo, direction='in', text='confirm confirm',
+            platform_message_id='mid-repeat', sent_at=timezone.now(),
+        )
+        result = auto_reply_to_message(newer.id)
+        self.assertEqual(result, 'sent')
+        self.assertEqual(Order.objects.filter(tenant=self.tenant).count(), 1)
+
     @patch('socials.services.meta_graph.MetaGraphClient.send_image_attachment', return_value='mid-photo-9')
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-bot-9')
     @patch('inbox.services.assistant.advance_order_conversation')

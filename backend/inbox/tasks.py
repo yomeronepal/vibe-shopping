@@ -197,8 +197,45 @@ def resolve_ready_order(conversation, outcome):
         return order, f'\n\nOrder #{order.id} updated — New total Rs. {order.total_amount:,.0f}. Dhanyabad!'
     order = create_chat_order(conversation, outcome['items'], outcome['collected'])
     if order is None:
+        revised = revise_recent_duplicate(conversation, outcome)
+        if revised is not None:
+            return revised, f'\n\nOrder #{revised.id} updated — New total Rs. {revised.total_amount:,.0f}. Dhanyabad!'
         return None, ''
     return order, f'\n\nOrder #{order.id} — Total Rs. {order.total_amount:,.0f}. Dhanyabad!'
+
+
+def order_matches_items(order, items):
+    """Whether the order already holds exactly these lines."""
+    existing = {
+        (line.product_id, line.quantity, line.size or '', line.color or '')
+        for line in order.items.all()
+    }
+    requested = {
+        (item['product_id'], item['quantity'], item.get('size', ''), item.get('color', ''))
+        for item in items
+    }
+    return existing == requested
+
+
+def revise_recent_duplicate(conversation, outcome):
+    """Turn a blocked duplicate into a revision when the items changed.
+
+    A repeat of the exact same lines stays blocked (true duplicate);
+    different lines mean the customer changed their mind about the
+    just-placed order even if the model forgot update_order_id.
+    """
+    from inbox.services.chat_orders import (
+        UPDATABLE_ORDER_STATUSES,
+        find_recent_chat_order,
+        update_chat_order,
+    )
+
+    recent = find_recent_chat_order(conversation, outcome['items'])
+    if recent is None or recent.status not in UPDATABLE_ORDER_STATUSES:
+        return None
+    if order_matches_items(recent, outcome['items']):
+        return None
+    return update_chat_order(conversation, recent.id, outcome['items'], outcome['collected'])
 
 
 def send_recommendation_cards(conversation, outcome):
