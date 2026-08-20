@@ -387,6 +387,13 @@ class OnboardingViewSet(viewsets.GenericViewSet):
             tenant.metadata['brandVibe'] = data['brand_vibes']
         if data.get('ai_persona') is not None:
             tenant.metadata['aiPersona'] = data['ai_persona']
+        if data.get('offering'):
+            tenant.metadata['offering'] = data['offering']
+        contact = tenant.metadata.get('contact', {})
+        for field in ('phone', 'email', 'address'):
+            if data.get(field):
+                contact[field] = data[field]
+        tenant.metadata['contact'] = contact
 
         # Handle logo upload
         if 'logo' in request.FILES:

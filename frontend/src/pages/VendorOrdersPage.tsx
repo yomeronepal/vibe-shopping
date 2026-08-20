@@ -58,7 +58,14 @@ function OrderCard({ order, onStatusChange }: { order: VendorOrder; onStatusChan
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <div className="flex items-center gap-3">
-                        <span className="font-bold" style={{ color: themeConfig.text }}>Order #{order.id}</span>
+                        <Link
+                            to={`/vendor/orders/${order.id}`}
+                            className="font-bold hover:underline flex items-center gap-1"
+                            style={{ color: themeConfig.text }}
+                        >
+                            Order #{order.id}
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: themeConfig.textSecondary }}>open_in_new</span>
+                        </Link>
                         <StatusPill status={order.status} />
                         {order.metadata?.source === 'chat_bot' && (
                             <span
@@ -250,17 +257,6 @@ export default function VendorOrdersPage() {
                             )}
                         </div>
                         <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none"
-                            style={{ backgroundColor: themeConfig.surface, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
-                        >
-                            <option value="all">All statuses</option>
-                            {ORDER_STATUSES.map((value) => (
-                                <option key={value} value={value}>{STATUS_LABELS[value]}</option>
-                            ))}
-                        </select>
-                        <select
                             value={sortOrder}
                             onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
                             className="rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none"
@@ -270,6 +266,21 @@ export default function VendorOrdersPage() {
                             <option value="oldest">Oldest first</option>
                         </select>
                     </div>
+                    <div className="mt-4 -mx-4 px-4 md:mx-0 md:px-0 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                        {['all', ...ORDER_STATUSES].map((value) => (
+                            <button
+                                key={value}
+                                onClick={() => setStatusFilter(value)}
+                                className="shrink-0 px-3.5 py-2 rounded-full text-xs font-bold transition-colors"
+                                style={statusFilter === value
+                                    ? { backgroundColor: themeConfig.primary, color: '#ffffff' }
+                                    : { backgroundColor: `${themeConfig.surface}`, color: themeConfig.textSecondary, border: `1px solid ${themeConfig.border}` }}
+                            >
+                                {value === 'all' ? 'All' : STATUS_LABELS[value]}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="mt-6 space-y-4">
                         {orders.map((order) => (
                             <OrderCard

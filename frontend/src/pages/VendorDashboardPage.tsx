@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
-import { vendorApi, type Product } from '../api/vendor';
+import { vendorApi, type Product, getStoreProfile } from '../api/vendor';
 import { listVendorOrders, type VendorOrder } from '../api/orders';
 import { listConversations, type InboxConversation } from '../api/inbox';
 import { listConnectedPages, listPosts, type ConnectedPage, type ScheduledPost } from '../api/socials';
@@ -128,6 +128,8 @@ function ChecklistItem({ done, label, to }: { done: boolean; label: string; to: 
 export default function VendorDashboardPage() {
     const { config: themeConfig } = useShopTheme();
     const [storeName, setStoreName] = useState('');
+    const [offering, setOffering] = useState('products');
+    const [setupProfile, setSetupProfile] = useState<any>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [conversations, setConversations] = useState<InboxConversation[]>([]);
@@ -143,7 +145,7 @@ export default function VendorDashboardPage() {
         const from = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
         const to = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
         Promise.allSettled([
-            vendorApi.getVendorProfile(),
+            getStoreProfile(),
             vendorApi.getProducts(),
             listVendorOrders(),
             listConversations(),
@@ -151,6 +153,8 @@ export default function VendorDashboardPage() {
             listPosts(from, to),
         ]).then(([profile, productsRes, ordersRes, convosRes, pagesRes, postsRes]) => {
             if (profile.status === 'fulfilled') setStoreName(profile.value.store_name || 'BizAlly');
+            if (profile.status === 'fulfilled') setOffering(profile.value.offering || 'products');
+            if (profile.status === 'fulfilled') setSetupProfile(profile.value);
             if (productsRes.status === 'fulfilled') {
                 const data: any = productsRes.value;
                 setProducts(Array.isArray(data) ? data : data?.results ?? []);
@@ -231,6 +235,49 @@ export default function VendorDashboardPage() {
                             </div>
 
                             {(() => {
+                                if (!setupProfile) return null;
+                                const checks = [
+                                    { done: Boolean(setupProfile.logo), label: 'Add your store logo', to: '/vendor/settings/profile' },
+                                    { done: Boolean(setupProfile.bio), label: 'Write a short store bio', to: '/vendor/settings/profile' },
+                                    { done: Boolean(setupProfile.phone), label: 'Add your contact phone', to: '/vendor/settings/profile' },
+                                    { done: Boolean(connectedPage), label: 'Connect your Facebook Page', to: '/vendor/settings/accounts' },
+                                    { done: Boolean(setupProfile.ai_knowledge), label: 'Teach the AI your delivery & payment policies', to: '/vendor/settings/assistant' },
+                                    { done: Boolean(setupProfile.ai_auto_reply), label: 'Turn on automatic replies', to: '/vendor/settings/assistant' },
+                                    { done: products.some((p) => p.status === 'published'), label: offering === 'services' ? 'Publish your first service' : 'Publish your first product', to: '/vendor/products/new' },
+                                ];
+                                const doneCount = checks.filter((c) => c.done).length;
+                                if (doneCount === checks.length) return null;
+                                const percent = Math.round((doneCount / checks.length) * 100);
+                                const missing = checks.filter((c) => !c.done).slice(0, 3);
+                                return (
+                                    <div
+                                        className="mt-6 rounded-2xl border p-5 backdrop-blur-xl shadow-sm"
+                                        style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="material-symbols-outlined" style={{ color: themeConfig.primary }}>checklist</span>
+                                                <h3 className="text-base font-bold" style={{ color: themeConfig.text }}>Finish setting up — {percent}%</h3>
+                                            </div>
+                                        </div>
+                                        <div className="h-2 rounded-full mb-3" style={{ backgroundColor: `${themeConfig.border}60` }}>
+                                            <div className="h-2 rounded-full transition-all" style={{ width: `${percent}%`, backgroundColor: themeConfig.primary }} />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {missing.map((item) => (
+                                                <Link key={item.label} to={item.to} className="flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: themeConfig.text }}>
+                                                    <span className="material-symbols-outlined text-[16px]" style={{ color: themeConfig.textSecondary }}>radio_button_unchecked</span>
+                                                    {item.label}
+                                                    <span className="material-symbols-outlined text-[14px] ml-auto" style={{ color: themeConfig.textSecondary }}>arrow_forward</span>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {(() => {
+                                if (offering === 'services') return null;
                                 const lowStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock > 0 && p.stock < 10);
                                 const outOfStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock === 0);
                                 if (lowStock.length === 0 && outOfStock.length === 0) return null;

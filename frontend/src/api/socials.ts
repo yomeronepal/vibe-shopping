@@ -6,6 +6,7 @@ export interface MetaPage {
 }
 
 export interface ConnectedPage {
+    connection_type?: 'facebook_page' | 'instagram_direct';
     id: number;
     page_id: string;
     name: string;
@@ -15,6 +16,16 @@ export interface ConnectedPage {
     created_at: string;
 }
 
+export const getInstagramConnectUrl = async (): Promise<string> => {
+    const response = await apiClient.get('/socials/instagram/connect-url/');
+    return response.data.url;
+};
+
+export const completeInstagramOAuth = async (code: string, state: string): Promise<ConnectedPage> => {
+    const response = await apiClient.post('/socials/instagram/oauth/callback/', { code, state });
+    return response.data;
+};
+
 export const getConnectUrl = async (): Promise<string> => {
     const response = await apiClient.get('/socials/connect-url/');
     return response.data.url;
@@ -23,6 +34,11 @@ export const getConnectUrl = async (): Promise<string> => {
 export const completeOAuth = async (code: string, state: string): Promise<MetaPage[]> => {
     const response = await apiClient.post('/socials/oauth/callback/', { code, state });
     return response.data.pages;
+};
+
+export const importPageProfile = async (): Promise<{ imported: string[] }> => {
+    const response = await apiClient.post('/socials/pages/import-profile/');
+    return response.data;
 };
 
 export const listConnectedPages = async (): Promise<ConnectedPage[]> => {

@@ -320,6 +320,10 @@ export const vendorApi = {
         category?: string;
         brand_vibes?: string[];
         ai_persona?: number;
+        offering?: 'products' | 'services' | 'both';
+        phone?: string;
+        email?: string;
+        address?: string;
     }, logo?: File | null) => {
         const formData = new FormData();
 
@@ -327,6 +331,10 @@ export const vendorApi = {
         if (data.category) formData.append('category', data.category);
         if (data.brand_vibes) formData.append('brand_vibes', JSON.stringify(data.brand_vibes));
         if (data.ai_persona !== undefined) formData.append('ai_persona', data.ai_persona.toString());
+        if (data.offering) formData.append('offering', data.offering);
+        if (data.phone) formData.append('phone', data.phone);
+        if (data.email) formData.append('email', data.email);
+        if (data.address) formData.append('address', data.address);
         if (logo) formData.append('logo', logo);
 
         const response = await apiClient.post('/vendor/onboarding/profile/', formData);
@@ -411,6 +419,8 @@ export interface StoreProfile {
     ai_tone: string;
     ai_language: string;
     order_fields: string[];
+    service_fields: string[];
+    offering: 'products' | 'services' | 'both';
     followup_hours: number;
     followup_message: string;
     restricted_topics: string[];
@@ -443,6 +453,7 @@ export const removeWebsiteKnowledge = async (): Promise<void> => {
 
 export interface UpdateStoreProfileData {
     store_name?: string;
+    offering?: 'products' | 'services' | 'both';
     bio?: string;
     category?: string;
     brand_vibes?: string[];
@@ -469,12 +480,14 @@ export const updateAssistantSettings = async (
     restrictedTopics: string[],
     maxDiscount: number,
     maxAutoOrderValue: number,
+    serviceFields: string[],
 ): Promise<StoreProfile> => {
     const response = await apiClient.patch('/vendor/profile/', {
         ai_knowledge: knowledge,
         ai_assistant_enabled: enabled,
         ai_auto_reply: autoReply,
         order_fields: JSON.stringify(orderFields),
+        service_fields: JSON.stringify(serviceFields),
         ai_tone: tone,
         ai_language: language,
         followup_hours: followupHours,
@@ -483,6 +496,25 @@ export const updateAssistantSettings = async (
         ai_max_discount: maxDiscount,
         max_auto_order_value: maxAutoOrderValue,
     });
+    return response.data;
+};
+
+export const saveAiSetup = async (data: {
+    ai_knowledge?: string;
+    ai_auto_reply?: boolean;
+    ai_tone?: string;
+    ai_language?: string;
+}): Promise<StoreProfile> => {
+    const response = await apiClient.patch('/vendor/profile/', data);
+    return response.data;
+};
+
+export const generateStoreBio = async (data: {
+    sells: string;
+    audience?: string;
+    special?: string;
+}): Promise<{ bio: string }> => {
+    const response = await apiClient.post('/store/generate-bio/', data);
     return response.data;
 };
 

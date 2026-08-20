@@ -19,6 +19,8 @@ export default function VendorAssistantSettingsPage() {
     const [enabled, setEnabled] = useState(true);
     const [autoReply, setAutoReply] = useState(false);
     const [orderFields, setOrderFields] = useState<string[]>([]);
+    const [serviceFields, setServiceFields] = useState<string[]>([]);
+    const [offering, setOffering] = useState('products');
     const [tone, setTone] = useState('');
     const [language, setLanguage] = useState('');
     const [followupHours, setFollowupHours] = useState(6);
@@ -40,6 +42,8 @@ export default function VendorAssistantSettingsPage() {
                 setEnabled(profile.ai_assistant_enabled);
                 setAutoReply(profile.ai_auto_reply);
                 setOrderFields(profile.order_fields);
+                setServiceFields(profile.service_fields || []);
+                setOffering(profile.offering || 'products');
                 setTone(profile.ai_tone);
                 setLanguage(profile.ai_language);
                 setFollowupHours(profile.followup_hours);
@@ -102,7 +106,7 @@ export default function VendorAssistantSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage, restrictedTopics, maxDiscount, maxOrderValue);
+            await updateAssistantSettings(knowledge, enabled, autoReply, orderFields, tone, language, followupHours, followupMessage, restrictedTopics, maxDiscount, maxOrderValue, serviceFields);
             toast.success('Assistant settings saved');
         } catch {
             toast.error('Could not save assistant settings');
@@ -308,6 +312,15 @@ export default function VendorAssistantSettingsPage() {
                                     (plus the products they want), the order is created automatically.
                                 </p>
                                 <TagEditor label="Fields" tags={orderFields} placeholder="Add field, press Enter" onChange={setOrderFields} />
+                                {offering !== 'products' && (
+                                    <div className="mt-5 pt-4 border-t" style={{ borderColor: `${themeConfig.border}50` }}>
+                                        <h4 className="font-bold" style={{ color: themeConfig.text }}>Booking information to collect (services)</h4>
+                                        <p className="text-xs mt-1 mb-2" style={{ color: themeConfig.textSecondary }}>
+                                            Asked instead of delivery details when a customer books a service.
+                                        </p>
+                                        <TagEditor label="Fields" tags={serviceFields} placeholder="Add field, press Enter" onChange={setServiceFields} />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="rounded-3xl shadow-lg p-6" style={{ backgroundColor: themeConfig.cardBg }}>

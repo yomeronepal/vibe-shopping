@@ -228,15 +228,59 @@ def build_history_block(conversation):
 
 
 DEFAULT_ORDER_FIELDS = ['Full name', 'Phone number', 'Delivery address']
+DEFAULT_BOOKING_FIELDS = ['Full name', 'Phone number', 'Preferred date & time']
+
+
+def read_field_list(tenant, key, default):
+    """Return a configured field list from tenant metadata, or the default."""
+    fields = (tenant.metadata or {}).get(key)
+    if isinstance(fields, list) and fields:
+        return [str(field)[:60] for field in fields][:10]
+    return list(default)
 
 
 def get_order_fields(tenant):
-    """Return the info fields the vendor wants collected before an order."""
-    metadata = tenant.metadata or {}
-    fields = metadata.get('orderFields')
-    if isinstance(fields, list) and fields:
-        return [str(field)[:60] for field in fields][:10]
-    return list(DEFAULT_ORDER_FIELDS)
+    """Return the info fields collected before a product order."""
+    return read_field_list(tenant, 'orderFields', DEFAULT_ORDER_FIELDS)
+
+
+def get_booking_fields(tenant):
+    """Return the info fields collected before a service booking."""
+    return read_field_list(tenant, 'serviceFields', DEFAULT_BOOKING_FIELDS)
+
+
+def get_offering(tenant):
+    """Return what the business sells: products, services, or both."""
+    offering = (tenant.metadata or {}).get('offering', 'products')
+    return offering if offering in ('products', 'services', 'both') else 'products'
+
+
+def merge_field_lists(first, second):
+    """Combine two field lists, keeping order and dropping duplicates."""
+    merged = list(first)
+    for field in second:
+        if field not in merged:
+            merged.append(field)
+    return merged
+
+
+def resolve_required_fields(tenant, items):
+    """Pick the field set the chosen items call for.
+
+    Services alone need booking fields, physical items need order
+    fields, and mixed carts need both. With no items yet, the
+    business offering decides the default set.
+    """
+    types = {item.get('item_type', 'physical') for item in items}
+    if items:
+        if types == {'service'}:
+            return get_booking_fields(tenant)
+        if 'service' in types:
+            return merge_field_lists(get_order_fields(tenant), get_booking_fields(tenant))
+        return get_order_fields(tenant)
+    if get_offering(tenant) == 'services':
+        return get_booking_fields(tenant)
+    return get_order_fields(tenant)
 
 
 def build_suggestion_prompt(conversation):
@@ -501,6 +545,7 @@ def coerce_extracted_item(item, by_id, by_sku):
         'product_id': product.id,
         'name': product.name,
         'sku': product.product_code or '',
+        'item_type': product.item_type,
         'price': format_price(product.price),
         'quantity': quantity,
         'stock': product.stock,
@@ -609,27 +654,55 @@ def build_recent_orders_block(conversation):
     return '\n'.join(format_recent_order_line(order) for order in orders)
 
 
+OFFERING_LINES = {
+    'products': 'This business sells products.',
+    'services': 'This business offers services and bookings — customers book, nothing is shipped.',
+    'both': 'This business sells products AND offers bookable services.',
+}
+
+
+def build_fields_section(tenant):
+    """Describe which fields to collect for orders and bookings."""
+    offering = get_offering(tenant)
+    parts = []
+    if offering in ('products', 'both'):
+        parts.append(
+            'INFORMATION TO COLLECT BEFORE PLACING A PRODUCT ORDER\n'
+            + ', '.join(get_order_fields(tenant))
+        )
+    if offering in ('services', 'both'):
+        parts.append(
+            'INFORMATION TO COLLECT BEFORE BOOKING A SERVICE\n'
+            + ', '.join(get_booking_fields(tenant))
+        )
+    return '\n\n'.join(parts)
+
+
 def build_order_flow_prompt(conversation):
     """Assemble the combined reply + order-state prompt for the bot."""
     from inbox.services.knowledge import build_knowledge_block
 
     tenant = conversation.tenant
     knowledge = build_knowledge_block(tenant)
-    fields = get_order_fields(tenant)
+    fields = merge_field_lists(get_order_fields(tenant), get_booking_fields(tenant))
+    if get_offering(tenant) == 'products':
+        fields = get_order_fields(tenant)
+    elif get_offering(tenant) == 'services':
+        fields = get_booking_fields(tenant)
     fields_json = ', '.join(f'"{field}": "<value or empty string>"' for field in fields)
     return f"""You run the chat for a small Nepali business selling on Facebook and Instagram. You both answer the customer and collect order information.
 
 BUSINESS PROFILE
 {build_business_block(tenant)}
+{OFFERING_LINES[get_offering(tenant)]}
 
 BUSINESS KNOWLEDGE (policies and FAQs — the only extra facts you may state)
 {knowledge or '(none provided)'}
 
-PRODUCT CATALOG (only these can be ordered; use the exact id; the ONLY source of prices and stock)
+CATALOG (only these can be ordered or booked; use the exact id; the ONLY source of prices and stock)
 {build_order_catalog_block(tenant, conversation)}
 
-INFORMATION TO COLLECT BEFORE PLACING AN ORDER
-{', '.join(fields)}
+{build_fields_section(tenant)}
 
 KNOWN CUSTOMER DETAILS (saved from earlier orders — you may fill collected with these, but confirm them before placing a new order)
 {build_known_customer_block(conversation) or '(new customer — nothing on file)'}
@@ -642,12 +715,12 @@ CONVERSATION SO FAR (Customer is the buyer; Business is you)
 
 TASK
 Respond with ONLY a JSON object, no markdown, in this exact shape:
-{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "update_order_id": <the id from the recent orders list when the customer asks to change that existing order, else null>, "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
+{{"reply": "<your next message to the customer>", "ordering": true or false, "order_ready": true or false, "items": [{{"product_id": <catalog id>, "sku": "<catalog SKU if shown, else empty>", "quantity": <positive integer>, "size": "<size if stated, else empty>", "color": "<color if stated, else empty>"}}], "recommended_product_ids": [<catalog ids of products your reply recommends or shows, up to 3>], "update_order_id": <the id from the recent orders list when the customer asks to change that existing order, else null>, "quick_replies": ["<up to 4 short answers the customer can tap, each under 20 characters>"], "collected": {{{fields_json}}}, "missing": ["<fields still not provided>"], "sentiment": "positive" or "neutral" or "negative", "needs_human": true or false}}
 
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
 2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. The option values and colors listed in a catalog line (with their per-value stock counts) are the ONLY ones that exist for that product; a value with count 0 is out of stock. The option axis may be sizes, weights, storage, flavors, or anything else — use the vendor's own label (e.g. "Weight [250g:4]" means you offer it in 250g) and put the customer's chosen value in that item's "size" field.
-2b. Catalog lines marked SERVICE are bookable services (photography, repairs, consultations, and similar), not physical goods: they have no stock, sizes, or colors, and can always be ordered. When a customer books a service, capture any preferences they state (date, time, location, requirements) inside collected, and mention that the business will confirm the schedule.
+2b. Catalog lines marked SERVICE are bookable services (photography, repairs, consultations, and similar), not physical goods: they have no stock, sizes, or colors, and can always be booked. For services use booking language ("booking", "appointment") — never "delivery" — and collect the SERVICE fields, not the product order fields. Capture any preferences the customer states (date, time, location, requirements) inside collected, and mention that the business will confirm the schedule.
 2c. Catalog lines marked MADE TO ORDER are physical products prepared after ordering (cakes, custom prints, tailoring): they have no stock count and can always be ordered. Mention preparation or delivery time only when the description states one.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
 3b. Never mention any product that is not in the catalog, and always use the exact catalog names.
@@ -662,6 +735,7 @@ Rules:
 7. When the customer is not ordering, just answer their question; items and collected may be empty.
 8. When something they want is unavailable, or they ask for suggestions, recommend 1-2 fitting products FROM THE CATALOG ONLY, and put their catalog ids in recommended_product_ids so their photos can be sent. Also fill recommended_product_ids when the customer asks to see a product or its photo. Leave it empty otherwise.
 8b. When the customer quotes a SKU code, match it exactly against the catalog.
+8c. When your reply asks the customer to choose between a few options (sizes, colors, option values, yes/no), fill quick_replies with the exact choices as short tappable answers — only in-stock catalog values, max 4, each under 20 characters. Leave quick_replies empty when the reply needs a typed answer (like an address).
 9. sentiment reflects the customer's mood in their recent messages.
 10. needs_human is true when the customer is upset or angry, explicitly asks for a person, complains about an already-placed order (except a simple change you can handle via update_order_id), or asks for a refund/return — then the reply must warmly say a team member will follow up shortly, and nothing else.{get_restricted_rule(tenant)}{get_discount_rule(tenant)}"""
 
@@ -695,8 +769,6 @@ def advance_order_conversation(conversation):
     grounded = validate_order_extraction(conversation.tenant, data, conversation)
     collected = data.get('collected') if isinstance(data.get('collected'), dict) else {}
     cleaned = {str(k)[:60]: str(v)[:200] for k, v in collected.items() if str(v).strip()}
-    fields = get_order_fields(conversation.tenant)
-    missing = [field for field in fields if not cleaned.get(field)]
     sentiment = str(data.get('sentiment', '')).lower()
     if sentiment not in ('positive', 'neutral', 'negative'):
         sentiment = 'neutral'
@@ -704,6 +776,10 @@ def advance_order_conversation(conversation):
         update_order_id = int(data.get('update_order_id')) if data.get('update_order_id') else None
     except (TypeError, ValueError):
         update_order_id = None
+    raw_quick = data.get('quick_replies') if isinstance(data.get('quick_replies'), list) else []
+    quick_replies = [str(entry).strip()[:20] for entry in raw_quick if str(entry).strip()][:4]
+    required_fields = resolve_required_fields(conversation.tenant, grounded['items'])
+    missing = [field for field in required_fields if not cleaned.get(field)]
     return {
         'reply': str(data['reply']).strip()[:1500],
         'ordering': bool(data.get('ordering')),
@@ -715,6 +791,8 @@ def advance_order_conversation(conversation):
         'needs_human': bool(data.get('needs_human')),
         'recommended_products': load_recommended_products(conversation.tenant, data),
         'update_order_id': update_order_id,
+        'quick_replies': quick_replies,
+        'required_fields': required_fields,
     }
 
 

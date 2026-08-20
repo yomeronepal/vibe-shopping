@@ -31,6 +31,23 @@ def process_webhook_event(self, event_id):
 
 
 @shared_task
+def refresh_instagram_tokens():
+    """Extend long-lived tokens for direct Instagram connections."""
+    from socials.models import ConnectedPage
+    from socials.services.instagram_login import refresh_instagram_token
+
+    refreshed = 0
+    pages = ConnectedPage.objects.filter(connection_type='instagram_direct', status='connected')
+    for page in pages:
+        new_token = refresh_instagram_token(page.get_access_token())
+        if new_token:
+            page.set_access_token(new_token)
+            page.save()
+            refreshed += 1
+    return refreshed
+
+
+@shared_task
 def publish_due_posts():
     """Claim due scheduled posts and queue them for publishing."""
     now = timezone.now()

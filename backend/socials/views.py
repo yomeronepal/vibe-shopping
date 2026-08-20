@@ -242,10 +242,191 @@ class PageConnectView(APIView):
         )
         page.set_access_token(target['access_token'])
         page.save()
+        from socials.services.messenger_profile import setup_messenger_profile
+        setup_messenger_profile(page)
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
+class InstagramRedirectBridgeView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        """Forward Instagram's HTTPS redirect to the local frontend callback.
+
+        Instagram Login only accepts HTTPS redirect URIs, so the OAuth
+        dialog lands here (public tunnel) and the browser is bounced to
+        the frontend callback with the same query string.
+        """
+        from urllib.parse import urlencode
+
+        from django.http import HttpResponseRedirect
+
+        params = {
+            key: request.query_params[key]
+            for key in ('code', 'state', 'error', 'error_description')
+            if key in request.query_params
+        }
+        target = settings.INSTAGRAM_LOGIN_FRONTEND_CALLBACK
+        return HttpResponseRedirect(f'{target}?{urlencode(params)}')
+
+
+class InstagramConnectUrlView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Return the Instagram Business Login URL, or setup guidance."""
+        from socials.services.instagram_login import (
+            build_instagram_connect_url,
+            instagram_login_configured,
+        )
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        if not instagram_login_configured():
+            return Response(
+                {'error': 'Instagram Login is not configured yet. Add the Instagram product '
+                          'to the Meta app and set INSTAGRAM_LOGIN_APP_ID / INSTAGRAM_LOGIN_APP_SECRET.'},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+        return Response({'url': build_instagram_connect_url(tenant)})
+
+
+class InstagramOAuthCallbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Finish Instagram Login: store the account as a direct connection."""
+        from socials.services.instagram_login import (
+            exchange_instagram_code,
+            fetch_instagram_profile,
+            subscribe_instagram_webhooks,
+            validate_instagram_state,
+        )
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        code = request.data.get('code')
+        state = request.data.get('state')
+        if not code or not state:
+            return Response({'error': 'code and state are required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not validate_instagram_state(state, tenant):
+            return Response({'error': 'Invalid or expired state'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = exchange_instagram_code(code)
+            profile = fetch_instagram_profile(token['access_token'])
+        except MetaGraphError as exc:
+            logger.warning('Instagram OAuth callback failed: %s', exc)
+            return Response(
+                {'error': 'Could not connect to Instagram. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        ig_id = profile['id'] or token['user_id']
+        expires_at = None
+        if token.get('expires_in'):
+            expires_at = timezone.now() + timedelta(seconds=token['expires_in'])
+        connection, _ = MetaConnection.objects.update_or_create(
+            tenant=tenant,
+            defaults={'fb_user_id': f'ig-{ig_id}', 'token_expires_at': expires_at, 'status': 'connected'},
+        )
+        connection.set_access_token(token['access_token'])
+        connection.save()
+        page, _ = ConnectedPage.objects.update_or_create(
+            page_id=ig_id,
+            defaults={
+                'tenant': tenant,
+                'connection': connection,
+                'name': profile['name'] or f"@{profile['username']}",
+                'instagram_account_id': ig_id,
+                'instagram_username': profile['username'],
+                'connection_type': 'instagram_direct',
+                'status': 'connected',
+            },
+        )
+        page.set_access_token(token['access_token'])
+        page.save()
+        subscribe_instagram_webhooks(ig_id, token['access_token'])
+        return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
+
+
+class PageProfileImportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Copy the connected Page's public profile onto the store.
+
+        Fills only fields the vendor has not set yet: bio from the
+        Page about text, contact phone and address, and the Page
+        picture as the store logo.
+        """
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        page = ConnectedPage.objects.filter(tenant=tenant, status='connected').first()
+        if page is None:
+            return Response({'error': 'Connect a Facebook Page first.'}, status=status.HTTP_400_BAD_REQUEST)
+        client = MetaGraphClient()
+        try:
+            payload = client.get(f'/{page.page_id}', {
+                'access_token': page.get_access_token(),
+                'fields': 'about,phone,single_line_address,picture.width(400){url}',
+            })
+        except MetaGraphError as exc:
+            logger.warning('Page profile import failed: %s', exc)
+            return Response({'error': 'Could not read the Page profile.'}, status=status.HTTP_502_BAD_GATEWAY)
+        imported = apply_page_profile(tenant, payload)
+        return Response({'imported': imported})
+
+
+def apply_page_profile(tenant, payload):
+    """Merge Page profile data into empty tenant fields; returns what changed."""
+    metadata = tenant.metadata or {}
+    contact = metadata.get('contact', {})
+    imported = []
+    if payload.get('about') and not metadata.get('bio'):
+        metadata['bio'] = payload['about'][:1000]
+        imported.append('bio')
+    if payload.get('phone') and not contact.get('phone'):
+        contact['phone'] = payload['phone'][:30]
+        imported.append('phone')
+    if payload.get('single_line_address') and not contact.get('address'):
+        contact['address'] = payload['single_line_address'][:255]
+        imported.append('address')
+    metadata['contact'] = contact
+    picture_url = ((payload.get('picture') or {}).get('data') or {}).get('url', '')
+    if picture_url and not metadata.get('logo'):
+        logo_path = download_page_picture(tenant, picture_url)
+        if logo_path:
+            metadata['logo'] = logo_path
+            imported.append('logo')
+    tenant.metadata = metadata
+    tenant.save(update_fields=['metadata'])
+    return imported
+
+
+def download_page_picture(tenant, url):
+    """Save the Page picture as the store logo; empty string on failure."""
+    import requests as http
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    try:
+        response = http.get(url, timeout=10)
+        response.raise_for_status()
+    except http.exceptions.RequestException:
+        logger.info('Page picture download failed for tenant %s', tenant.id)
+        return ''
+    slug = tenant.subdomain or 'default'
+    return default_storage.save(
+        f'uploads/{slug}/logo/page-logo.jpg', ContentFile(response.content),
+    )
+
+
 class PageDisconnectView(APIView):
+
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request, page_id):

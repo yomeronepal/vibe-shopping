@@ -14,6 +14,10 @@ class OnboardingProfileSerializer(serializers.Serializer):
         default=list
     )
     ai_persona = serializers.IntegerField(min_value=0, max_value=100, required=False, default=65)
+    offering = serializers.ChoiceField(choices=['products', 'services', 'both'], required=False)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    address = serializers.CharField(max_length=255, required=False, allow_blank=True)
     logo = serializers.ImageField(required=False)
 
 

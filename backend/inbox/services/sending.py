@@ -6,7 +6,7 @@ from django.utils import timezone
 from inbox.models import Conversation, Message
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
-from socials.services.meta_graph import MetaGraphClient, MetaGraphError
+from socials.services.meta_graph import MetaGraphClient, MetaGraphError, graph_client_for
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +49,24 @@ def resolve_reply_route(conversation):
     return 'dm', conversation.customer.platform_user_id
 
 
-def deliver_via_meta(conversation, text):
-    """Send the text through Meta; return the platform message id."""
-    client = MetaGraphClient()
+def show_read_and_typing(conversation):
+    """Mark the thread seen and show typing dots; never raises."""
     page = conversation.page
+    client = graph_client_for(page)
+    try:
+        for action in ('mark_seen', 'typing_on'):
+            client.send_sender_action(
+                page.page_id, page.get_access_token(),
+                conversation.customer.platform_user_id, action,
+            )
+    except MetaGraphError as exc:
+        logger.info('Sender action skipped for conversation %s: %s', conversation.id, exc)
+
+
+def deliver_via_meta(conversation, text, quick_replies=None):
+    """Send the text through Meta; return the platform message id."""
+    page = conversation.page
+    client = graph_client_for(page)
     route, target = resolve_reply_route(conversation)
     try:
         if route == 'comment':
@@ -63,6 +77,7 @@ def deliver_via_meta(conversation, text):
             page.get_access_token(),
             target,
             text,
+            quick_replies=quick_replies,
         )
     except MetaGraphError as exc:
         if exc.code == 10:
@@ -143,7 +158,7 @@ def send_card_carousel(conversation, page, target, products):
     """Send rich template cards with tappable product links."""
     elements = [build_product_card(product) for product in products]
     try:
-        message_id = MetaGraphClient().send_generic_template(
+        message_id = graph_client_for(page).send_generic_template(
             page.page_id, page.get_access_token(), target, elements,
         )
     except MetaGraphError as exc:
@@ -154,7 +169,7 @@ def send_card_carousel(conversation, page, target, products):
 
 def send_card_photos(conversation, page, target, products):
     """Send labeled photo messages, remembering which mid shows which product."""
-    client = MetaGraphClient()
+    client = graph_client_for(page)
     message_id = ''
     sent = []
     photo_mids = {}
@@ -198,7 +213,7 @@ def send_product_cards(conversation, products):
     return send_card_photos(conversation, page, target, products)
 
 
-def send_conversation_text(conversation, text, sent_by_ai=False):
+def send_conversation_text(conversation, text, sent_by_ai=False, quick_replies=None):
     """Send text to a conversation's customer, store it, and push updates.
 
     AI-sent replies keep the unread counter so the vendor still notices
@@ -209,7 +224,7 @@ def send_conversation_text(conversation, text, sent_by_ai=False):
     Raises:
         ConversationSendError: when Meta rejects or cannot be reached.
     """
-    message_id = deliver_via_meta(conversation, text)
+    message_id = deliver_via_meta(conversation, text, quick_replies=quick_replies)
     record = Message.objects.create(
         conversation=conversation,
         direction='out',

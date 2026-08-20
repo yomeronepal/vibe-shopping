@@ -15,11 +15,13 @@ import VendorProductCreatePage from './pages/VendorProductCreatePage';
 import VendorProductListPage from './pages/VendorProductListPage';
 import ConnectedAccountsPage from './pages/ConnectedAccountsPage';
 import MetaCallbackPage from './pages/MetaCallbackPage';
+import InstagramCallbackPage from './pages/InstagramCallbackPage';
 import InboxPage from './pages/InboxPage';
 import VendorOrdersPage from './pages/VendorOrdersPage';
 import VendorProductDetailPage from './pages/VendorProductDetailPage';
 import VendorProductEditPage from './pages/VendorProductEditPage';
 import VendorOrderInvoicePage from './pages/VendorOrderInvoicePage';
+import VendorOrderDetailPage from './pages/VendorOrderDetailPage';
 import VendorStoreSettingsPage from './pages/VendorStoreSettingsPage';
 import VendorAssistantSettingsPage from './pages/VendorAssistantSettingsPage';
 import VendorCustomersPage from './pages/VendorCustomersPage';
@@ -60,6 +62,7 @@ function App() {
               <Route path="/vendor/products/new" element={<VendorProductCreatePage />} />
               <Route path="/vendor/products/:id" element={<VendorProductDetailPage />} />
               <Route path="/vendor/products/:id/edit" element={<VendorProductEditPage />} />
+              <Route path="/vendor/orders/:id" element={<VendorOrderDetailPage />} />
               <Route path="/vendor/orders/:id/invoice" element={<VendorOrderInvoicePage />} />
               <Route path="/vendor/customers" element={<VendorCustomersPage />} />
               <Route path="/vendor/analytics" element={<VendorAnalyticsPage />} />
@@ -67,6 +70,7 @@ function App() {
               <Route path="/vendor/settings/assistant" element={<VendorAssistantSettingsPage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
               <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
+              <Route path="/vendor/settings/instagram-callback" element={<InstagramCallbackPage />} />
               <Route path="/vendor/inbox" element={<InboxPage />} />
               <Route path="/vendor/orders" element={<VendorOrdersPage />} />
               <Route path="/vendor/calendar" element={<PublishingCalendarPage />} />

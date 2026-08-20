@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { vendorApi } from '../api/vendor';
+import toast from 'react-hot-toast';
+import { vendorApi, saveAiSetup, generateStoreBio } from '../api/vendor';
+import { getConnectUrl, getInstagramConnectUrl, importPageProfile, listConnectedPages } from '../api/socials';
 import { useShopTheme, type ShopTheme } from '../contexts/ShopThemeContext';
 
-const VIBES = ['Minimal', 'Bold', 'Luxury', 'Y2K', 'Streetwear', 'Sustainable', 'Vintage', 'Bohemian'];
+const AI_PREVIEWS: Record<string, string> = {
+    professional: 'Namaste! Yo product Rs. 2,200 ma available chha. Order garna chahanuhunchha bhane details share garnus.',
+    casual: 'Namaste! 😍 Yo ta Rs. 2,200 ma paincha ni! Linus na — details pathaunus matra!',
+    default: 'Namaste! Yo product Rs. 2,200 ma available chha. Order garna man lage bhannus hai!',
+};
+
 const CATEGORIES = ['Fashion & Apparel', 'Home & Living', 'Tech & Gadgets', 'Art & Collectibles', 'Beauty & Wellness', 'Sports & Outdoors'];
 
 const VendorOnboardingPage: React.FC = () => {
@@ -13,13 +20,13 @@ const VendorOnboardingPage: React.FC = () => {
 
     // Initialize step from URL parameter or default to 1
     const initialStep = parseInt(searchParams.get('step') || '1', 10);
-    const [step, setStep] = useState(initialStep >= 1 && initialStep <= 4 ? initialStep : 1);
+    const [step, setStep] = useState(initialStep >= 1 && initialStep <= 5 ? initialStep : 1);
     const [loading, setLoading] = useState(false);
 
     // Sync step with URL changes
     useEffect(() => {
         const urlStep = parseInt(searchParams.get('step') || '1', 10);
-        if (urlStep >= 1 && urlStep <= 4) {
+        if (urlStep >= 1 && urlStep <= 5) {
             setStep(urlStep);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,8 +90,24 @@ const VendorOnboardingPage: React.FC = () => {
     // Step 1: Profile state
     const [shopName, setShopName] = useState('');
     const [category, setCategory] = useState(CATEGORIES[0]);
+    const [offering, setOffering] = useState<'products' | 'services' | 'both'>('products');
+    const [contactPhone, setContactPhone] = useState('');
+    const [contactEmail, setContactEmail] = useState('');
+    const [contactAddress, setContactAddress] = useState('');
+    const [kDelivery, setKDelivery] = useState('');
+    const [kPayment, setKPayment] = useState('');
+    const [kReturns, setKReturns] = useState('');
+    const [kFaqs, setKFaqs] = useState('');
+    const [aiTone, setAiTone] = useState('');
+    const [aiLanguage, setAiLanguage] = useState('mixed');
+    const [autoReply, setAutoReply] = useState(true);
+    const [pageConnected, setPageConnected] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [bio, setBio] = useState('');
-    const [selectedVibes, setSelectedVibes] = useState<string[]>(['Minimal']);
+    const [bioSells, setBioSells] = useState('');
+    const [bioAudience, setBioAudience] = useState('');
+    const [bioSpecial, setBioSpecial] = useState('');
+    const [generatingBio, setGeneratingBio] = useState(false);
     const [aiPersona, setAiPersona] = useState(65);
     const [logo, setLogo] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -167,11 +190,67 @@ const VendorOnboardingPage: React.FC = () => {
         }
     };
 
-    const toggleVibe = (vibe: string) => {
-        if (selectedVibes.includes(vibe)) {
-            setSelectedVibes(selectedVibes.filter(v => v !== vibe));
-        } else {
-            setSelectedVibes([...selectedVibes, vibe]);
+    const handleGenerateBio = async () => {
+        if (bioSells.trim().length < 3) {
+            toast.error('Tell us what you sell first');
+            return;
+        }
+        setGeneratingBio(true);
+        try {
+            const result = await generateStoreBio({
+                sells: bioSells.trim(),
+                audience: bioAudience.trim(),
+                special: bioSpecial.trim(),
+            });
+            setBio(result.bio);
+            toast.success('Bio drafted — edit it however you like');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not generate the bio');
+        } finally {
+            setGeneratingBio(false);
+        }
+    };
+
+    useEffect(() => {
+        if (step !== 3) return;
+        listConnectedPages()
+            .then((pages) => setPageConnected(pages.some((p) => p.status === 'connected')))
+            .catch(() => {});
+    }, [step]);
+
+    const handleStartInstagramConnect = async () => {
+        try {
+            const url = await getInstagramConnectUrl();
+            window.open(url, '_blank');
+            toast('Finish connecting in the new tab, then come back here.', { icon: '🔗' });
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not start the Instagram connection.');
+        }
+    };
+
+    const handleStartConnect = async () => {
+        try {
+            const url = await getConnectUrl();
+            window.open(url, '_blank');
+            toast('Finish connecting in the new tab, then come back here.', { icon: '🔗' });
+        } catch {
+            toast.error('Could not start the Facebook connection.');
+        }
+    };
+
+    const handleImportFromFacebook = async () => {
+        setImporting(true);
+        try {
+            const result = await importPageProfile();
+            if (result.imported.length === 0) {
+                toast('Nothing new to import — your profile already has those details.', { icon: 'ℹ️' });
+            } else {
+                toast.success(`Imported from Facebook: ${result.imported.join(', ')}`);
+            }
+        } catch {
+            toast.error('Could not import from Facebook.');
+        } finally {
+            setImporting(false);
         }
     };
 
@@ -180,11 +259,19 @@ const VendorOnboardingPage: React.FC = () => {
         try {
             if (step === 1) {
                 // Step 1: Save profile data
+                if (contactPhone && contactPhone.replace(/[^0-9]/g, '').length < 7) {
+                    toast.error('That phone number looks too short');
+                    setLoading(false);
+                    return;
+                }
                 await vendorApi.saveOnboardingProfile({
                     bio,
                     category,
-                    brand_vibes: selectedVibes,
-                    ai_persona: aiPersona
+                    ai_persona: aiPersona,
+                    offering,
+                    phone: contactPhone,
+                    email: contactEmail,
+                    address: contactAddress
                 }, logo);
                 setStep(2);
             } else if (step === 2) {
@@ -195,10 +282,23 @@ const VendorOnboardingPage: React.FC = () => {
                 }, kycDocument);
                 setStep(3);
             } else if (step === 3) {
-                // Step 3: Social connections (skip for now)
                 await vendorApi.skipSocials();
                 setStep(4);
             } else if (step === 4) {
+                const knowledge = [
+                    kDelivery && `Delivery: ${kDelivery}`,
+                    kPayment && `Payment: ${kPayment}`,
+                    kReturns && `Returns/Exchange: ${kReturns}`,
+                    kFaqs && `Common questions: ${kFaqs}`,
+                ].filter(Boolean).join('\n');
+                await saveAiSetup({
+                    ...(knowledge ? { ai_knowledge: knowledge } : {}),
+                    ai_auto_reply: autoReply,
+                    ai_tone: aiTone,
+                    ai_language: aiLanguage,
+                });
+                setStep(5);
+            } else if (step === 5) {
                 // Step 4: Complete onboarding with theme
                 await vendorApi.completeOnboarding(selectedShopTheme);
                 navigate('/vendor/onboarding/success');
@@ -278,7 +378,8 @@ const VendorOnboardingPage: React.FC = () => {
                         { num: 1, label: 'Profile' },
                         { num: 2, label: 'KYC' },
                         { num: 3, label: 'Connect' },
-                        { num: 4, label: 'Launch' }
+                        { num: 4, label: 'AI Setup' },
+                        { num: 5, label: 'Launch' }
                     ].map((s, i) => (
                         <React.Fragment key={s.num}>
                             {i > 0 && <div className="w-px h-4" style={{ backgroundColor: themeConfig.border }}></div>}
@@ -380,6 +481,23 @@ const VendorOnboardingPage: React.FC = () => {
                             </>
                         )}
                         {step === 4 && (
+                            <>
+                                <h1 className="text-5xl md:text-6xl font-extrabold leading-tight tracking-[-0.03em] mb-4" style={{ color: themeConfig.text }}>
+                                    Meet your <span
+                                        className="bg-clip-text"
+                                        style={{
+                                            backgroundImage: themeConfig.textGradient,
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            backgroundClip: 'text',
+                                            color: 'transparent'
+                                        }}
+                                    >AI employee</span>
+                                </h1>
+                                <p className="text-xl font-light leading-relaxed" style={{ color: themeConfig.textSecondary }}>Teach it your policies and pick its voice — it answers customers 24/7.</p>
+                            </>
+                        )}
+                        {step === 5 && (
                             <>
                                 <h1 className="text-5xl md:text-6xl font-extrabold leading-tight tracking-[-0.03em] mb-4" style={{ color: themeConfig.text }}>
                                     Customize & <span
@@ -488,6 +606,57 @@ const VendorOnboardingPage: React.FC = () => {
                                         onChange={(e) => setShopName(e.target.value)}
                                     />
                                 </label>
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <span className="text-sm font-bold">Contact details <span className="font-normal text-xs" style={{ color: themeConfig.textSecondary }}>— used on invoices and by your AI when customers ask</span></span>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="Phone (98XXXXXXXX)"
+                                            value={contactPhone}
+                                            onChange={(e) => setContactPhone(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="Business email"
+                                            value={contactEmail}
+                                            onChange={(e) => setContactEmail(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="Store address"
+                                            value={contactAddress}
+                                            onChange={(e) => setContactAddress(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <span className="text-sm font-bold">What does your business offer?</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {([
+                                            ['products', 'I sell products', 'inventory_2', 'Clothes, gadgets, cosmetics — anything you deliver'],
+                                            ['services', 'I offer services', 'event_available', 'Photography, salon, repairs — customers book appointments'],
+                                            ['both', 'Both', 'storefront', 'Products to deliver and services to book'],
+                                        ] as const).map(([value, label, icon, hint]) => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                onClick={() => setOffering(value)}
+                                                className="rounded-2xl border-2 p-4 text-left transition-all"
+                                                style={{
+                                                    borderColor: offering === value ? themeConfig.primary : themeConfig.border,
+                                                    backgroundColor: offering === value ? `${themeConfig.primary}0d` : themeConfig.surface,
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined" style={{ color: offering === value ? themeConfig.primary : themeConfig.textSecondary }}>{icon}</span>
+                                                <p className="font-bold mt-1" style={{ color: themeConfig.text }}>{label}</p>
+                                                <p className="text-xs mt-1 leading-snug" style={{ color: themeConfig.textSecondary }}>{hint}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 <label className="flex flex-col gap-2">
                                     <span className="text-sm font-bold">Category</span>
                                     <select
@@ -504,7 +673,40 @@ const VendorOnboardingPage: React.FC = () => {
                                     </select>
                                 </label>
                                 <label className="flex flex-col gap-2 md:col-span-2">
-                                    <span className="text-sm font-bold">Short Bio</span>
+                                    <span className="text-sm font-bold">Short Bio <span className="font-normal text-xs" style={{ color: themeConfig.textSecondary }}>— your AI learns your shop from this</span></span>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="What do you sell? (e.g. Italian-style menswear)"
+                                            value={bioSells}
+                                            onChange={(e) => setBioSells(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="Who is it for? (e.g. young professionals in KTM)"
+                                            value={bioAudience}
+                                            onChange={(e) => setBioAudience(e.target.value)}
+                                        />
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder="What makes you special? (e.g. imported fabric)"
+                                            value={bioSpecial}
+                                            onChange={(e) => setBioSpecial(e.target.value)}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateBio}
+                                        disabled={generatingBio}
+                                        className="self-start flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                                        style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                                        {generatingBio ? 'Writing…' : 'Generate bio with AI'}
+                                    </button>
                                     <textarea
                                         className="border rounded-xl px-4 py-3 focus:outline-none resize-none transition-colors duration-500"
                                         style={{
@@ -512,43 +714,12 @@ const VendorOnboardingPage: React.FC = () => {
                                             borderColor: themeConfig.border,
                                             color: themeConfig.text
                                         }}
-                                        placeholder="Describe your shop..."
-                                        rows={2}
+                                        placeholder="We sell [what] for [who] in [city]. Known for [what makes you special]."
+                                        rows={3}
                                         value={bio}
                                         onChange={(e) => setBio(e.target.value)}
                                     />
                                 </label>
-                            </div>
-                        </div>
-
-                        {/* Brand Vibe Card */}
-                        <div
-                            className="md:col-span-4 backdrop-blur-xl rounded-[2rem] p-6 shadow-sm border transition-colors duration-500"
-                            style={{
-                                backgroundColor: `${themeConfig.cardBg}ee`,
-                                borderColor: `${themeConfig.border}60`
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="material-symbols-outlined" style={{ color: primaryColor }}>palette</span>
-                                <h3 className="text-xl font-bold">Brand Vibe</h3>
-                            </div>
-                            <p className="text-sm mb-6" style={{ color: themeConfig.textSecondary }}>Select keywords that match your aesthetic.</p>
-                            <div className="flex flex-wrap gap-2">
-                                {VIBES.map(vibe => (
-                                    <button
-                                        key={vibe}
-                                        onClick={() => toggleVibe(vibe)}
-                                        className="px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-300"
-                                        style={{
-                                            borderColor: selectedVibes.includes(vibe) ? primaryColor : themeConfig.border,
-                                            backgroundColor: selectedVibes.includes(vibe) ? `${primaryColor}10` : themeConfig.surface,
-                                            color: selectedVibes.includes(vibe) ? primaryColor : themeConfig.textSecondary
-                                        }}
-                                    >
-                                        {vibe} {selectedVibes.includes(vibe) && '✓'}
-                                    </button>
-                                ))}
                             </div>
                         </div>
 
@@ -721,29 +892,152 @@ const VendorOnboardingPage: React.FC = () => {
                                 borderColor: `${themeConfig.border}60`
                             }}
                         >
-                            <h3 className="text-2xl font-bold mb-2 text-center">Import from Social</h3>
-                            <p className="text-center mb-8" style={{ color: themeConfig.textSecondary }}>Connect your accounts to auto-populate your catalog.</p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button className="flex items-center justify-center gap-3 bg-[#E1306C] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all">
-                                    <span className="text-lg">Instagram</span>
-                                </button>
-                                <button className="flex items-center justify-center gap-3 bg-black text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all">
-                                    <span className="text-lg">TikTok</span>
-                                </button>
-                                <button className="flex items-center justify-center gap-3 bg-[#FF0000] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all">
-                                    <span className="text-lg">YouTube</span>
-                                </button>
-                                <button className="flex items-center justify-center gap-3 bg-[#4267B2] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all">
-                                    <span className="text-lg">Facebook</span>
-                                </button>
-                            </div>
-                            <p className="text-center text-sm mt-6" style={{ color: themeConfig.textSecondary }}>You can skip this step and add products manually later.</p>
+                            <h3 className="text-2xl font-bold mb-2 text-center">Connect your Facebook Page</h3>
+                            <p className="text-center mb-8" style={{ color: themeConfig.textSecondary }}>
+                                Your AI answers customers on Messenger and Instagram through this Page.
+                            </p>
+                            {pageConnected ? (
+                                <div className="flex flex-col gap-4">
+                                    <div
+                                        className="flex items-center gap-3 rounded-2xl p-4"
+                                        style={{ backgroundColor: '#dcfce7' }}
+                                    >
+                                        <span className="material-symbols-outlined" style={{ color: '#15803d' }}>check_circle</span>
+                                        <p className="font-bold" style={{ color: '#15803d' }}>Facebook Page connected</p>
+                                    </div>
+                                    <button
+                                        onClick={handleImportFromFacebook}
+                                        disabled={importing}
+                                        className="flex items-center justify-center gap-3 py-4 rounded-2xl font-bold transition-all border-2 disabled:opacity-50"
+                                        style={{ borderColor: themeConfig.primary, color: themeConfig.primary }}
+                                    >
+                                        <span className="material-symbols-outlined">download</span>
+                                        {importing ? 'Importing…' : 'Import logo, bio & contact from Facebook'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={handleStartConnect}
+                                        className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all"
+                                    >
+                                        <span className="text-lg">Connect Facebook Page</span>
+                                    </button>
+                                    <button
+                                        onClick={handleStartInstagramConnect}
+                                        className="w-full flex items-center justify-center gap-3 text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all"
+                                        style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}
+                                    >
+                                        <span className="text-lg">Connect Instagram only</span>
+                                    </button>
+                                    <p className="text-xs text-center" style={{ color: themeConfig.textSecondary }}>
+                                        Have both? Connect the Facebook Page — a linked Instagram comes with it.
+                                    </p>
+                                </div>
+                            )}
+                            <p className="text-center text-sm mt-6" style={{ color: themeConfig.textSecondary }}>
+                                Instagram comes along automatically when it is linked to your Page.
+                                You can skip this and connect later from Settings.
+                            </p>
                         </div>
                     </div>
                 )}
 
-                {/* Step 4: Theme Selection & Launch */}
                 {step === 4 && (
+                    <div className="max-w-3xl mx-auto flex flex-col gap-6">
+                        <div
+                            className="backdrop-blur-xl rounded-[2rem] p-8 shadow-sm border transition-colors duration-500"
+                            style={{ backgroundColor: `${themeConfig.cardBg}ee`, borderColor: `${themeConfig.border}60` }}
+                        >
+                            <h3 className="text-xl font-bold mb-1">Teach your AI the basics</h3>
+                            <p className="text-sm mb-6" style={{ color: themeConfig.textSecondary }}>
+                                It answers customers using only what you tell it. A sentence each is plenty — you can add more later.
+                            </p>
+                            <div className="flex flex-col gap-4">
+                                {([
+                                    ['Where do you deliver and what does it cost?', 'e.g. Valley Rs. 100 (1-2 din), bahira Rs. 150-250 (3-5 din)', kDelivery, setKDelivery],
+                                    ['What payment do you accept?', 'e.g. Cash on delivery, eSewa, bank transfer', kPayment, setKPayment],
+                                    ['Return or exchange policy?', 'e.g. 7 din bhitra exchange, sale items final', kReturns, setKReturns],
+                                    ['Anything customers always ask?', 'e.g. Gift wrapping Rs. 50, open Saturday 11-5', kFaqs, setKFaqs],
+                                ] as const).map(([label, hint, value, setter]) => (
+                                    <label key={label} className="flex flex-col gap-1.5">
+                                        <span className="text-sm font-bold">{label}</span>
+                                        <input
+                                            className="border rounded-xl px-4 py-3 focus:outline-none transition-colors duration-500"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            placeholder={hint}
+                                            value={value}
+                                            onChange={(e) => setter(e.target.value)}
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div
+                            className="backdrop-blur-xl rounded-[2rem] p-8 shadow-sm border transition-colors duration-500"
+                            style={{ backgroundColor: `${themeConfig.cardBg}ee`, borderColor: `${themeConfig.border}60` }}
+                        >
+                            <h3 className="text-xl font-bold mb-4">Pick its voice</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label className="flex flex-col gap-1.5">
+                                    <span className="text-sm font-bold">Tone</span>
+                                    <select
+                                        className="border rounded-xl px-4 py-3 focus:outline-none"
+                                        style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                        value={aiTone}
+                                        onChange={(e) => setAiTone(e.target.value)}
+                                    >
+                                        <option value="">Warm & friendly (default)</option>
+                                        <option value="professional">Polished & professional</option>
+                                        <option value="casual">Casual & playful</option>
+                                    </select>
+                                </label>
+                                <label className="flex flex-col gap-1.5">
+                                    <span className="text-sm font-bold">Language</span>
+                                    <select
+                                        className="border rounded-xl px-4 py-3 focus:outline-none"
+                                        style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                        value={aiLanguage}
+                                        onChange={(e) => setAiLanguage(e.target.value)}
+                                    >
+                                        <option value="mixed">Nepali-English mix (recommended)</option>
+                                        <option value="nepali">Romanized Nepali</option>
+                                        <option value="english">English only</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div
+                                className="mt-5 rounded-2xl p-4 text-sm leading-relaxed"
+                                style={{ backgroundColor: `${themeConfig.surface}80`, color: themeConfig.text }}
+                            >
+                                <p className="text-xs font-bold mb-1" style={{ color: themeConfig.textSecondary }}>PREVIEW — how it will reply</p>
+                                {AI_PREVIEWS[aiTone] || AI_PREVIEWS.default}
+                            </div>
+                            <label className="flex items-center justify-between mt-5 cursor-pointer">
+                                <div>
+                                    <p className="font-bold">Reply to customers automatically</p>
+                                    <p className="text-xs" style={{ color: themeConfig.textSecondary }}>
+                                        Recommended — it hands tricky conversations to you and never invents prices.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setAutoReply(!autoReply)}
+                                    className="relative w-12 h-7 rounded-full transition-colors shrink-0"
+                                    style={{ backgroundColor: autoReply ? themeConfig.primary : themeConfig.border }}
+                                >
+                                    <span
+                                        className="absolute top-1 size-5 rounded-full bg-white shadow transition-all"
+                                        style={{ left: autoReply ? '26px' : '4px' }}
+                                    />
+                                </button>
+                            </label>
+                        </div>
+                    </div>
+                )}
+
+                                {/* Step 5: Theme Selection & Launch */}
+                {step === 5 && (
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         <div className="lg:col-span-8 flex flex-col gap-8">
                             {/* Theme Selection Card */}
@@ -1041,14 +1335,14 @@ const VendorOnboardingPage: React.FC = () => {
                     <div className="flex items-center gap-4">
                         <div className="flex flex-col items-start leading-none py-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 opacity-70">
-                                {step < 4 ? `Step ${step} of 4` : 'Ready to go?'}
+                                {step < 5 ? `Step ${step} of 5` : 'Ready to go?'}
                             </span>
                             <span className="font-bold text-lg tracking-tight">
-                                {step < 4 ? 'Next Step' : (loading ? 'Launching...' : 'Launch My Store')}
+                                {step < 5 ? 'Next Step' : (loading ? 'Launching...' : 'Launch My Store')}
                             </span>
                         </div>
                         <div className="size-12 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 border border-white/20">
-                            <span className="material-symbols-outlined">{step < 4 ? 'arrow_forward' : 'rocket_launch'}</span>
+                            <span className="material-symbols-outlined">{step < 5 ? 'arrow_forward' : 'rocket_launch'}</span>
                         </div>
                     </div>
                 </button>

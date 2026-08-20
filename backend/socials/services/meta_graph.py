@@ -3,6 +3,7 @@ import requests
 from django.conf import settings
 
 GRAPH_BASE_URL = 'https://graph.facebook.com/v21.0'
+INSTAGRAM_GRAPH_BASE_URL = 'https://graph.instagram.com/v21.0'
 
 
 class MetaGraphError(Exception):
@@ -29,16 +30,24 @@ def parse_graph_response(response):
     return payload
 
 
+def graph_client_for(page):
+    """Return a client on the right Graph host for this connection."""
+    if getattr(page, 'connection_type', '') == 'instagram_direct':
+        return MetaGraphClient(base_url=INSTAGRAM_GRAPH_BASE_URL)
+    return MetaGraphClient()
+
+
 class MetaGraphClient:
     """The only module that talks to graph.facebook.com."""
 
-    def __init__(self, app_id=None, app_secret=None):
+    def __init__(self, app_id=None, app_secret=None, base_url=None):
         self.app_id = app_id or settings.META_APP_ID
         self.app_secret = app_secret or settings.META_APP_SECRET
+        self.base_url = base_url or GRAPH_BASE_URL
 
     def get(self, path, params):
         try:
-            response = requests.get(f'{GRAPH_BASE_URL}{path}', params=params, timeout=15)
+            response = requests.get(f'{self.base_url}{path}', params=params, timeout=15)
         except requests.exceptions.RequestException:
             raise MetaGraphError('Could not reach Facebook')
         return parse_graph_response(response)
@@ -129,7 +138,7 @@ class MetaGraphClient:
         """Subscribe the app to the Page's webhook fields."""
         try:
             response = requests.post(
-                f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
+                f'{self.base_url}/{page_id}/subscribed_apps',
                 params={
                     'access_token': page_token,
                     'subscribed_fields': 'messages,messaging_postbacks,feed',
@@ -144,7 +153,7 @@ class MetaGraphClient:
         """Remove the app's webhook subscription from the Page."""
         try:
             response = requests.delete(
-                f'{GRAPH_BASE_URL}/{page_id}/subscribed_apps',
+                f'{self.base_url}/{page_id}/subscribed_apps',
                 params={'access_token': page_token},
                 timeout=15,
             )
@@ -170,7 +179,7 @@ class MetaGraphClient:
     def post(self, path, params, files=None):
         try:
             response = requests.post(
-                f'{GRAPH_BASE_URL}{path}', params=params, files=files, timeout=60
+                f'{self.base_url}{path}', params=params, files=files, timeout=60
             )
         except requests.exceptions.RequestException:
             raise MetaGraphError('Could not reach Facebook')
@@ -214,15 +223,40 @@ class MetaGraphClient:
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
 
-    def send_message(self, page_id, page_token, recipient_id, text):
-        """Send a DM reply via the Page; returns the platform message id."""
+    def send_message(self, page_id, page_token, recipient_id, text, quick_replies=None):
+        """Send a DM reply via the Page; returns the platform message id.
+
+        quick_replies is an optional list of short strings shown as
+        tappable chips under the message.
+        """
+        message = {'text': text}
+        if quick_replies:
+            message['quick_replies'] = [
+                {'content_type': 'text', 'title': title[:20], 'payload': title[:20]}
+                for title in quick_replies[:13]
+            ]
         payload = self.post(f'/{page_id}/messages', {
             'access_token': page_token,
             'recipient': json.dumps({'id': recipient_id}),
-            'message': json.dumps({'text': text}),
+            'message': json.dumps(message),
             'messaging_type': 'RESPONSE',
         })
         return payload.get('message_id', '')
+
+    def send_sender_action(self, page_id, page_token, recipient_id, action):
+        """Send mark_seen / typing_on / typing_off for the conversation."""
+        return self.post(f'/{page_id}/messages', {
+            'access_token': page_token,
+            'recipient': json.dumps({'id': recipient_id}),
+            'sender_action': action,
+        })
+
+    def set_messenger_profile(self, page_id, page_token, profile):
+        """Configure the page's greeting, get-started, and menu."""
+        return self.post(f'/{page_id}/messenger_profile', {
+            'access_token': page_token,
+            **{key: json.dumps(value) for key, value in profile.items()},
+        })
 
     def send_image_attachment(self, page_id, page_token, recipient_id, image_url):
         """Send a native photo DM Meta re-hosts; returns the message id."""

@@ -32,6 +32,8 @@ def build_profile_payload(tenant):
         'ai_tone': metadata.get('aiTone', ''),
         'ai_language': metadata.get('aiLanguage', ''),
         'order_fields': metadata.get('orderFields') or ['Full name', 'Phone number', 'Delivery address'],
+        'service_fields': metadata.get('serviceFields') or ['Full name', 'Phone number', 'Preferred date & time'],
+        'offering': metadata.get('offering', 'products'),
         'followup_hours': int(metadata.get('followupHours') or 6),
         'followup_message': metadata.get('followupMessage', ''),
         'restricted_topics': metadata.get('restrictedTopics') or [],
@@ -81,6 +83,11 @@ def apply_profile_fields(tenant, metadata, data):
         metadata['aiLanguage'] = data['ai_language'] if data['ai_language'] in ('english', 'nepali', 'mixed') else ''
     if 'order_fields' in data:
         metadata['orderFields'] = parse_string_list(data['order_fields'])[:10]
+    if 'service_fields' in data:
+        metadata['serviceFields'] = parse_string_list(data['service_fields'])[:10]
+    if 'offering' in data:
+        if data['offering'] in ('products', 'services', 'both'):
+            metadata['offering'] = data['offering']
     if 'followup_hours' in data:
         metadata['followupHours'] = data['followup_hours']
     if 'followup_message' in data:

@@ -207,6 +207,16 @@ META_APP_SECRET = config('META_APP_SECRET', default='')
 META_WEBHOOK_VERIFY_TOKEN = config('META_WEBHOOK_VERIFY_TOKEN', default='')
 PUBLIC_MEDIA_BASE_URL = config('PUBLIC_MEDIA_BASE_URL', default='')
 PUBLIC_APP_BASE_URL = config('PUBLIC_APP_BASE_URL', default='')
+INSTAGRAM_LOGIN_APP_ID = config('INSTAGRAM_LOGIN_APP_ID', default='')
+INSTAGRAM_LOGIN_APP_SECRET = config('INSTAGRAM_LOGIN_APP_SECRET', default='')
+INSTAGRAM_LOGIN_REDIRECT_URI = config(
+    'INSTAGRAM_LOGIN_REDIRECT_URI',
+    default='http://localhost:5174/vendor/settings/instagram-callback',
+)
+INSTAGRAM_LOGIN_FRONTEND_CALLBACK = config(
+    'INSTAGRAM_LOGIN_FRONTEND_CALLBACK',
+    default='http://localhost:5174/vendor/settings/instagram-callback',
+)
 META_OAUTH_REDIRECT_URI = config(
     'META_OAUTH_REDIRECT_URI',
     default='http://localhost:5173/vendor/settings/meta-callback',
