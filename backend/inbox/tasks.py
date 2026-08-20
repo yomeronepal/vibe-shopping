@@ -92,7 +92,7 @@ def auto_reply_to_message(message_id):
     if not is_latest_inbound(conversation, message) or was_answered_after(conversation, message):
         return 'superseded'
     apply_conversation_signals(conversation, outcome)
-    reply = outcome['reply'] + build_missing_fields_form(outcome)
+    reply = outcome['reply'] + build_order_details_form(conversation, outcome)
     order = None
     if outcome['order_ready']:
         from inbox.services.chat_orders import exceeds_order_cap
@@ -133,21 +133,43 @@ def send_order_item_cards(conversation, order):
         logger.warning('Order photo send failed for conversation %s', conversation.id, exc_info=True)
 
 
-def build_missing_fields_form(outcome):
-    """Attach a blank form for missing fields, or a prefilled one to confirm."""
+def lookup_customer_value(customer, field):
+    """Map an order field label to the customer's stored contact info."""
+    lowered = field.lower()
+    if 'phone' in lowered or 'number' in lowered:
+        return customer.phone or ''
+    if 'email' in lowered:
+        return customer.email or ''
+    if 'address' in lowered or 'location' in lowered:
+        return customer.location or ''
+    if 'name' in lowered:
+        return customer.name or ''
+    return ''
+
+
+def build_order_details_form(conversation, outcome):
+    """Attach one full form: known fields prefilled, unknown fields blank."""
     if not outcome.get('ordering') or outcome.get('order_ready') or outcome.get('needs_human'):
         return ''
-    missing = outcome.get('missing') or []
-    if missing:
-        lines = '\n'.join(f'{field}:' for field in missing)
-        return f'\n\nYo copy garera bharnus 👇\n{lines}'
+    from inbox.services.assistant import get_order_fields
+
     collected = outcome.get('collected') or {}
-    if not collected:
-        return ''
-    lines = '\n'.join(f'{field}: {value}' for field, value in collected.items())
+    customer = conversation.customer
+    lines = []
+    blanks = 0
+    for field in get_order_fields(conversation.tenant):
+        value = str(collected.get(field) or '').strip() or lookup_customer_value(customer, field)
+        if not value:
+            blanks += 1
+        lines.append(f'{field}: {value}'.rstrip())
+    form = '\n'.join(lines)
+    if blanks == 0:
+        return (
+            f'\n\nHami sanga bhayeko details 👇\n{form}\n'
+            'Thik chha bhane "confirm" bhannus, change garnu parne bhaye copy garera milaera pathaunus.'
+        )
     return (
-        f'\n\nHami sanga bhayeko details 👇\n{lines}\n'
-        'Thik chha bhane "confirm" bhannus, change garnu parne bhaye copy garera milaera pathaunus.'
+        f'\n\nYo copy garera khali details bharera pathaunus 👇\n{form}'
     )
 
 

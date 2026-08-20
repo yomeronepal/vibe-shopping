@@ -151,10 +151,10 @@ class MissingFieldsFormTests(AutoReplyTestBase):
         )
         auto_reply_to_message(self.inbound.id)
         sent = Message.objects.get(direction='out')
-        self.assertIn('copy garera bharnus', sent.text)
+        self.assertIn('khali details bharera pathaunus', sent.text)
+        self.assertIn('Full name: Sita Sharma', sent.text)
         self.assertIn('Phone number:', sent.text)
         self.assertIn('Delivery address:', sent.text)
-        self.assertNotIn('Full name:', sent.text)
 
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-3')
     @patch('inbox.services.assistant.advance_order_conversation')
@@ -165,7 +165,7 @@ class MissingFieldsFormTests(AutoReplyTestBase):
             ordering=True,
             order_ready=False,
             items=[{'product_id': product.id, 'quantity': 1}],
-            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001'},
+            collected={'Full name': 'Sita Sharma', 'Phone number': '9800000001', 'Delivery address': 'Thamel'},
             missing=[],
         )
         auto_reply_to_message(self.inbound.id)
@@ -174,6 +174,27 @@ class MissingFieldsFormTests(AutoReplyTestBase):
         self.assertIn('Full name: Sita Sharma', sent.text)
         self.assertIn('Phone number: 9800000001', sent.text)
         self.assertIn('"confirm"', sent.text)
+
+    @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-4')
+    @patch('inbox.services.assistant.advance_order_conversation')
+    def test_returning_customer_details_prefill_the_form(self, mock_advance, mock_deliver):
+        customer = self.convo.customer
+        customer.phone = '9811111111'
+        customer.location = 'Patan Dhoka'
+        customer.save(update_fields=['phone', 'location'])
+        product = Product.objects.get(name='Linen Shirt')
+        mock_advance.return_value = outcome(
+            reply='Details check garnus hai!',
+            ordering=True,
+            order_ready=False,
+            items=[{'product_id': product.id, 'quantity': 1}],
+            collected={},
+            missing=['Full name', 'Phone number', 'Delivery address'],
+        )
+        auto_reply_to_message(self.inbound.id)
+        sent = Message.objects.get(direction='out')
+        self.assertIn('Phone number: 9811111111', sent.text)
+        self.assertIn('Delivery address: Patan Dhoka', sent.text)
 
     @patch('inbox.services.sending.deliver_via_meta', return_value='mid-form-2')
     @patch('inbox.services.assistant.advance_order_conversation')

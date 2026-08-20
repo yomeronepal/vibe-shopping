@@ -571,6 +571,21 @@ def format_recent_order_line(order):
     return line
 
 
+def build_known_customer_block(conversation):
+    """Describe the contact details already stored for this customer."""
+    customer = conversation.customer
+    parts = []
+    for label, value in (
+        ('Name', customer.name),
+        ('Phone', customer.phone),
+        ('Email', customer.email),
+        ('Address', customer.location),
+    ):
+        if value:
+            parts.append(f'{label}: {value}')
+    return '\n'.join(parts)
+
+
 def build_recent_orders_block(conversation):
     """List this chat's recent bot-placed orders, or empty."""
     from datetime import timedelta
@@ -615,6 +630,9 @@ PRODUCT CATALOG (only these can be ordered; use the exact id; the ONLY source of
 
 INFORMATION TO COLLECT BEFORE PLACING AN ORDER
 {', '.join(fields)}
+
+KNOWN CUSTOMER DETAILS (saved from earlier orders — you may fill collected with these, but confirm them before placing a new order)
+{build_known_customer_block(conversation) or '(new customer — nothing on file)'}
 
 THIS CUSTOMER'S RECENT ORDERS IN THIS CHAT
 {build_recent_orders_block(conversation) or '(none)'}
