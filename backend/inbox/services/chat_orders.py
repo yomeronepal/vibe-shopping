@@ -17,16 +17,16 @@ class OrderRevisionError(Exception):
 
 
 def resolve_line_quantity(product, requested):
-    """Clamp the quantity to stock; services have no stock limit."""
+    """Clamp the quantity to stock; untracked items have no limit."""
     quantity = max(1, int(requested))
-    if product.is_service:
+    if not product.tracks_stock:
         return quantity
     return min(quantity, product.stock) if product.stock > 0 else 0
 
 
 def apply_line_stock(product, quantity, note):
-    """Deduct stock for a physical line; services are untouched."""
-    if product.is_service:
+    """Deduct stock for a tracked line; untracked items are untouched."""
+    if not product.tracks_stock:
         return
     product.stock -= quantity
     product.save(update_fields=['stock'])
@@ -99,7 +99,7 @@ def restore_order_stock(order, products):
     """Give the order's current physical items their stock back."""
     for line in order.items.select_related('product'):
         product = products.get(line.product_id)
-        if product is None or product.is_service:
+        if product is None or not product.tracks_stock:
             continue
         product.stock += line.quantity
         product.save(update_fields=['stock'])

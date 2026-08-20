@@ -10,10 +10,6 @@ import { aiApi } from '../api/ai';
 import { listConnectedPages, publishProductPost, type ConnectedPage } from '../api/socials';
 
 interface StockBySize {
-    S: number;
-    M: number;
-    L: number;
-    XL: number;
     [key: string]: number;
 }
 
@@ -26,7 +22,12 @@ interface ColorVariant {
     imageUrls: string[];
 }
 
-const SIZE_LABELS: Record<string, string> = { S: 'Small', M: 'Medium', L: 'Large', XL: 'X-Large' };
+const STOCK_MODES: Array<['quantity' | 'options' | 'variants' | 'made_to_order', string]> = [
+    ['quantity', 'Quantity only'],
+    ['options', 'By option'],
+    ['variants', 'By color'],
+    ['made_to_order', 'Made to order'],
+];
 
 const AI_PROGRESS_STEPS = [
     { progress: 20, message: 'Reading your description...' },
@@ -218,6 +219,11 @@ const VendorProductCreatePage: React.FC = () => {
     const [productBrief, setProductBrief] = useState('');
     const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
     const [itemType, setItemType] = useState<'physical' | 'service'>('physical');
+    const [stockMode, setStockMode] = useState<'quantity' | 'options' | 'variants' | 'made_to_order'>('quantity');
+    const [optionName, setOptionName] = useState('Size');
+    const [optionValues, setOptionValues] = useState<string[]>(['S', 'M', 'L', 'XL']);
+    const [newOptionValue, setNewOptionValue] = useState('');
+    const [simpleStock, setSimpleStock] = useState(0);
     const [mrp, setMrp] = useState(0);
     const [costPrice, setCostPrice] = useState(0);
     const [discountEnabled, setDiscountEnabled] = useState(false);
@@ -358,14 +364,14 @@ const VendorProductCreatePage: React.FC = () => {
         weather_tags: weatherTags,
         category: aiSuggestions?.category || '',
         subcategory: aiSuggestions?.subcategory || '',
-        metadata: aiSuggestions || {},
+        metadata: buildProductMetadata(),
         item_type: itemType,
-        stock_by_size: itemType === 'service' || colorVariants.length > 0 ? {} : stockBySize,
-        stock: itemType === 'service' ? 0 : (colorVariants.length > 0 ? totalVariantStock : totalStock),
-        variants: itemType === 'physical' && colorVariants.length > 0 ? colorVariants.map((v) => ({
+        stock_by_size: itemType === 'physical' && stockMode === 'options' ? pickOptionCounts() : {},
+        stock: resolveStockTotal(),
+        variants: itemType === 'physical' && stockMode === 'variants' && colorVariants.length > 0 ? colorVariants.map((v) => ({
             color_name: v.color_name,
             color_hex: v.color_hex,
-            stock_by_size: v.stock_by_size,
+            stock_by_size: pickVariantCounts(v),
             images: v.images,
         })) : undefined,
     });
@@ -429,10 +435,22 @@ const VendorProductCreatePage: React.FC = () => {
         setColorVariants((prev) => [...prev, {
             color_name: '',
             color_hex: '#000000',
-            stock_by_size: { S: 0, M: 0, L: 0, XL: 0 },
+            stock_by_size: {},
             images: [],
             imageUrls: [],
         }]);
+    };
+
+    const addOptionValue = () => {
+        const value = newOptionValue.trim();
+        if (!value || optionValues.includes(value)) return;
+        setOptionValues((prev) => [...prev, value]);
+        setStockBySize((prev) => ({ ...prev, [value]: prev[value] || 0 }));
+        setNewOptionValue('');
+    };
+
+    const removeOptionValue = (value: string) => {
+        setOptionValues((prev) => prev.filter((entry) => entry !== value));
     };
 
     const updateVariant = (index: number, field: keyof ColorVariant, value: any) => {
@@ -471,12 +489,45 @@ const VendorProductCreatePage: React.FC = () => {
         });
     };
 
-    const totalStock = Object.values(stockBySize).reduce((a, b) => a + b, 0);
+    const variantKeys = optionValues.length > 0 ? optionValues : ['qty'];
+
+    const pickOptionCounts = () => {
+        const counts: StockBySize = {};
+        optionValues.forEach((value) => { counts[value] = stockBySize[value] || 0; });
+        return counts;
+    };
+
+    const pickVariantCounts = (variant: ColorVariant) => {
+        const counts: StockBySize = {};
+        variantKeys.forEach((key) => { counts[key] = variant.stock_by_size[key] || 0; });
+        return counts;
+    };
+
+    const buildProductMetadata = () => {
+        const metadata: Record<string, any> = { ...(aiSuggestions || {}) };
+        if (itemType === 'physical') {
+            metadata.stockMode = stockMode;
+            if ((stockMode === 'options' || stockMode === 'variants') && optionValues.length > 0) {
+                metadata.optionName = optionName.trim() || 'Size';
+            }
+        }
+        return metadata;
+    };
+
+    const totalStock = optionValues.reduce((total, value) => total + (stockBySize[value] || 0), 0);
     const totalVariantStock = colorVariants.reduce(
-        (total, variant) => total + Object.values(variant.stock_by_size).reduce((a, b) => a + b, 0),
+        (total, variant) => total + Object.values(pickVariantCounts(variant)).reduce((a, b) => a + b, 0),
         0,
     );
-    const effectiveStock = colorVariants.length > 0 ? totalVariantStock : totalStock;
+
+    const resolveStockTotal = () => {
+        if (itemType === 'service' || stockMode === 'made_to_order') return 0;
+        if (stockMode === 'variants') return totalVariantStock;
+        if (stockMode === 'options') return totalStock;
+        return simpleStock;
+    };
+
+    const effectiveStock = resolveStockTotal();
     const captionRemaining = Math.max(0, 280 - socialCaption.length);
     const instagramAvailable = Boolean(connectedPage?.instagram_account_id);
 
@@ -1002,51 +1053,136 @@ const VendorProductCreatePage: React.FC = () => {
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="material-symbols-outlined" style={{ color: themeConfig.textSecondary }}>inventory_2</span>
-                                        <h3 className="font-bold" style={{ color: themeConfig.text }}>
-                                            {colorVariants.length > 0 ? `Variants (${colorVariants.length})` : 'Stock'}
-                                        </h3>
+                                        <h3 className="font-bold" style={{ color: themeConfig.text }}>Inventory</h3>
                                     </div>
-                                    <span
-                                        className="text-xs font-semibold px-2 py-1 rounded-md"
-                                        style={{
-                                            backgroundColor: effectiveStock > 0 ? '#dcfce7' : '#fef2f2',
-                                            color: effectiveStock > 0 ? '#16a34a' : '#dc2626',
-                                        }}
-                                    >
-                                        {effectiveStock > 0 ? `${effectiveStock} in stock` : 'Out of stock'}
-                                    </span>
+                                    {stockMode !== 'made_to_order' && (
+                                        <span
+                                            className="text-xs font-semibold px-2 py-1 rounded-md"
+                                            style={{
+                                                backgroundColor: effectiveStock > 0 ? '#dcfce7' : '#fef2f2',
+                                                color: effectiveStock > 0 ? '#16a34a' : '#dc2626',
+                                            }}
+                                        >
+                                            {effectiveStock > 0 ? `${effectiveStock} in stock` : 'Out of stock'}
+                                        </span>
+                                    )}
                                 </div>
 
-                                {colorVariants.length === 0 ? (
-                                    <div className="space-y-3">
-                                        {(['S', 'M', 'L', 'XL'] as const).map((size) => (
+                                <div className="flex flex-wrap gap-1.5 mb-4">
+                                    {STOCK_MODES.map(([value, label]) => (
+                                        <button
+                                            key={value}
+                                            onClick={() => setStockMode(value)}
+                                            className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                                            style={stockMode === value
+                                                ? { backgroundColor: primaryColor, color: '#ffffff' }
+                                                : { backgroundColor: `${themeConfig.surface}80`, color: themeConfig.textSecondary }}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {stockMode === 'quantity' && (
+                                    <div>
+                                        <label className="block text-xs font-bold mb-1.5" style={{ color: themeConfig.textSecondary }}>Units in stock</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={simpleStock || ''}
+                                            placeholder="0"
+                                            onChange={(e) => setSimpleStock(parseInt(e.target.value) || 0)}
+                                            className="w-full rounded-xl border text-base font-semibold py-3 px-4"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                        />
+                                    </div>
+                                )}
+
+                                {(stockMode === 'options' || stockMode === 'variants') && (
+                                    <div className="mb-4">
+                                        <label className="block text-xs font-bold mb-1.5" style={{ color: themeConfig.textSecondary }}>Option name</label>
+                                        <input
+                                            type="text"
+                                            value={optionName}
+                                            onChange={(e) => setOptionName(e.target.value)}
+                                            placeholder="Size, Weight, Flavor, Storage…"
+                                            className="w-full rounded-xl border text-sm font-semibold py-2.5 px-3"
+                                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                        />
+                                        <div className="flex items-center gap-2 mt-3">
+                                            <input
+                                                type="text"
+                                                value={newOptionValue}
+                                                onChange={(e) => setNewOptionValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key !== 'Enter') return;
+                                                    e.preventDefault();
+                                                    addOptionValue();
+                                                }}
+                                                placeholder={`Add ${(optionName || 'option').toLowerCase()} value (e.g. 250g) and press Enter`}
+                                                className="flex-1 rounded-xl border text-sm py-2.5 px-3"
+                                                style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                            />
+                                            <button
+                                                onClick={addOptionValue}
+                                                className="px-3 py-2.5 rounded-xl text-sm font-bold"
+                                                style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                        {stockMode === 'variants' && optionValues.length === 0 && (
+                                            <p className="text-[11px] mt-2" style={{ color: themeConfig.textSecondary }}>
+                                                No option values — each color tracks a single quantity.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {stockMode === 'options' && (
+                                    <div className="space-y-2">
+                                        {optionValues.map((value) => (
                                             <div
-                                                key={size}
-                                                className={`flex items-center justify-between p-3 rounded-xl transition-opacity ${stockBySize[size] === 0 ? 'opacity-60' : ''}`}
+                                                key={value}
+                                                className={`flex items-center justify-between p-3 rounded-xl transition-opacity ${(stockBySize[value] || 0) === 0 ? 'opacity-60' : ''}`}
                                                 style={{ backgroundColor: `${themeConfig.surface}50` }}
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <span
-                                                        className="w-8 h-8 rounded-lg shadow-sm flex items-center justify-center font-bold text-sm"
-                                                        style={{ backgroundColor: themeConfig.surface, color: stockBySize[size] > 0 ? themeConfig.text : themeConfig.textSecondary }}
+                                                <span
+                                                    className="px-2.5 py-1 rounded-lg shadow-sm font-bold text-sm"
+                                                    style={{ backgroundColor: themeConfig.surface, color: (stockBySize[value] || 0) > 0 ? themeConfig.text : themeConfig.textSecondary }}
+                                                >
+                                                    {value}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={stockBySize[value] || ''}
+                                                        onChange={(e) => updateStock(value, parseInt(e.target.value) || 0)}
+                                                        placeholder="0"
+                                                        className="w-16 h-8 text-center rounded-lg border text-sm font-bold"
+                                                        style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                                    />
+                                                    <button
+                                                        onClick={() => removeOptionValue(value)}
+                                                        aria-label={`Remove ${value}`}
+                                                        className="material-symbols-outlined text-[18px] p-1 rounded hover:bg-red-50"
+                                                        style={{ color: themeConfig.textSecondary }}
                                                     >
-                                                        {size}
-                                                    </span>
-                                                    <span className="text-sm font-medium" style={{ color: themeConfig.textSecondary }}>{SIZE_LABELS[size]}</span>
+                                                        close
+                                                    </button>
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    value={stockBySize[size] || ''}
-                                                    onChange={(e) => updateStock(size, parseInt(e.target.value) || 0)}
-                                                    placeholder="0"
-                                                    className="w-16 h-8 text-center rounded-lg border text-sm font-bold"
-                                                    style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
-                                                />
                                             </div>
                                         ))}
+                                        {optionValues.length === 0 && (
+                                            <p className="text-sm py-2" style={{ color: themeConfig.textSecondary }}>
+                                                Add at least one {(optionName || 'option').toLowerCase()} value above.
+                                            </p>
+                                        )}
                                     </div>
-                                ) : (
+                                )}
+
+                                {stockMode === 'variants' && (
                                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                                         {colorVariants.map((variant, variantIdx) => (
                                             <div
@@ -1079,14 +1215,16 @@ const VendorProductCreatePage: React.FC = () => {
                                                     </button>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    {(['S', 'M', 'L', 'XL'] as const).map((size) => (
-                                                        <div key={size} className="flex items-center justify-between">
-                                                            <span className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>{size}</span>
+                                                    {variantKeys.map((key) => (
+                                                        <div key={key} className="flex items-center justify-between">
+                                                            <span className="text-xs font-medium" style={{ color: themeConfig.textSecondary }}>
+                                                                {key === 'qty' ? 'Quantity' : key}
+                                                            </span>
                                                             <input
                                                                 type="number"
                                                                 min={0}
-                                                                value={variant.stock_by_size[size] || ''}
-                                                                onChange={(e) => updateVariantStock(variantIdx, size, parseInt(e.target.value) || 0)}
+                                                                value={variant.stock_by_size[key] || ''}
+                                                                onChange={(e) => updateVariantStock(variantIdx, key, parseInt(e.target.value) || 0)}
                                                                 placeholder="0"
                                                                 className="w-16 h-7 text-center rounded-lg border text-xs font-bold"
                                                                 style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
@@ -1121,17 +1259,30 @@ const VendorProductCreatePage: React.FC = () => {
                                                 </div>
                                             </div>
                                         ))}
+                                        <button
+                                            onClick={addColorVariant}
+                                            className="w-full py-2.5 text-sm font-bold rounded-xl transition-transform hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-2"
+                                            style={{ backgroundColor: `${primaryColor}10`, color: primaryColor, border: `2px dashed ${primaryColor}40` }}
+                                        >
+                                            <span className="material-symbols-outlined text-base">palette</span>
+                                            Add color variant
+                                        </button>
                                     </div>
                                 )}
 
-                                <button
-                                    onClick={addColorVariant}
-                                    className="w-full mt-4 py-2.5 text-sm font-bold rounded-xl transition-transform hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-2"
-                                    style={{ backgroundColor: `${primaryColor}10`, color: primaryColor, border: `2px dashed ${primaryColor}40` }}
-                                >
-                                    <span className="material-symbols-outlined text-base">palette</span>
-                                    Add color variant
-                                </button>
+                                {stockMode === 'made_to_order' && (
+                                    <div
+                                        className="rounded-xl p-4 flex items-start gap-3"
+                                        style={{ backgroundColor: `${primaryColor}0d` }}
+                                    >
+                                        <span className="material-symbols-outlined" style={{ color: primaryColor }}>schedule</span>
+                                        <p className="text-sm leading-relaxed" style={{ color: themeConfig.textSecondary }}>
+                                            Made after each order — cakes, custom prints, tailoring. No stock is tracked,
+                                            the AI treats it as always orderable, and it never triggers inventory alerts.
+                                            Mention your preparation time in the description so the AI can quote it.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                             )}
                         </div>

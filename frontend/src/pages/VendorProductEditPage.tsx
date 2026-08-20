@@ -29,6 +29,9 @@ export default function VendorProductEditPage() {
     const [posts, setPosts] = useState<AnalyticsPost[]>([]);
     const [syncSocial, setSyncSocial] = useState(true);
     const [itemType, setItemType] = useState<'physical' | 'service'>('physical');
+    const [stockMode, setStockMode] = useState<'quantity' | 'options' | 'made_to_order'>('quantity');
+    const [optionName, setOptionName] = useState('Size');
+    const [optionCounts, setOptionCounts] = useState<Record<string, number>>({});
 
     useEffect(() => {
         if (!id) return;
@@ -43,6 +46,13 @@ export default function VendorProductEditPage() {
                 setCurrentImage(mediaUrl(data.product.processed_image || data.product.image));
                 setSku(data.product.product_code || '');
                 setItemType(data.product.item_type === 'service' ? 'service' : 'physical');
+                const metadata = data.product.metadata || {};
+                const counts = data.product.stock_by_size || {};
+                setOptionName(metadata.optionName || 'Size');
+                setOptionCounts(counts);
+                if (metadata.stockMode === 'made_to_order') setStockMode('made_to_order');
+                else if (Object.keys(counts).length > 0) setStockMode('options');
+                else setStockMode('quantity');
                 setPosts(data.posts);
             })
             .catch(() => setNotFound(true))
@@ -83,11 +93,13 @@ export default function VendorProductEditPage() {
         }
         setSaving(true);
         try {
+            const optionTotal = Object.values(optionCounts).reduce((a, b) => a + b, 0);
             await vendorApi.updateProduct(Number(id), {
                 name: name.trim(),
                 description,
                 price,
-                stock,
+                stock: stockMode === 'options' ? optionTotal : stock,
+                stock_by_size: stockMode === 'options' ? optionCounts : undefined,
                 tags,
                 vibe_tags: vibeTags,
                 image: imageFile,
@@ -227,7 +239,38 @@ export default function VendorProductEditPage() {
                                                     />
                                                 </div>
                                             </div>
-                                            {itemType === 'physical' ? (
+                                            {itemType === 'physical' && stockMode === 'options' ? (
+                                            <div>
+                                                <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Stock by {optionName.toLowerCase()}</label>
+                                                <div className="space-y-2">
+                                                    {Object.keys(optionCounts).map((value) => (
+                                                        <div key={value} className="flex items-center justify-between rounded-xl py-2 px-3 shadow-sm" style={fieldStyle}>
+                                                            <span className="text-sm font-bold">{value}</span>
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                value={optionCounts[value] || ''}
+                                                                placeholder="0"
+                                                                onChange={(e) => setOptionCounts((prev) => ({ ...prev, [value]: parseInt(e.target.value) || 0 }))}
+                                                                className="w-20 text-center rounded-lg border-transparent text-sm font-bold py-1.5"
+                                                                style={{ backgroundColor: themeConfig.surface }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            ) : itemType === 'physical' && stockMode === 'made_to_order' ? (
+                                            <div>
+                                                <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Type</label>
+                                                <div
+                                                    className="w-full rounded-xl text-base font-semibold py-3 px-4 shadow-sm flex items-center gap-2"
+                                                    style={fieldStyle}
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">schedule</span>
+                                                    Made to order — always orderable
+                                                </div>
+                                            </div>
+                                            ) : itemType === 'physical' ? (
                                             <div>
                                                 <label className="block text-sm font-bold mb-2 ml-1" style={{ color: themeConfig.textSecondary }}>Stock (units)</label>
                                                 <input

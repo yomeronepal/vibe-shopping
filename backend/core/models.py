@@ -161,6 +161,14 @@ class Product(TimeStampedModel):
     @property
     def is_service(self):
         return self.item_type == 'service'
+
+    @property
+    def is_made_to_order(self):
+        return (self.metadata or {}).get('stockMode') == 'made_to_order'
+
+    @property
+    def tracks_stock(self):
+        return not self.is_service and not self.is_made_to_order
     
     def product_image_path(instance, filename):
         tenant_slug = instance.tenant.subdomain if instance.tenant and instance.tenant.subdomain else 'default'

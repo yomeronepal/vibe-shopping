@@ -45,6 +45,7 @@ export interface UpdateProductData {
     description?: string;
     price?: number;
     stock?: number;
+    stock_by_size?: Record<string, number>;
     image?: File | null;
     tags?: string[];
     vibe_tags?: string[];
@@ -214,6 +215,7 @@ export const vendorApi = {
         if (data.description !== undefined) formData.append('description', data.description);
         if (data.price !== undefined) formData.append('price', data.price.toString());
         if (data.stock !== undefined) formData.append('stock', data.stock.toString());
+        if (data.stock_by_size) formData.append('stock_by_size', JSON.stringify(data.stock_by_size));
         if (data.image) formData.append('image', data.image);
         if (data.tags) formData.append('tags', JSON.stringify(data.tags));
         if (data.vibe_tags) formData.append('vibe_tags', JSON.stringify(data.vibe_tags));

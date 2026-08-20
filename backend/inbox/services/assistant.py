@@ -39,17 +39,25 @@ def format_price(value):
 
 
 def format_size_counts(stock_by_size):
-    """Render per-size stock like S:2, M:0."""
+    """Render per-option stock like S:2, M:0; a lone qty is just the count."""
     sizes = stock_by_size or {}
+    if list(sizes.keys()) == ['qty']:
+        return str(sizes['qty'])
     return ', '.join(f'{size}:{count}' for size, count in sizes.items())
 
 
+def get_option_label(product):
+    """Return the vendor's name for the product's option axis."""
+    name = str((product.metadata or {}).get('optionName') or '').strip()
+    return name or 'sizes'
+
+
 def format_availability_details(product):
-    """Render size and color availability for one product."""
+    """Render option and color availability for one product."""
     details = []
     sizes = format_size_counts(product.stock_by_size)
     if sizes:
-        details.append(f'sizes [{sizes}]')
+        details.append(f'{get_option_label(product)} [{sizes}]')
     variant_bits = []
     for variant in product.variants.all():
         if not variant.color_name:
@@ -143,9 +151,11 @@ def format_sku_tag(product):
 
 
 def format_stock_label(product):
-    """Render availability: services are always bookable."""
+    """Render availability: services and made-to-order are always orderable."""
     if product.is_service:
         return 'SERVICE — always bookable'
+    if product.is_made_to_order:
+        return 'MADE TO ORDER — always orderable'
     return f'{product.stock} in stock' if product.stock > 0 else 'OUT OF STOCK'
 
 
@@ -610,8 +620,9 @@ Respond with ONLY a JSON object, no markdown, in this exact shape:
 
 Rules:
 1. reply is 1-3 short sentences, {get_tone_hint(tenant)}, simple everyday words, plain text, no markdown. {get_language_rule(tenant)}
-2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. Sizes and colors listed in a catalog line (with their per-size stock counts) are the ONLY sizes and colors that exist for that product; a size with count 0 is out of stock.
+2. Product facts only from the catalog; policy facts only from the knowledge; otherwise say you will check. The option values and colors listed in a catalog line (with their per-value stock counts) are the ONLY ones that exist for that product; a value with count 0 is out of stock. The option axis may be sizes, weights, storage, flavors, or anything else — use the vendor's own label (e.g. "Weight [250g:4]" means you offer it in 250g) and put the customer's chosen value in that item's "size" field.
 2b. Catalog lines marked SERVICE are bookable services (photography, repairs, consultations, and similar), not physical goods: they have no stock, sizes, or colors, and can always be ordered. When a customer books a service, capture any preferences they state (date, time, location, requirements) inside collected, and mention that the business will confirm the schedule.
+2c. Catalog lines marked MADE TO ORDER are physical products prepared after ordering (cakes, custom prints, tailoring): they have no stock count and can always be ordered. Mention preparation or delivery time only when the description states one.
 3. ordering is true when the customer clearly wants to buy something from the catalog.
 3b. Never mention any product that is not in the catalog, and always use the exact catalog names.
 3c. If the customer's latest message is unclear, only an emoji or short reaction, or an attachment you cannot see, reply with ONE short friendly question asking what they would like — do not guess or apologize repeatedly.
