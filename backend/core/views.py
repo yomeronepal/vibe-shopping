@@ -156,6 +156,55 @@ def list_gemini_models(request):
         )
 
 
+LEGAL_PAGE_TEMPLATE = """<!doctype html><html><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><title>{title} — BizAlly</title>
+<style>body{{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#1e293b;line-height:1.6}}
+h1{{font-size:1.8rem}}h2{{font-size:1.2rem;margin-top:1.6em}}</style></head><body>
+<h1>{title}</h1><p><em>BizAlly — AI business assistant for Facebook and Instagram. Last updated: August 20, 2026.</em></p>
+{body}</body></html>"""
+
+PRIVACY_BODY = """
+<h2>What we collect</h2><p>From businesses: account and store details, product listings, and connected
+Facebook Page or Instagram account identifiers and access tokens. From their customers via Meta: messages
+and comments sent to the connected account, public profile name and picture, and order details the
+customer chooses to share in chat.</p>
+<h2>How we use it</h2><p>Solely to provide the service to the connected business: showing conversations in
+their inbox, generating AI-assisted replies, and managing orders. Relevant text may be processed by AI
+providers (Google Gemini, Anthropic Claude) to generate responses. We do not sell personal data and do not
+use Meta data for any other purpose, per the Meta Platform Terms.</p>
+<h2>Retention and deletion</h2><p>Data is retained while the business account is active. Disconnecting an
+account or deleting the business account removes associated platform data within 30 days.</p>
+<h2>Contact</h2><p>support@bizally.com</p>
+"""
+
+DELETION_BODY = """
+<h2>If you are a business using BizAlly</h2><p>Disconnect your account from Settings, or email
+support@bizally.com from your registered address with the subject "Delete my account". Deletion is
+completed and confirmed within 30 days.</p>
+<h2>If you messaged a business that uses BizAlly</h2><p>Remove BizAlly's access from your Facebook or
+Instagram settings (Apps and websites), or email support@bizally.com with the business name and the
+profile you used. Your conversation history and shared details will be deleted within 30 days.</p>
+"""
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def privacy_page(request):
+    """Serve the privacy policy as a public HTML page."""
+    from django.http import HttpResponse
+
+    return HttpResponse(LEGAL_PAGE_TEMPLATE.format(title='Privacy Policy', body=PRIVACY_BODY))
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def data_deletion_page(request):
+    """Serve the data deletion instructions as a public HTML page."""
+    from django.http import HttpResponse
+
+    return HttpResponse(LEGAL_PAGE_TEMPLATE.format(title='Data Deletion Instructions', body=DELETION_BODY))
+
+
 @api_view(['POST'])
 @throttle_classes([AIAnalysisThrottle])
 def generate_store_bio(request):
