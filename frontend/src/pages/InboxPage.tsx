@@ -208,7 +208,7 @@ function MessageBubble({ message, primaryColor }: { message: InboxMessage; prima
 export default function InboxPage() {
     const dispatch = useAppDispatch();
     const { config: themeConfig } = useShopTheme();
-    const { conversations, messages, activeConversationId, statusFilter, loading, sendError } =
+    const { conversations, messages, activeConversationId, statusFilter, loading, sendError, nextPage, totalCount } =
         useAppSelector((state) => state.inbox);
     const [draft, setDraft] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -427,6 +427,17 @@ export default function InboxPage() {
                                 onSelect={() => openConversation(conversation)}
                             />
                         ))}
+                        {nextPage && !loading && (
+                            <div className="flex justify-center py-3">
+                                <button
+                                    onClick={() => dispatch(fetchConversations({ status: statusFilter, q: searchQuery, page: nextPage }))}
+                                    className="px-5 py-2 rounded-xl font-bold text-xs border"
+                                    style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                >
+                                    Load more ({conversations.length} of {totalCount})
+                                </button>
+                            </div>
+                        )}
                         {!loading && conversations.length === 0 && (
                             <div className="p-8 text-center">
                                 <span className="material-symbols-outlined text-4xl mb-2" style={{ color: themeConfig.textSecondary }}>{searchQuery ? 'search_off' : 'forum'}</span>

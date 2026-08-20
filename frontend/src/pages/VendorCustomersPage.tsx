@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import CustomerPanel from '../components/vendor/CustomerPanel';
-import { listCustomers, sendCampaign, type CustomerCard } from '../api/inbox';
+import { listCustomersPage, sendCampaign, type CustomerCard } from '../api/inbox';
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
     'prospect': { bg: '#f3f4f6', fg: '#4b5563' },
@@ -21,6 +21,8 @@ export default function VendorCustomersPage() {
     const [campaignMessage, setCampaignMessage] = useState('');
     const [campaignAudience, setCampaignAudience] = useState<'all' | 'buyers' | 'prospects'>('all');
     const [campaignSending, setCampaignSending] = useState(false);
+    const [nextPage, setNextPage] = useState<number | null>(null);
+    const [totalCount, setTotalCount] = useState(0);
 
     const handleCampaignSend = async () => {
         if (campaignMessage.trim().length < 5) {
@@ -40,19 +42,25 @@ export default function VendorCustomersPage() {
         }
     };
 
+    const loadCustomers = (page = 1, q = search) => {
+        listCustomersPage(page, q)
+            .then((data) => {
+                setCustomers((prev) => (page === 1 ? data.results : [...prev, ...data.results]));
+                setNextPage(data.next);
+                setTotalCount(data.count);
+            })
+            .catch(() => toast.error('Could not load customers. Refresh to retry.'))
+            .finally(() => setLoading(false));
+    };
+
     useEffect(() => {
-        const handle = window.setTimeout(() => {
-            listCustomers(search)
-                .then(setCustomers)
-                .catch(() => toast.error('Could not load customers. Refresh to retry.'))
-                .finally(() => setLoading(false));
-        }, search ? 350 : 0);
+        const handle = window.setTimeout(() => loadCustomers(1), search ? 350 : 0);
         return () => window.clearTimeout(handle);
     }, [search]);
 
     const closePanel = () => {
         setOpenCustomerId(null);
-        listCustomers(search).then(setCustomers).catch(() => {});
+        loadCustomers(1);
     };
 
     return (
@@ -154,6 +162,17 @@ export default function VendorCustomersPage() {
                                 </button>
                             );
                         })}
+                        {nextPage && !loading && (
+                            <div className="flex justify-center py-2">
+                                <button
+                                    onClick={() => loadCustomers(nextPage)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-sm border"
+                                    style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                                >
+                                    Load more ({customers.length} of {totalCount})
+                                </button>
+                            </div>
+                        )}
                         {!loading && customers.length === 0 && (
                             <div className="rounded-2xl border border-dashed p-10 text-center" style={{ borderColor: themeConfig.border }}>
                                 <span className="material-symbols-outlined text-4xl" style={{ color: themeConfig.textSecondary }}>group</span>

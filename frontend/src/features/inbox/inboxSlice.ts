@@ -1,12 +1,12 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import {
-    listConversations,
     listMessages,
     markRead,
     sendMessage,
     updateConversationStatus,
     type InboxConversation,
     type InboxMessage,
+    listConversationsPage,
 } from '@/api/inbox';
 
 interface InboxState {
@@ -17,9 +17,13 @@ interface InboxState {
     loading: boolean;
     error: string | null;
     sendError: string | null;
+    nextPage: number | null;
+    totalCount: number;
 }
 
 const initialState: InboxState = {
+    nextPage: null,
+    totalCount: 0,
     conversations: [],
     messages: [],
     activeConversationId: null,
@@ -38,7 +42,10 @@ const upsertConversation = (state: InboxState, conversation: InboxConversation) 
 
 export const fetchConversations = createAsyncThunk(
     'inbox/fetchConversations',
-    async ({ status, q }: { status: string; q?: string }) => listConversations(status, q),
+    async ({ status, q, page = 1 }: { status: string; q?: string; page?: number }) => ({
+        page,
+        data: await listConversationsPage(page, status, q),
+    }),
 );
 
 export const fetchMessages = createAsyncThunk(
@@ -111,7 +118,18 @@ const inboxSlice = createSlice({
                 state.error = null;
             })
             .addCase(fetchConversations.fulfilled, (state, action) => {
-                state.conversations = action.payload;
+                const { page, data } = action.payload;
+                if (page > 1) {
+                    const seen = new Set(state.conversations.map((c) => c.id));
+                    state.conversations = [
+                        ...state.conversations,
+                        ...data.results.filter((c) => !seen.has(c.id)),
+                    ];
+                } else {
+                    state.conversations = data.results;
+                }
+                state.nextPage = data.next;
+                state.totalCount = data.count;
                 state.loading = false;
             })
             .addCase(fetchConversations.rejected, (state) => {

@@ -73,7 +73,7 @@ class InboxApiTests(APITestCase):
         self.assertEqual(self.convo.unread_count, 0)
         self.assertEqual(self.convo.last_message_preview, 'thanks!')
         mock_client_cls.return_value.send_message.assert_called_once_with(
-            'p1', 'pt1', 'psid1', 'thanks!'
+            'p1', 'pt1', 'psid1', 'thanks!', quick_replies=None
         )
 
     @patch('inbox.services.sending.push_inbox_event', side_effect=Exception('redis down'))

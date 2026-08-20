@@ -27,6 +27,7 @@ class InstagramLoginTestBase(APITestCase):
 
 
 class ConnectUrlTests(InstagramLoginTestBase):
+    @override_settings(INSTAGRAM_LOGIN_APP_ID='', INSTAGRAM_LOGIN_APP_SECRET='')
     def test_unconfigured_returns_setup_guidance(self):
         response = self.client.get('/api/socials/instagram/connect-url/')
         self.assertEqual(response.status_code, 501)

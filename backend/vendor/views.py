@@ -715,13 +715,56 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Product.objects.none()
             
         tenant = user.vendor_profile.tenant
-        queryset = Product.objects.filter(tenant=tenant)
-        
+        queryset = Product.objects.filter(tenant=tenant).order_by('-created_at')
+
         is_active = self.request.query_params.get('is_active', None)
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
-        
+
+        status_filter = self.request.query_params.get('status')
+        if status_filter in ('published', 'draft', 'archived'):
+            queryset = queryset.filter(status=status_filter)
+
+        stock_filter = self.request.query_params.get('stock')
+        if stock_filter == 'low':
+            queryset = queryset.exclude(item_type='service').filter(stock__gt=0, stock__lt=10)
+        elif stock_filter == 'out':
+            queryset = queryset.exclude(item_type='service').filter(stock=0)
+
+        search = (self.request.query_params.get('q') or '').strip()
+        if search:
+            from django.db.models import Q as DQ
+            queryset = queryset.filter(
+                DQ(name__icontains=search)
+                | DQ(product_code__icontains=search)
+                | DQ(description__icontains=search)
+            )
+
         return queryset
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Return catalog counts and stock alerts without listing everything."""
+        tenant = request.user.vendor_profile.tenant
+        products = Product.objects.filter(tenant=tenant)
+        published = products.filter(status='published')
+        physical = published.exclude(item_type='service')
+        low_qs = physical.filter(stock__gt=0, stock__lt=10)
+        out_qs = physical.filter(stock=0)
+        return Response({
+            'all': products.count(),
+            'published': published.count(),
+            'draft': products.filter(status='draft').count(),
+            'archived': products.filter(status='archived').count(),
+            'low_stock': low_qs.count(),
+            'out_of_stock': out_qs.count(),
+            'low_stock_products': [
+                {'id': p.id, 'name': p.name, 'stock': p.stock} for p in low_qs.order_by('stock')[:8]
+            ],
+            'out_of_stock_products': [
+                {'id': p.id, 'name': p.name} for p in out_qs.order_by('-updated_at')[:8]
+            ],
+        })
 
     def get_serializer_class(self):
         if self.action == 'create':
