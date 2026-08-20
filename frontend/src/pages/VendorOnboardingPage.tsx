@@ -282,7 +282,7 @@ const VendorOnboardingPage: React.FC = () => {
                     kFaqs && `Common questions: ${kFaqs}`,
                 ].filter(Boolean).join('\n');
                 await saveAiSetup({
-                    ai_knowledge: knowledge,
+                    ...(knowledge ? { ai_knowledge: knowledge } : {}),
                     ai_auto_reply: autoReply,
                     ai_tone: aiTone,
                     ai_language: aiLanguage,
