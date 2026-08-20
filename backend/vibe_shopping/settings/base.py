@@ -213,6 +213,10 @@ INSTAGRAM_LOGIN_REDIRECT_URI = config(
     'INSTAGRAM_LOGIN_REDIRECT_URI',
     default='http://localhost:5174/vendor/settings/instagram-callback',
 )
+INSTAGRAM_LOGIN_FRONTEND_CALLBACK = config(
+    'INSTAGRAM_LOGIN_FRONTEND_CALLBACK',
+    default='http://localhost:5174/vendor/settings/instagram-callback',
+)
 META_OAUTH_REDIRECT_URI = config(
     'META_OAUTH_REDIRECT_URI',
     default='http://localhost:5173/vendor/settings/meta-callback',

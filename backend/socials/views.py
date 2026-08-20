@@ -247,6 +247,30 @@ class PageConnectView(APIView):
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
+class InstagramRedirectBridgeView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        """Forward Instagram's HTTPS redirect to the local frontend callback.
+
+        Instagram Login only accepts HTTPS redirect URIs, so the OAuth
+        dialog lands here (public tunnel) and the browser is bounced to
+        the frontend callback with the same query string.
+        """
+        from urllib.parse import urlencode
+
+        from django.http import HttpResponseRedirect
+
+        params = {
+            key: request.query_params[key]
+            for key in ('code', 'state', 'error', 'error_description')
+            if key in request.query_params
+        }
+        target = settings.INSTAGRAM_LOGIN_FRONTEND_CALLBACK
+        return HttpResponseRedirect(f'{target}?{urlencode(params)}')
+
+
 class InstagramConnectUrlView(APIView):
     permission_classes = [IsAuthenticated]
 
