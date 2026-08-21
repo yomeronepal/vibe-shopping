@@ -210,9 +210,10 @@ export default function PublishingCalendarPage() {
         if (!preselect) return;
         vendorApi.getProduct(preselect)
             .then((product: any) => {
-                setProducts((prev) => (prev.some((p) => p.id === product.id) ? prev : [product, ...prev]));
                 openCreateModal(new Date());
                 setImageTab('product');
+                setProducts([product]);
+                setProductSearch(product.name);
                 setProductId(product.id);
             })
             .catch(() => toast.error('Could not load that product'))
