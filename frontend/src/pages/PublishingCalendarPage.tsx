@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { aiApi } from '../api/ai';
 import { useShopTheme } from '../contexts/ShopThemeContext';
@@ -201,6 +202,22 @@ export default function PublishingCalendarPage() {
         setFormError('');
         setSaving(false);
     };
+
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    useEffect(() => {
+        const preselect = searchParams.get('product');
+        if (!preselect) return;
+        vendorApi.getProduct(preselect)
+            .then((product: any) => {
+                setProducts((prev) => (prev.some((p) => p.id === product.id) ? prev : [product, ...prev]));
+                openCreateModal(new Date());
+                setImageTab('product');
+                setProductId(product.id);
+            })
+            .catch(() => toast.error('Could not load that product'))
+            .finally(() => setSearchParams({}, { replace: true }));
+    }, [searchParams]);
 
     const openCreateModal = (date: Date) => {
         resetComposer();

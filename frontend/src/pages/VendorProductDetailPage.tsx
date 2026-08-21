@@ -357,6 +357,15 @@ export default function VendorProductDetailPage() {
                                 <h2 className="text-xl font-extrabold tracking-tight" style={{ color: themeConfig.text }}>
                                     Social performance
                                 </h2>
+                                <div className="flex items-center gap-2">
+                                <Link
+                                    to={`/vendor/calendar?product=${id}`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold text-white"
+                                    style={{ backgroundColor: themeConfig.primary }}
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">add_photo_alternate</span>
+                                    Create post
+                                </Link>
                                 <button
                                     onClick={() => load(true)}
                                     disabled={refreshing}
@@ -366,6 +375,7 @@ export default function VendorProductDetailPage() {
                                     <span className={`material-symbols-outlined text-[18px] ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
                                     {refreshing ? 'Refreshing…' : 'Refresh'}
                                 </button>
+                                </div>
                             </div>
                             <p className="text-sm mt-1" style={{ color: themeConfig.textSecondary }}>
                                 Engagement from Facebook and Instagram, refreshed every 10 minutes.
@@ -390,11 +400,11 @@ export default function VendorProductDetailPage() {
                                             Publish or schedule this product from the Publishing calendar to see its performance here.
                                         </p>
                                         <Link
-                                            to="/vendor/calendar"
+                                            to={`/vendor/calendar?product=${id}`}
                                             className="inline-block mt-4 px-4 py-2 rounded-xl text-white font-semibold"
                                             style={{ backgroundColor: themeConfig.primary }}
                                         >
-                                            Open Publishing
+                                            Create a post for this product
                                         </Link>
                                     </div>
                                 )}
