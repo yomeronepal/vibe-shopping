@@ -20,7 +20,12 @@ class BoostError(Exception):
 
 def get_ads_token(tenant):
     """Return the vendor's Meta user token used for the Marketing API."""
-    connection = MetaConnection.objects.filter(tenant=tenant, status='connected').first()
+    connection = (
+        MetaConnection.objects.filter(tenant=tenant, status='connected')
+        .exclude(fb_user_id__startswith='ig-')
+        .order_by('-updated_at')
+        .first()
+    )
     if connection is None:
         raise BoostError('Connect your Facebook account first.')
     return connection.get_access_token()

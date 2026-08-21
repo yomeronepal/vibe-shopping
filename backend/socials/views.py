@@ -163,7 +163,9 @@ class OAuthCallbackView(APIView):
         expires_at = None
         if long_lived.get('expires_in'):
             expires_at = timezone.now() + timedelta(seconds=long_lived['expires_in'])
-        connection, _ = MetaConnection.objects.update_or_create(
+        connection, _ = MetaConnection.objects.exclude(
+            fb_user_id__startswith='ig-'
+        ).update_or_create(
             tenant=tenant,
             defaults={
                 'fb_user_id': profile['id'],
@@ -198,7 +200,12 @@ class PageConnectView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
-        connection = MetaConnection.objects.filter(tenant=tenant, status='connected').first()
+        connection = (
+            MetaConnection.objects.filter(tenant=tenant, status='connected')
+            .exclude(fb_user_id__startswith='ig-')
+            .order_by('-updated_at')
+            .first()
+        )
         if not connection:
             return Response(
                 {'error': 'Connect your Facebook account first'},
@@ -431,7 +438,8 @@ class InstagramOAuthCallbackView(APIView):
             expires_at = timezone.now() + timedelta(seconds=token['expires_in'])
         connection, _ = MetaConnection.objects.update_or_create(
             tenant=tenant,
-            defaults={'fb_user_id': f'ig-{ig_id}', 'token_expires_at': expires_at, 'status': 'connected'},
+            fb_user_id=f'ig-{ig_id}',
+            defaults={'token_expires_at': expires_at, 'status': 'connected'},
         )
         connection.set_access_token(token['access_token'])
         connection.save()
