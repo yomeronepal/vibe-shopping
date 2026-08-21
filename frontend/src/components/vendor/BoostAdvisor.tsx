@@ -345,6 +345,14 @@ export default function BoostAdvisor() {
                 <p className="text-xs mt-1" style={{ color: themeConfig.textSecondary }}>
                     Publish product posts and the AI will recommend which ones are worth putting money behind.
                 </p>
+                <button
+                    onClick={() => load(true)}
+                    disabled={refreshing}
+                    className="mt-3 px-4 py-2 rounded-xl text-xs font-bold border disabled:opacity-50"
+                    style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                >
+                    {refreshing ? 'Checking…' : 'Check again'}
+                </button>
             </div>
         );
     }
