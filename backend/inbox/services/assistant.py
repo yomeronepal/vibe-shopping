@@ -78,7 +78,8 @@ def extract_search_terms(conversation):
     for message in recent:
         meta = message.metadata or {}
         replied = (meta.get('reply_to_product') or {}).get('name', '')
-        source = f"{message.text or ''} {meta.get('product_name', '')} {replied}"
+        shared = (meta.get('shared_post_product') or {}).get('name', '')
+        source = f"{message.text or ''} {meta.get('product_name', '')} {replied} {shared}"
         words.extend(re.findall(r'[a-z0-9][a-z0-9\-]{2,}', source.lower()))
     terms = []
     for word in words:
@@ -224,6 +225,12 @@ def format_history_line(message):
         return (
             f"Customer (replying to your photo of {replied['name']}"
             f" [id {replied.get('id')}] — \"this/yo\" means that product): {text}"
+        )
+    shared = (message.metadata or {}).get('shared_post_product') or {}
+    if shared.get('name'):
+        return (
+            f"Customer (shared your post about {shared['name']}"
+            f" [id {shared.get('id')}] — they are asking about that product): {text or '(shared the post)'}"
         )
     if message.source == 'comment':
         product = (message.metadata or {}).get('product_name', '')
