@@ -91,3 +91,33 @@ class WebhookEvent(TimeStampedModel):
 
     def __str__(self):
         return f"{self.object_type} event at {self.received_at}"
+
+
+class BoostCampaign(TimeStampedModel):
+    """One in-app boost of a page post, run through the Marketing API."""
+
+    STATUSES = [
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='boosts')
+    post = models.ForeignKey(
+        'core.SocialMediaPost', on_delete=models.CASCADE, related_name='boosts'
+    )
+    ad_account_id = models.CharField(max_length=64)
+    campaign_id = models.CharField(max_length=64, blank=True, default='')
+    adset_id = models.CharField(max_length=64, blank=True, default='')
+    ad_id = models.CharField(max_length=64, blank=True, default='')
+    daily_budget = models.IntegerField()
+    days = models.IntegerField(default=5)
+    targeting = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, choices=STATUSES, default='active')
+    status_note = models.CharField(max_length=255, blank=True, default='')
+    insights = models.JSONField(default=dict, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Boost {self.campaign_id or self.pk} ({self.status})'

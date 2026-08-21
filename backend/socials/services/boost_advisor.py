@@ -191,7 +191,7 @@ def compute_boost_advice(tenant):
 def get_boost_advice(tenant, refresh=False):
     """Return cached advice when fresh, recomputing otherwise."""
     cached = (tenant.metadata or {}).get('boostAdvice') or {}
-    if not refresh and cached.get('generated_at'):
+    if not refresh and cached.get('generated_at') and cached.get('recommendations'):
         from django.utils.dateparse import parse_datetime
 
         generated = parse_datetime(cached['generated_at'])

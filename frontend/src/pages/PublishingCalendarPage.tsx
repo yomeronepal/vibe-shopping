@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { aiApi } from '../api/ai';
 import { useShopTheme } from '../contexts/ShopThemeContext';
@@ -139,9 +140,15 @@ export default function PublishingCalendarPage() {
     };
 
     useEffect(() => {
-        vendorApi.getProducts()
-            .then((data) => setProducts(Array.isArray(data) ? data : data?.results ?? []))
-            .catch(() => toast.error('Could not load products. Refresh to retry.'));
+        const handle = window.setTimeout(() => {
+            vendorApi.getProducts({ q: productSearch.trim(), page: 1 })
+                .then((data: any) => setProducts(Array.isArray(data) ? data : data?.results ?? []))
+                .catch(() => {});
+        }, productSearch ? 300 : 0);
+        return () => window.clearTimeout(handle);
+    }, [productSearch]);
+
+    useEffect(() => {
         listConnectedPages()
             .then((pages) => setConnectedPage(pages.find((page) => page.status === 'connected') ?? null))
             .catch(() => setConnectedPage(null));
@@ -195,6 +202,23 @@ export default function PublishingCalendarPage() {
         setFormError('');
         setSaving(false);
     };
+
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    useEffect(() => {
+        const preselect = searchParams.get('product');
+        if (!preselect) return;
+        vendorApi.getProduct(preselect)
+            .then((product: any) => {
+                openCreateModal(new Date());
+                setImageTab('product');
+                setProducts([product]);
+                setProductSearch(product.name);
+                setProductId(product.id);
+            })
+            .catch(() => toast.error('Could not load that product'))
+            .finally(() => setSearchParams({}, { replace: true }));
+    }, [searchParams]);
 
     const openCreateModal = (date: Date) => {
         resetComposer();
@@ -253,10 +277,7 @@ export default function PublishingCalendarPage() {
 
     const uploadPreviewUrl = useMemo(() => (uploadFile ? URL.createObjectURL(uploadFile) : null), [uploadFile]);
 
-    const filteredProducts = useMemo(
-        () => products.filter((product) => product.name.toLowerCase().includes(productSearch.toLowerCase())),
-        [products, productSearch],
-    );
+    const filteredProducts = products;
 
     const buildCreateFormData = (): FormData => {
         const form = new FormData();
@@ -755,7 +776,7 @@ export default function PublishingCalendarPage() {
                                                 <input
                                                     value={productSearch}
                                                     onChange={(event) => setProductSearch(event.target.value)}
-                                                    placeholder="Search products…"
+                                                    placeholder="Search by name or SKU…"
                                                     className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
                                                     style={{ backgroundColor: `${themeConfig.background}`, border: `1px solid ${themeConfig.border}`, color: themeConfig.text }}
                                                 />
@@ -769,7 +790,7 @@ export default function PublishingCalendarPage() {
                                                                 onClick={() => setProductId(product.id)}
                                                                 className="rounded-lg overflow-hidden aspect-square"
                                                                 style={{ boxShadow: selected ? `0 0 0 2px ${themeConfig.primary}` : `0 0 0 1px ${themeConfig.border}` }}
-                                                                title={product.name}
+                                                                title={`${product.name}${product.product_code ? ` (${product.product_code})` : ''}`}
                                                             >
                                                                 {thumbnail ? (
                                                                     <img src={thumbnail} alt={product.name} className="w-full h-full object-cover" />
