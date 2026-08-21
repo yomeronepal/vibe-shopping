@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { aiApi } from '../api/ai';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
+import BoostAdvisor from '../components/vendor/BoostAdvisor';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { vendorApi, type Product } from '../api/vendor';
 import { mediaUrl } from '../api/media';
@@ -441,6 +442,10 @@ export default function PublishingCalendarPage() {
                             <span className="material-symbols-outlined text-[18px]">add</span>
                             New post
                         </button>
+                    </div>
+
+                    <div className="mt-6">
+                        <BoostAdvisor />
                     </div>
 
                     <div

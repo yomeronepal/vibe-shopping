@@ -247,6 +247,23 @@ class PageConnectView(APIView):
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
+class BoostAdvisorView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Return AI boost recommendations for recent posts.
+
+        Cached for 12 hours; pass ?refresh=1 to recompute now.
+        """
+        from socials.services.boost_advisor import get_boost_advice
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        refresh = request.query_params.get('refresh') == '1'
+        return Response(get_boost_advice(tenant, refresh=refresh))
+
+
 class InstagramRedirectBridgeView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []

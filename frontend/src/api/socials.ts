@@ -16,6 +16,35 @@ export interface ConnectedPage {
     created_at: string;
 }
 
+export interface BoostRecommendation {
+    post_id: number;
+    platform: string;
+    post_url: string;
+    caption: string;
+    image: string | null;
+    product: { id: number; name: string; price: number; stock: number; is_service: boolean };
+    engagement: { likes: number; comments: number; shares: number };
+    orders_30d: number;
+    revenue_30d: number;
+    suggested: { daily_budget: number; days: number; total_budget: number; audience: string; goal: string };
+    warnings: string[];
+    reasoning: string;
+}
+
+export interface BoostAdvice {
+    generated_at: string;
+    window_days: number;
+    recommendations: BoostRecommendation[];
+    posts_considered: number;
+}
+
+export const getBoostAdvice = async (refresh = false): Promise<BoostAdvice> => {
+    const response = await apiClient.get('/socials/boost-advisor/', {
+        params: refresh ? { refresh: 1 } : {},
+    });
+    return response.data;
+};
+
 export const getInstagramConnectUrl = async (): Promise<string> => {
     const response = await apiClient.get('/socials/instagram/connect-url/');
     return response.data.url;
