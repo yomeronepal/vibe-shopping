@@ -252,7 +252,7 @@ export const vendorApi = {
         return response.data;
     },
 
-    getProducts: async (params?: { page?: number; status?: string; stock?: string; q?: string }) => {
+    getProducts: async (params?: { page?: number; status?: string; stock?: string; q?: string; sort?: string }) => {
         const response = await apiClient.get('/vendor/products/', { params });
         return response.data;
     },

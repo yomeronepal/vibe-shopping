@@ -34,6 +34,7 @@ const VendorProductListPage: React.FC = () => {
     const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
     const [totalCount, setTotalCount] = useState(0);
     const [nextPage, setNextPage] = useState<number | null>(null);
+    const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
     const [stats, setStats] = useState<{ all: number; draft: number; archived: number; low_stock: number; out_of_stock: number } | null>(null);
     const [, setVendorProfile] = useState<VendorProfile>({});
 
@@ -49,10 +50,10 @@ const VendorProductListPage: React.FC = () => {
         return params;
     };
 
-    const loadProducts = async (page = 1, filter = activeFilter, query = searchQuery) => {
+    const loadProducts = async (page = 1, filter = activeFilter, query = searchQuery, sort = sortOrder) => {
         try {
             if (page === 1) setLoading(true);
-            const data = await vendorApi.getProducts({ page, ...filterParams(filter, query) });
+            const data = await vendorApi.getProducts({ page, sort, ...filterParams(filter, query) });
             const results: Product[] = Array.isArray(data) ? data : data?.results ?? [];
             setProducts((prev) => (page === 1 ? results : [...prev, ...results]));
             setTotalCount(Array.isArray(data) ? results.length : data?.count ?? results.length);
@@ -72,7 +73,7 @@ const VendorProductListPage: React.FC = () => {
     useEffect(() => {
         const handle = window.setTimeout(() => loadProducts(1), searchQuery ? 350 : 0);
         return () => window.clearTimeout(handle);
-    }, [activeFilter, searchQuery]);
+    }, [activeFilter, searchQuery, sortOrder]);
 
     useEffect(() => {
         loadStats();
@@ -246,7 +247,16 @@ const VendorProductListPage: React.FC = () => {
                             Real-time inventory orchestration for your products.
                         </p>
                     </div>
-                    <div className="flex gap-3 items-center">
+                    <div className="flex gap-3 items-center flex-wrap">
+                        <select
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+                            className="h-12 rounded-xl px-3 text-sm font-semibold focus:outline-none border"
+                            style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                        >
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
                         <label className="flex flex-col min-w-40 h-12 max-w-64">
                             <div className="flex w-full flex-1 items-stretch rounded-xl h-full border" style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border }}>
                                 <div className="flex items-center justify-center pl-4" style={{ color: themeConfig.textSecondary }}>
