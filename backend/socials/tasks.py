@@ -31,6 +31,22 @@ def process_webhook_event(self, event_id):
 
 
 @shared_task
+def refresh_active_boosts():
+    """Refresh insights and apply money guardrails to running boosts."""
+    from socials.models import BoostCampaign
+    from socials.services.boost_runner import BoostError, refresh_boost
+
+    checked = 0
+    for boost in BoostCampaign.objects.filter(status='active').select_related('tenant', 'post__product'):
+        try:
+            refresh_boost(boost)
+            checked += 1
+        except BoostError as exc:
+            logger.info('Boost refresh skipped for %s: %s', boost.id, exc)
+    return checked
+
+
+@shared_task
 def refresh_instagram_tokens():
     """Extend long-lived tokens for direct Instagram connections."""
     from socials.models import ConnectedPage
