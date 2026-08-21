@@ -330,6 +330,11 @@ const VendorProductListPage: React.FC = () => {
                     ))}
                 </div>
 
+                {!loading && searchQuery.trim() && (
+                    <p className="text-sm font-semibold mb-3" style={{ color: themeConfig.textSecondary }}>
+                        {totalCount} result{totalCount === 1 ? '' : 's'} for "{searchQuery.trim()}" across your whole catalog
+                    </p>
+                )}
                 {loading ? (
                     <div className="flex items-center justify-center py-20">
                         <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-transparent" style={{ borderColor: `${primaryColor}20`, borderTopColor: primaryColor }}></div>
