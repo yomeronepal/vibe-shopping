@@ -715,7 +715,8 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Product.objects.none()
             
         tenant = user.vendor_profile.tenant
-        queryset = Product.objects.filter(tenant=tenant).order_by('-created_at')
+        ordering = 'created_at' if self.request.query_params.get('sort') == 'oldest' else '-created_at'
+        queryset = Product.objects.filter(tenant=tenant).order_by(ordering)
 
         is_active = self.request.query_params.get('is_active', None)
         if is_active is not None:
