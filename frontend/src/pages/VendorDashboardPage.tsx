@@ -130,6 +130,7 @@ export default function VendorDashboardPage() {
     const [storeName, setStoreName] = useState('');
     const [offering, setOffering] = useState('products');
     const [setupProfile, setSetupProfile] = useState<any>(null);
+    const [productStats, setProductStats] = useState<any>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [conversations, setConversations] = useState<InboxConversation[]>([]);
@@ -146,17 +147,19 @@ export default function VendorDashboardPage() {
         const to = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
         Promise.allSettled([
             getStoreProfile(),
-            vendorApi.getProducts(),
+            vendorApi.getProductStats(),
+            vendorApi.getProducts({ page: 1 }),
             listVendorOrders(),
             listConversations(),
             listConnectedPages(),
             listPosts(from, to),
-        ]).then(([profile, productsRes, ordersRes, convosRes, pagesRes, postsRes]) => {
+        ]).then(([profile, productsRes, recentRes, ordersRes, convosRes, pagesRes, postsRes]) => {
             if (profile.status === 'fulfilled') setStoreName(profile.value.store_name || 'BizAlly');
             if (profile.status === 'fulfilled') setOffering(profile.value.offering || 'products');
             if (profile.status === 'fulfilled') setSetupProfile(profile.value);
-            if (productsRes.status === 'fulfilled') {
-                const data: any = productsRes.value;
+            if (productsRes.status === 'fulfilled') setProductStats(productsRes.value);
+            if (recentRes.status === 'fulfilled') {
+                const data: any = recentRes.value;
                 setProducts(Array.isArray(data) ? data : data?.results ?? []);
             }
             if (ordersRes.status === 'fulfilled') setOrders(ordersRes.value);
@@ -169,7 +172,7 @@ export default function VendorDashboardPage() {
         });
     }, []);
 
-    const liveProducts = products.filter((p) => p.status === 'published');
+
     const unreadMessages = conversations.reduce((total, convo) => total + (convo.unread_count || 0), 0);
     const revenue = sumRevenue(orders);
     const recentOrders = orders.slice(0, 4);
@@ -182,7 +185,7 @@ export default function VendorDashboardPage() {
 
     const checklist = [
         { done: Boolean(connectedPage), label: 'Connect your Facebook Page', to: '/vendor/settings/accounts' },
-        { done: products.length > 0, label: 'Add your first product', to: '/vendor/products/new' },
+        { done: (productStats?.all ?? 0) > 0, label: 'Add your first product', to: '/vendor/products/new' },
         { done: postedCount > 0, label: 'Publish your first social post', to: '/vendor/calendar' },
     ];
     const setupComplete = checklist.every((item) => item.done);
@@ -230,7 +233,7 @@ export default function VendorDashboardPage() {
                             <div className="flex flex-wrap gap-4">
                                 <StatTile icon="payments" label="Revenue (all orders)" value={`Rs. ${revenue.toLocaleString()}`} to="/vendor/orders" />
                                 <StatTile icon="shopping_bag" label="Orders" value={orders.length.toLocaleString()} to="/vendor/orders" />
-                                <StatTile icon="sell" label="Live products" value={liveProducts.length.toLocaleString()} to="/vendor/products" />
+                                <StatTile icon="sell" label="Live products" value={(productStats?.published ?? 0).toLocaleString()} to="/vendor/products" />
                                 <StatTile icon="chat" label="Unread messages" value={unreadMessages.toLocaleString()} to="/vendor/inbox" />
                             </div>
 
@@ -243,7 +246,7 @@ export default function VendorDashboardPage() {
                                     { done: Boolean(connectedPage), label: 'Connect your Facebook Page', to: '/vendor/settings/accounts' },
                                     { done: Boolean(setupProfile.ai_knowledge), label: 'Teach the AI your delivery & payment policies', to: '/vendor/settings/assistant' },
                                     { done: Boolean(setupProfile.ai_auto_reply), label: 'Turn on automatic replies', to: '/vendor/settings/assistant' },
-                                    { done: products.some((p) => p.status === 'published'), label: offering === 'services' ? 'Publish your first service' : 'Publish your first product', to: '/vendor/products/new' },
+                                    { done: (productStats?.published ?? 0) > 0, label: offering === 'services' ? 'Publish your first service' : 'Publish your first product', to: '/vendor/products/new' },
                                 ];
                                 const doneCount = checks.filter((c) => c.done).length;
                                 if (doneCount === checks.length) return null;
@@ -278,8 +281,8 @@ export default function VendorDashboardPage() {
 
                             {(() => {
                                 if (offering === 'services') return null;
-                                const lowStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock > 0 && p.stock < 10);
-                                const outOfStock = products.filter((p) => p.status === 'published' && p.item_type !== 'service' && p.stock === 0);
+                                const lowStock = productStats?.low_stock_products ?? [];
+                                const outOfStock = productStats?.out_of_stock_products ?? [];
                                 if (lowStock.length === 0 && outOfStock.length === 0) return null;
                                 return (
                                     <div
@@ -291,12 +294,12 @@ export default function VendorDashboardPage() {
                                             <h3 className="text-base font-bold" style={{ color: '#92400e' }}>Inventory alerts</h3>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
-                                            {outOfStock.slice(0, 5).map((p) => (
+                                            {outOfStock.slice(0, 5).map((p: any) => (
                                                 <Link key={p.id} to={`/vendor/products/${p.id}`} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
                                                     {p.name.slice(0, 30)} — out of stock
                                                 </Link>
                                             ))}
-                                            {lowStock.slice(0, 5).map((p) => (
+                                            {lowStock.slice(0, 5).map((p: any) => (
                                                 <Link key={p.id} to={`/vendor/products/${p.id}`} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
                                                     {p.name.slice(0, 30)} — {p.stock} left
                                                 </Link>

@@ -111,7 +111,7 @@ class CommentIngestTests(CommentTestBase):
         self.tenant.metadata = {'aiAutoReply': True}
         self.tenant.save()
         record = store_comment(self.page, 'facebook', fb_comment_change())
-        mock_apply.assert_called_once_with(args=[record.id], countdown=60)
+        mock_apply.assert_called_once_with(args=[record.id], countdown=10)
 
 
 class PrivateReplyRoutingTests(CommentTestBase):
@@ -146,7 +146,7 @@ class PrivateReplyRoutingTests(CommentTestBase):
         send_conversation_text(record.conversation, 'Price is Rs. 1500!')
         send_conversation_text(record.conversation, 'Also we deliver!')
         mock_client_cls.return_value.send_message.assert_called_once_with(
-            'p1', 'pt1', 'u1', 'Also we deliver!'
+            'p1', 'pt1', 'u1', 'Also we deliver!', quick_replies=None
         )
 
     @patch('inbox.services.sending.MetaGraphClient')
