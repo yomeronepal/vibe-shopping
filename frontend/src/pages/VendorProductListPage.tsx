@@ -265,7 +265,7 @@ const VendorProductListPage: React.FC = () => {
                                 <input
                                     className="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:ring-0 px-2 text-sm font-normal outline-none"
                                     style={{ color: themeConfig.text }}
-                                    placeholder="Search inventory..."
+                                    placeholder="Search name, SKU, category…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
