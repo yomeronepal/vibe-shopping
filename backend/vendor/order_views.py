@@ -108,7 +108,9 @@ class VendorOrderListView(APIView):
             query = (
                 Q(customer_name__icontains=search)
                 | Q(customer_phone__icontains=search)
+                | Q(customer_email__icontains=search)
                 | Q(items__product__name__icontains=search)
+                | Q(items__product__product_code__icontains=search)
             )
             if search.isdigit():
                 query = query | Q(id=int(search))

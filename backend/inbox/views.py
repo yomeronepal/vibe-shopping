@@ -65,6 +65,7 @@ class ConversationListView(APIView):
         if search:
             queryset = queryset.filter(
                 Q(customer__name__icontains=search)
+                | Q(customer__phone__icontains=search)
                 | Q(messages__text__icontains=search)
                 | Q(tags__icontains=search)
             ).distinct()
@@ -310,6 +311,7 @@ class CustomerListView(APIView):
                 | Q(phone__icontains=search)
                 | Q(email__icontains=search)
                 | Q(location__icontains=search)
+                | Q(notes__icontains=search)
             )
         from vendor.order_views import paginated_list_response
 

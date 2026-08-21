@@ -739,6 +739,8 @@ class ProductViewSet(viewsets.ModelViewSet):
                 DQ(name__icontains=search)
                 | DQ(product_code__icontains=search)
                 | DQ(description__icontains=search)
+                | DQ(category__icontains=search)
+                | DQ(subcategory__icontains=search)
             )
 
         return queryset
