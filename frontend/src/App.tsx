@@ -24,6 +24,7 @@ import VendorOrderInvoicePage from './pages/VendorOrderInvoicePage';
 import VendorOrderDetailPage from './pages/VendorOrderDetailPage';
 import VendorStoreSettingsPage from './pages/VendorStoreSettingsPage';
 import VendorAssistantSettingsPage from './pages/VendorAssistantSettingsPage';
+import VendorTeamPage from './pages/VendorTeamPage';
 import VendorCustomersPage from './pages/VendorCustomersPage';
 import VendorAnalyticsPage from './pages/VendorAnalyticsPage';
 import PublishingCalendarPage from './pages/PublishingCalendarPage';
@@ -68,6 +69,7 @@ function App() {
               <Route path="/vendor/analytics" element={<VendorAnalyticsPage />} />
               <Route path="/vendor/settings/profile" element={<VendorStoreSettingsPage />} />
               <Route path="/vendor/settings/assistant" element={<VendorAssistantSettingsPage />} />
+              <Route path="/vendor/settings/team" element={<VendorTeamPage />} />
               <Route path="/vendor/settings/accounts" element={<ConnectedAccountsPage />} />
               <Route path="/vendor/settings/meta-callback" element={<MetaCallbackPage />} />
               <Route path="/vendor/settings/instagram-callback" element={<InstagramCallbackPage />} />

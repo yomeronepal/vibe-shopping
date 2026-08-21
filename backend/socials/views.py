@@ -131,6 +131,9 @@ class ConnectUrlView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'url': build_connect_url(tenant)})
 
 
@@ -296,6 +299,9 @@ class BoostListCreateView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         post = SocialMediaPost.objects.filter(
             tenant=tenant, id=request.data.get('post_id'),
         ).select_related('product').first()
@@ -327,6 +333,9 @@ class BoostActionView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         boost = BoostCampaign.objects.filter(tenant=tenant, id=boost_id).first()
         if boost is None:
             return Response({'error': 'Boost not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -393,6 +402,9 @@ class InstagramConnectUrlView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         if not instagram_login_configured():
             return Response(
                 {'error': 'Instagram Login is not configured yet. Add the Instagram product '

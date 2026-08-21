@@ -435,6 +435,7 @@ export interface StoreProfile {
     order_fields: string[];
     service_fields: string[];
     offering: 'products' | 'services' | 'both';
+    role?: string;
     followup_hours: number;
     followup_message: string;
     restricted_topics: string[];
@@ -476,6 +477,38 @@ export interface UpdateStoreProfileData {
     address?: string;
     logo?: File | null;
 }
+
+export interface TeamMember {
+    id: number;
+    username: string;
+    name: string;
+    email: string;
+    role: string;
+    is_active: boolean;
+    last_login: string | null;
+    joined_at: string;
+    password?: string;
+}
+
+export const listTeam = async (): Promise<{ members: TeamMember[]; your_role: string }> => {
+    const response = await apiClient.get('/vendor/team/');
+    return response.data;
+};
+
+export const createStaff = async (name: string, email: string, role: string): Promise<TeamMember> => {
+    const response = await apiClient.post('/vendor/team/', { name, email, role });
+    return response.data;
+};
+
+export const updateTeamMember = async (userId: number, data: { role?: string; is_active?: boolean }): Promise<TeamMember> => {
+    const response = await apiClient.patch(`/vendor/team/${userId}/`, data);
+    return response.data;
+};
+
+export const resetTeamPassword = async (userId: number): Promise<TeamMember> => {
+    const response = await apiClient.post(`/vendor/team/${userId}/reset-password/`);
+    return response.data;
+};
 
 export const getStoreProfile = async (): Promise<StoreProfile> => {
     const response = await apiClient.get('/vendor/profile/');
