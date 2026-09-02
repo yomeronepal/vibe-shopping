@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.models import Product, SocialMediaPost
-from socials.models import ConnectedPage
+from socials.models import BoostCampaign, ConnectedPage
 
 
 class ConnectedPageSerializer(serializers.ModelSerializer):
@@ -40,3 +40,17 @@ class SocialMediaPostSerializer(serializers.ModelSerializer):
         if obj.product and obj.product.image:
             return obj.product.image.url
         return None
+
+
+class BoostCampaignSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='post.product.name', default='')
+    post_url = serializers.CharField(source='post.post_url', default='')
+    platform = serializers.CharField(source='post.platform', default='')
+
+    class Meta:
+        model = BoostCampaign
+        fields = [
+            'id', 'post_id', 'product_name', 'post_url', 'platform',
+            'ad_account_id', 'daily_budget', 'days', 'targeting',
+            'status', 'status_note', 'insights', 'ends_at', 'created_at',
+        ]

@@ -38,6 +38,63 @@ export interface BoostAdvice {
     posts_considered: number;
 }
 
+export interface AdAccount {
+    id: string;
+    account_id: string;
+    name: string;
+    currency: string;
+}
+
+export interface Boost {
+    id: number;
+    post_id: number;
+    product_name: string;
+    post_url: string;
+    platform: string;
+    ad_account_id: string;
+    daily_budget: number;
+    days: number;
+    status: 'active' | 'paused' | 'completed' | 'failed';
+    status_note: string;
+    insights: {
+        spend?: number;
+        impressions?: number;
+        reach?: number;
+        conversations_started?: number;
+        cost_per_conversation?: number | null;
+        updated_at?: string;
+    };
+    ends_at: string | null;
+    created_at: string;
+}
+
+export const listAdAccounts = async (): Promise<AdAccount[]> => {
+    const response = await apiClient.get('/socials/ad-accounts/');
+    return response.data.accounts;
+};
+
+export const listBoosts = async (): Promise<Boost[]> => {
+    const response = await apiClient.get('/socials/boosts/');
+    return response.data;
+};
+
+export const launchBoost = async (data: {
+    post_id: number;
+    ad_account_id: string;
+    daily_budget: number;
+    days: number;
+    age_min?: number;
+    age_max?: number;
+}): Promise<Boost> => {
+    const response = await apiClient.post('/socials/boosts/', data);
+    return response.data;
+};
+
+export const setBoostAction = async (boostId: number, action: 'pause' | 'resume'): Promise<Boost> => {
+    const response = await apiClient.post(`/socials/boosts/${boostId}/${action}/`);
+    return response.data;
+};
+
 export const getBoostAdvice = async (refresh = false): Promise<BoostAdvice> => {
     const response = await apiClient.get('/socials/boost-advisor/', {
         params: refresh ? { refresh: 1 } : {},

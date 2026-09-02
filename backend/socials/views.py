@@ -89,6 +89,9 @@ OAUTH_SCOPES = ','.join([
     'pages_manage_posts',
     'instagram_content_publish',
     'pages_read_user_content',
+    'ads_management',
+    'ads_read',
+    'business_management',
 ])
 
 
@@ -128,6 +131,9 @@ class ConnectUrlView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'url': build_connect_url(tenant)})
 
 
@@ -160,7 +166,9 @@ class OAuthCallbackView(APIView):
         expires_at = None
         if long_lived.get('expires_in'):
             expires_at = timezone.now() + timedelta(seconds=long_lived['expires_in'])
-        connection, _ = MetaConnection.objects.update_or_create(
+        connection, _ = MetaConnection.objects.exclude(
+            fb_user_id__startswith='ig-'
+        ).update_or_create(
             tenant=tenant,
             defaults={
                 'fb_user_id': profile['id'],
@@ -195,7 +203,12 @@ class PageConnectView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
-        connection = MetaConnection.objects.filter(tenant=tenant, status='connected').first()
+        connection = (
+            MetaConnection.objects.filter(tenant=tenant, status='connected')
+            .exclude(fb_user_id__startswith='ig-')
+            .order_by('-updated_at')
+            .first()
+        )
         if not connection:
             return Response(
                 {'error': 'Connect your Facebook account first'},
@@ -245,6 +258,94 @@ class PageConnectView(APIView):
         from socials.services.messenger_profile import setup_messenger_profile
         setup_messenger_profile(page)
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
+
+
+class AdAccountListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """List the vendor's active ad accounts for boosting."""
+        from socials.services.boost_runner import BoostError, list_ad_accounts
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            return Response({'accounts': list_ad_accounts(tenant)})
+        except BoostError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BoostListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """List the tenant's boosts, newest first."""
+        from socials.models import BoostCampaign
+        from socials.serializers import BoostCampaignSerializer
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        boosts = BoostCampaign.objects.filter(tenant=tenant).select_related('post__product').order_by('-created_at')[:30]
+        return Response(BoostCampaignSerializer(boosts, many=True).data)
+
+    def post(self, request):
+        """Launch a boost after guardrail checks."""
+        from core.models import SocialMediaPost
+        from socials.serializers import BoostCampaignSerializer
+        from socials.services.boost_runner import BoostError, launch_boost
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
+        post = SocialMediaPost.objects.filter(
+            tenant=tenant, id=request.data.get('post_id'),
+        ).select_related('product').first()
+        if post is None:
+            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            boost = launch_boost(
+                tenant, post,
+                ad_account_id=str(request.data.get('ad_account_id') or ''),
+                daily_budget=int(request.data.get('daily_budget') or 0),
+                days=int(request.data.get('days') or 0),
+                age_min=request.data.get('age_min') or 18,
+                age_max=request.data.get('age_max') or 44,
+            )
+        except (BoostError, TypeError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(BoostCampaignSerializer(boost).data, status=status.HTTP_201_CREATED)
+
+
+class BoostActionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, boost_id, action):
+        """Pause or resume one boost."""
+        from socials.models import BoostCampaign
+        from socials.serializers import BoostCampaignSerializer
+        from socials.services.boost_runner import BoostError, set_boost_status
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
+        boost = BoostCampaign.objects.filter(tenant=tenant, id=boost_id).first()
+        if boost is None:
+            return Response({'error': 'Boost not found'}, status=status.HTTP_404_NOT_FOUND)
+        if action not in ('pause', 'resume'):
+            return Response({'error': 'Unknown action'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            boost = set_boost_status(boost, action)
+        except BoostError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(BoostCampaignSerializer(boost).data)
 
 
 class BoostAdvisorView(APIView):
@@ -301,6 +402,9 @@ class InstagramConnectUrlView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can do this.'}, status=status.HTTP_403_FORBIDDEN)
         if not instagram_login_configured():
             return Response(
                 {'error': 'Instagram Login is not configured yet. Add the Instagram product '
@@ -346,7 +450,8 @@ class InstagramOAuthCallbackView(APIView):
             expires_at = timezone.now() + timedelta(seconds=token['expires_in'])
         connection, _ = MetaConnection.objects.update_or_create(
             tenant=tenant,
-            defaults={'fb_user_id': f'ig-{ig_id}', 'token_expires_at': expires_at, 'status': 'connected'},
+            fb_user_id=f'ig-{ig_id}',
+            defaults={'token_expires_at': expires_at, 'status': 'connected'},
         )
         connection.set_access_token(token['access_token'])
         connection.save()

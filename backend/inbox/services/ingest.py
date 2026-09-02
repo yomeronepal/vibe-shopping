@@ -92,6 +92,68 @@ def postback_as_message(messaging_event):
     return {'mid': mid, 'text': text}
 
 
+SHARE_ATTACHMENT_TYPES = ('post', 'share', 'fallback')
+
+
+def shared_post_info(post):
+    """Context payload for a matched shared post."""
+    product = post.product
+    if product is None:
+        return {}
+    return {'shared_post_product': {
+        'id': product.id,
+        'name': product.name[:60],
+        'sku': product.product_code or '',
+    }}
+
+
+def resolve_shared_post(page, attachments, mid=''):
+    """Map a shared page post back to the product it advertises."""
+    import re
+
+    from core.models import SocialMediaPost
+
+    shared = [a for a in attachments if a.get('type') in SHARE_ATTACHMENT_TYPES]
+    if not shared:
+        return {}
+    posts = SocialMediaPost.objects.filter(
+        tenant=page.tenant, product__isnull=False,
+    ).exclude(platform_post_id='').select_related('product')
+    for attachment in shared:
+        for digits in re.findall(r'\d{10,}', attachment.get('url', '') or ''):
+            post = posts.filter(platform_post_id__contains=digits).first()
+            if post:
+                return shared_post_info(post)
+    if mid:
+        post = resolve_share_via_graph(page, posts, mid)
+        if post:
+            return shared_post_info(post)
+    return {}
+
+
+def resolve_share_via_graph(page, posts, mid):
+    """Ask Graph what the message shared; match it to our posts."""
+    import re
+
+    from socials.services.meta_graph import graph_client_for
+
+    try:
+        detail = graph_client_for(page).get(f'/{mid}', {
+            'access_token': page.get_access_token(),
+            'fields': 'shares{id,link}',
+        })
+    except MetaGraphError as exc:
+        logger.info('Shared post lookup failed for %s: %s', mid, exc)
+        return None
+    for row in (detail.get('shares') or {}).get('data', []):
+        for candidate in (row.get('id', ''), row.get('link', '') or ''):
+            for digits in re.findall(r'\d{10,}', candidate):
+                post = posts.filter(platform_post_id__contains=digits).first()
+                if post:
+                    return post
+    return None
+
+
 def resolve_photo_reply(conversation, message):
     """Map a reply-to mid back to the product photo it answers."""
     reply_mid = ((message.get('reply_to') or {}).get('mid')) or ''
@@ -109,6 +171,16 @@ def resolve_photo_reply(conversation, message):
     if source is None:
         return {}
     return {'reply_to_product': source.metadata['photo_mids'][reply_mid]}
+
+
+def build_inbound_context(page, conversation, message, attachments, direction):
+    """Attach product context from photo replies or shared posts."""
+    if direction != 'in':
+        return {}
+    context = resolve_photo_reply(conversation, message)
+    if not context and attachments:
+        context = resolve_shared_post(page, attachments, mid=message.get('mid', ''))
+    return context
 
 
 def store_message(page, platform, messaging_event):
@@ -147,7 +219,7 @@ def store_message(page, platform, messaging_event):
             'text': message.get('text', '') or '',
             'attachments': attachments,
             'sent_at': sent_at,
-            'metadata': resolve_photo_reply(conversation, message) if direction == 'in' else {},
+            'metadata': build_inbound_context(page, conversation, message, attachments, direction),
         },
     )
     if not created:

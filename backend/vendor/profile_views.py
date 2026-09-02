@@ -127,13 +127,18 @@ class VendorStoreProfileView(APIView):
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(build_profile_payload(tenant))
+        payload = build_profile_payload(tenant)
+        payload['role'] = request.user.vendor_profile.role
+        return Response(payload)
 
     def patch(self, request):
         """Update only the store profile fields that were provided."""
         tenant = get_request_tenant(request)
         if not tenant:
             return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        from vendor.team_views import is_owner
+        if not is_owner(request):
+            return Response({'error': 'Only the owner can change settings.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = StoreProfileSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

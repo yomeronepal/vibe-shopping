@@ -223,6 +223,70 @@ class MetaGraphClient:
             'post_url': self.get_instagram_permalink(media_id, page_token),
         }
 
+    def list_ad_accounts(self, user_token):
+        """Return the user's ad accounts with status and currency."""
+        payload = self.get('/me/adaccounts', {
+            'access_token': user_token,
+            'fields': 'id,account_id,name,currency,account_status',
+        })
+        return payload.get('data', [])
+
+    def create_boost_campaign(self, ad_account_id, user_token, name):
+        """Create an engagement campaign shell; returns the campaign id."""
+        payload = self.post(f'/{ad_account_id}/campaigns', {
+            'access_token': user_token,
+            'name': name,
+            'objective': 'OUTCOME_ENGAGEMENT',
+            'status': 'ACTIVE',
+            'special_ad_categories': json.dumps([]),
+        })
+        return payload.get('id', '')
+
+    def create_boost_adset(self, ad_account_id, user_token, campaign_id, page_id,
+                           name, daily_budget_minor, targeting, end_time):
+        """Create the budgeted, targeted ad set aimed at Messenger chats."""
+        payload = self.post(f'/{ad_account_id}/adsets', {
+            'access_token': user_token,
+            'name': name,
+            'campaign_id': campaign_id,
+            'daily_budget': daily_budget_minor,
+            'billing_event': 'IMPRESSIONS',
+            'optimization_goal': 'CONVERSATIONS',
+            'destination_type': 'MESSENGER',
+            'promoted_object': json.dumps({'page_id': page_id}),
+            'targeting': json.dumps(targeting),
+            'end_time': end_time,
+            'status': 'ACTIVE',
+        })
+        return payload.get('id', '')
+
+    def create_boost_ad(self, ad_account_id, user_token, adset_id, name, story_id):
+        """Create the ad from the existing page post; returns the ad id."""
+        payload = self.post(f'/{ad_account_id}/ads', {
+            'access_token': user_token,
+            'name': name,
+            'adset_id': adset_id,
+            'creative': json.dumps({'object_story_id': story_id}),
+            'status': 'ACTIVE',
+        })
+        return payload.get('id', '')
+
+    def get_campaign_insights(self, campaign_id, user_token):
+        """Return spend, reach, and action counts for a campaign."""
+        payload = self.get(f'/{campaign_id}/insights', {
+            'access_token': user_token,
+            'fields': 'spend,impressions,reach,actions',
+        })
+        rows = payload.get('data', [])
+        return rows[0] if rows else {}
+
+    def set_campaign_status(self, campaign_id, user_token, status_value):
+        """Pause or resume a campaign."""
+        return self.post(f'/{campaign_id}', {
+            'access_token': user_token,
+            'status': status_value,
+        })
+
     def send_message(self, page_id, page_token, recipient_id, text, quick_replies=None):
         """Send a DM reply via the Page; returns the platform message id.
 
