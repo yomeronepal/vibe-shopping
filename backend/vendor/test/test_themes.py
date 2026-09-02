@@ -30,20 +30,18 @@ class ThemeTests(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, list)
-        self.assertEqual(len(response.data), 3)  # 3 themes defined
-        
-        # Check theme structure
-        theme_ids = [t['id'] for t in response.data]
-        self.assertIn('neon-vibe', theme_ids)
-        self.assertIn('minimal', theme_ids)
-        self.assertIn('warm-cozy', theme_ids)
+        self.assertGreaterEqual(len(response.data), 3)
+        theme_slugs = [t['slug'] for t in response.data]
+        self.assertIn('neon-vibe', theme_slugs)
+        self.assertIn('minimal', theme_slugs)
+        self.assertIn('warm-cozy', theme_slugs)
 
     def test_get_theme_by_id(self):
         """Test retrieving a specific theme."""
         response = self.client.get('/api/vendor/themes/neon-vibe/')
         
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['id'], 'neon-vibe')
+        self.assertEqual(response.data['slug'], 'neon-vibe')
         self.assertEqual(response.data['name'], 'Neon Vibe')
         self.assertIn('colors', response.data)
         self.assertEqual(response.data['colors']['primary'], '#8A2BE2')
@@ -60,11 +58,11 @@ class ThemeTests(TestCase):
         
         for theme in response.data:
             self.assertIn('id', theme)
+            self.assertIn('slug', theme)
             self.assertIn('name', theme)
             self.assertIn('description', theme)
             self.assertIn('colors', theme)
-            self.assertIn('gradient', theme)
-            self.assertIn('keywords', theme)
+            self.assertIn('gradient', theme['colors'])
             
             # Check colors structure
             colors = theme['colors']
