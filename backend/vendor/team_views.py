@@ -136,3 +136,21 @@ class TeamPasswordResetView(APIView):
         member = serialize_member(profile)
         member['password'] = password
         return Response(member)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Let any member change their own password."""
+        current = request.data.get('current_password') or ''
+        new = request.data.get('new_password') or ''
+        if not request.user.check_password(current):
+            return Response({'error': 'Your current password is not correct.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new) < 8:
+            return Response({'error': 'The new password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        if new == current:
+            return Response({'error': 'Choose a different password than the current one.'}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(new)
+        request.user.save(update_fields=['password'])
+        return Response({'ok': True})

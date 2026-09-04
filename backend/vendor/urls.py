@@ -1,4 +1,4 @@
-from .team_views import TeamView, TeamMemberView, TeamPasswordResetView
+from .team_views import TeamView, TeamMemberView, TeamPasswordResetView, ChangePasswordView
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -23,6 +23,7 @@ from vendor.analytics_views import AnalyticsSummaryView
 from vendor.profile_views import KnowledgeDocumentView, KnowledgeWebsiteView, VendorStoreProfileView
 
 urlpatterns = [
+    path('account/change-password/', ChangePasswordView.as_view(), name='vendor-change-password'),
     path('team/', TeamView.as_view(), name='vendor-team'),
     path('team/<int:user_id>/', TeamMemberView.as_view(), name='vendor-team-member'),
     path('team/<int:user_id>/reset-password/', TeamPasswordResetView.as_view(), name='vendor-team-reset'),
