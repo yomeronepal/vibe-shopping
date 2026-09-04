@@ -4,7 +4,7 @@ import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import SettingsTabs from '../components/vendor/SettingsTabs';
 import TagEditor from '../components/vendor/TagEditor';
-import { getStoreProfile, updateStoreProfile } from '../api/vendor';
+import { changePassword, getStoreProfile, updateStoreProfile } from '../api/vendor';
 import { mediaUrl } from '../api/media';
 
 export default function VendorStoreSettingsPage() {
@@ -50,6 +50,30 @@ export default function VendorStoreSettingsPage() {
             if (old) URL.revokeObjectURL(old);
             return URL.createObjectURL(file);
         });
+    };
+
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [changingPassword, setChangingPassword] = useState(false);
+
+    const handleChangePassword = async () => {
+        if (newPassword !== confirmPassword) {
+            toast.error('The new passwords do not match');
+            return;
+        }
+        setChangingPassword(true);
+        try {
+            await changePassword(currentPassword, newPassword);
+            toast.success('Password changed');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Could not change the password');
+        } finally {
+            setChangingPassword(false);
+        }
     };
 
     const handleSave = async () => {
@@ -224,6 +248,56 @@ export default function VendorStoreSettingsPage() {
                             </div>
                         </div>
                     )}
+
+                    <div
+                        className="mt-8 rounded-2xl border p-6"
+                        style={{ backgroundColor: `${themeConfig.surface}90`, borderColor: `${themeConfig.border}60` }}
+                    >
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="material-symbols-outlined" style={{ color: themeConfig.primary }}>lock</span>
+                            <h3 className="font-bold text-lg" style={{ color: themeConfig.text }}>Security</h3>
+                        </div>
+                        <p className="text-xs mb-4" style={{ color: themeConfig.textSecondary }}>
+                            Change the password you use to log in. Minimum 8 characters.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input
+                                type="password"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                placeholder="Current password"
+                                autoComplete="current-password"
+                                className="w-full rounded-xl text-sm py-2.5 px-4 border"
+                                style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                            />
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="New password"
+                                autoComplete="new-password"
+                                className="w-full rounded-xl text-sm py-2.5 px-4 border"
+                                style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                            />
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Repeat new password"
+                                autoComplete="new-password"
+                                className="w-full rounded-xl text-sm py-2.5 px-4 border"
+                                style={{ backgroundColor: themeConfig.surface, borderColor: themeConfig.border, color: themeConfig.text }}
+                            />
+                        </div>
+                        <button
+                            onClick={handleChangePassword}
+                            disabled={changingPassword || !currentPassword || newPassword.length < 8}
+                            className="mt-4 px-5 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
+                            style={{ backgroundColor: themeConfig.primary }}
+                        >
+                            {changingPassword ? 'Changing…' : 'Change password'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </VendorShell>

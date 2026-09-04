@@ -490,6 +490,13 @@ export interface TeamMember {
     password?: string;
 }
 
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+    await apiClient.post('/vendor/account/change-password/', {
+        current_password: currentPassword,
+        new_password: newPassword,
+    });
+};
+
 export const listTeam = async (): Promise<{ members: TeamMember[]; your_role: string }> => {
     const response = await apiClient.get('/vendor/team/');
     return response.data;

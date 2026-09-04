@@ -82,3 +82,31 @@ class TeamManagementTests(TeamTestBase):
         self.as_owner()
         response = self.client.patch(f'/api/vendor/team/{self.owner.id}/', {'is_active': False}, format='json')
         self.assertEqual(response.status_code, 400)
+
+
+class ChangePasswordTests(TeamTestBase):
+    def test_member_changes_own_password(self):
+        self.as_owner()
+        response = self.client.post('/api/vendor/account/change-password/', {
+            'current_password': 'pass12345', 'new_password': 'newpass9876',
+        })
+        self.assertEqual(response.status_code, 200)
+        login = self.client.post('/api/auth/login/', {
+            'username': 'team_owner', 'password': 'newpass9876',
+        })
+        self.assertEqual(login.status_code, 200)
+
+    def test_wrong_current_password_rejected(self):
+        self.as_owner()
+        response = self.client.post('/api/vendor/account/change-password/', {
+            'current_password': 'wrong', 'new_password': 'newpass9876',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('not correct', response.data['error'])
+
+    def test_short_password_rejected(self):
+        self.as_owner()
+        response = self.client.post('/api/vendor/account/change-password/', {
+            'current_password': 'pass12345', 'new_password': 'abc',
+        })
+        self.assertEqual(response.status_code, 400)
