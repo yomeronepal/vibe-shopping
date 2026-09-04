@@ -17,6 +17,7 @@ from socials.views import (
     PostDetailView,
     PostRetryView,
     PublishPostView,
+    WhatsAppConnectView,
 )
 
 urlpatterns = [
@@ -32,6 +33,7 @@ urlpatterns = [
     path('instagram/redirect/', InstagramRedirectBridgeView.as_view(), name='socials_instagram_redirect'),
     path('instagram/oauth/callback/', InstagramOAuthCallbackView.as_view(), name='socials_instagram_oauth_callback'),
     path('oauth/callback/', OAuthCallbackView.as_view(), name='socials_oauth_callback'),
+    path('whatsapp/connect/', WhatsAppConnectView.as_view(), name='socials_whatsapp_connect'),
     path('pages/', PageListView.as_view(), name='socials_pages'),
     path('pages/<str:page_id>/connect/', PageConnectView.as_view(), name='socials_page_connect'),
     path('pages/import-profile/', PageProfileImportView.as_view(), name='socials_page_import_profile'),

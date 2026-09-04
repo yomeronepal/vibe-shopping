@@ -6,7 +6,7 @@ export interface MetaPage {
 }
 
 export interface ConnectedPage {
-    connection_type?: 'facebook_page' | 'instagram_direct';
+    connection_type?: 'facebook_page' | 'instagram_direct' | 'whatsapp';
     id: number;
     page_id: string;
     name: string;
@@ -98,6 +98,14 @@ export const setBoostAction = async (boostId: number, action: 'pause' | 'resume'
 export const getBoostAdvice = async (refresh = false): Promise<BoostAdvice> => {
     const response = await apiClient.get('/socials/boost-advisor/', {
         params: refresh ? { refresh: 1 } : {},
+    });
+    return response.data;
+};
+
+export const connectWhatsApp = async (phoneNumberId: string, accessToken: string): Promise<ConnectedPage> => {
+    const response = await apiClient.post('/socials/whatsapp/connect/', {
+        phone_number_id: phoneNumberId,
+        access_token: accessToken,
     });
     return response.data;
 };

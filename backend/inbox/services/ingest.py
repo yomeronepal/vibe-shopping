@@ -19,6 +19,8 @@ def fetch_customer_profile(page, user_id):
     """Best-effort Graph profile lookup; blank fields on failure."""
     from socials.services.meta_graph import graph_client_for
 
+    if getattr(page, 'connection_type', '') == 'whatsapp':
+        return {'name': '', 'profile_pic_url': ''}
     client = graph_client_for(page)
     try:
         detail = client.get(f'/{user_id}', {
@@ -275,6 +277,14 @@ def ingest_webhook_event(event):
         logger.warning('Invalid payload type: %s', type(payload).__name__)
         return 0
     object_type = payload.get('object', '')
+    if object_type == 'whatsapp_business_account':
+        from inbox.services.whatsapp_ingest import ingest_whatsapp_entry
+
+        return sum(
+            ingest_whatsapp_entry(entry)
+            for entry in payload.get('entry', []) or []
+            if isinstance(entry, dict)
+        )
     if object_type not in ('page', 'instagram'):
         return 0
     platform = 'instagram' if object_type == 'instagram' else 'facebook'
