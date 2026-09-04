@@ -10,7 +10,7 @@ export interface InboxCustomer {
 
 export interface InboxConversation {
     id: number;
-    platform: 'facebook' | 'instagram';
+    platform: 'facebook' | 'instagram' | 'whatsapp';
     status: string;
     unread_count: number;
     ai_paused: boolean;

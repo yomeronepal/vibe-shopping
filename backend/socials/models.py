@@ -36,14 +36,21 @@ class EncryptedTokenMixin(models.Model):
 class MetaConnection(TimeStampedModel, EncryptedTokenMixin):
     """The Facebook user identity that authorized this tenant."""
 
-    tenant = models.OneToOneField(
-        Tenant, on_delete=models.CASCADE, related_name='meta_connection'
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='meta_connections'
     )
     fb_user_id = models.CharField(max_length=64)
     token_expires_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=20, choices=CONNECTION_STATUSES, default='connected'
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'fb_user_id'], name='unique_connection_identity',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.tenant.name} meta connection ({self.status})"
@@ -65,6 +72,7 @@ class ConnectedPage(TimeStampedModel, EncryptedTokenMixin):
     CONNECTION_TYPES = [
         ('facebook_page', 'Facebook Page'),
         ('instagram_direct', 'Instagram (direct login)'),
+        ('whatsapp', 'WhatsApp Business'),
     ]
     connection_type = models.CharField(
         max_length=20, choices=CONNECTION_TYPES, default='facebook_page'

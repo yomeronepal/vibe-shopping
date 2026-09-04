@@ -23,6 +23,7 @@ def get_ads_token(tenant):
     connection = (
         MetaConnection.objects.filter(tenant=tenant, status='connected')
         .exclude(fb_user_id__startswith='ig-')
+        .exclude(fb_user_id__startswith='wa-')
         .order_by('-updated_at')
         .first()
     )

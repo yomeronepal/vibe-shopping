@@ -166,12 +166,10 @@ class OAuthCallbackView(APIView):
         expires_at = None
         if long_lived.get('expires_in'):
             expires_at = timezone.now() + timedelta(seconds=long_lived['expires_in'])
-        connection, _ = MetaConnection.objects.exclude(
-            fb_user_id__startswith='ig-'
-        ).update_or_create(
+        connection, _ = MetaConnection.objects.update_or_create(
             tenant=tenant,
+            fb_user_id=profile['id'],
             defaults={
-                'fb_user_id': profile['id'],
                 'token_expires_at': expires_at,
                 'status': 'connected',
             },
@@ -206,6 +204,7 @@ class PageConnectView(APIView):
         connection = (
             MetaConnection.objects.filter(tenant=tenant, status='connected')
             .exclude(fb_user_id__startswith='ig-')
+            .exclude(fb_user_id__startswith='wa-')
             .order_by('-updated_at')
             .first()
         )
@@ -544,6 +543,62 @@ def download_page_picture(tenant, url):
     return default_storage.save(
         f'uploads/{slug}/logo/page-logo.jpg', ContentFile(response.content),
     )
+
+
+class WhatsAppConnectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Connect a WhatsApp Business number from pasted credentials."""
+        from vendor.team_views import is_owner
+
+        from socials.services.whatsapp_api import WhatsAppClient
+
+        tenant = get_request_tenant(request)
+        if not tenant:
+            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+        if not is_owner(request):
+            return Response(
+                {'error': 'Only the owner can connect accounts.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        phone_number_id = str(request.data.get('phone_number_id') or '').strip()
+        access_token = str(request.data.get('access_token') or '').strip()
+        if not phone_number_id or not access_token:
+            return Response(
+                {'error': 'Both the phone number ID and access token are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            details = WhatsAppClient().fetch_phone_details(phone_number_id, access_token)
+        except MetaGraphError as exc:
+            logger.warning('WhatsApp connect validation failed: %s', exc)
+            return Response(
+                {'error': 'WhatsApp did not accept these credentials. Check the phone number ID and token.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        display = details.get('display_phone_number', '')
+        verified_name = details.get('verified_name', '')
+        connection, _ = MetaConnection.objects.update_or_create(
+            tenant=tenant,
+            fb_user_id=f'wa-{phone_number_id}',
+            defaults={'status': 'connected'},
+        )
+        connection.set_access_token(access_token)
+        connection.save()
+        page, _ = ConnectedPage.objects.update_or_create(
+            page_id=phone_number_id,
+            defaults={
+                'tenant': tenant,
+                'connection': connection,
+                'name': verified_name or display or 'WhatsApp Business',
+                'connection_type': 'whatsapp',
+                'status': 'connected',
+            },
+        )
+        page.set_access_token(access_token)
+        page.save()
+        return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 
 class PageDisconnectView(APIView):

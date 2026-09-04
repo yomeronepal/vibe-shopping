@@ -6,6 +6,7 @@ from socials.models import ConnectedPage
 PLATFORM_CHOICES = [
     ('facebook', 'Facebook'),
     ('instagram', 'Instagram'),
+    ('whatsapp', 'WhatsApp'),
 ]
 
 CONVERSATION_STATUSES = [

@@ -7,6 +7,7 @@ from inbox.models import Conversation, Message
 from inbox.serializers import ConversationSerializer, MessageSerializer
 from inbox.services.push import push_inbox_event
 from socials.services.meta_graph import INSTAGRAM_GRAPH_BASE_URL, MetaGraphClient, MetaGraphError
+from socials.services.whatsapp_api import WhatsAppClient
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,10 @@ WINDOW_CLOSED_ERROR = 'The 24-hour reply window for this conversation has closed
 
 def client_for(page):
     """Return a Graph client on the right host for this connection."""
-    if getattr(page, 'connection_type', '') == 'instagram_direct':
+    connection_type = getattr(page, 'connection_type', '')
+    if connection_type == 'whatsapp':
+        return WhatsAppClient()
+    if connection_type == 'instagram_direct':
         return MetaGraphClient(base_url=INSTAGRAM_GRAPH_BASE_URL)
     return MetaGraphClient()
 
@@ -56,9 +60,33 @@ def resolve_reply_route(conversation):
     return 'dm', conversation.customer.platform_user_id
 
 
+def latest_inbound_mid(conversation):
+    """The platform id of the newest customer message, or ''."""
+    latest = (
+        conversation.messages.filter(direction='in')
+        .order_by('-sent_at', '-id')
+        .first()
+    )
+    return latest.platform_message_id if latest else ''
+
+
+def show_whatsapp_read_and_typing(conversation, page):
+    """WhatsApp marks read and types against a specific message id."""
+    mid = latest_inbound_mid(conversation)
+    if not mid:
+        return
+    try:
+        WhatsAppClient().mark_read_typing(page.page_id, page.get_access_token(), mid)
+    except MetaGraphError as exc:
+        logger.info('WhatsApp typing skipped for conversation %s: %s', conversation.id, exc)
+
+
 def show_read_and_typing(conversation):
     """Mark the thread seen and show typing dots; never raises."""
     page = conversation.page
+    if getattr(page, 'connection_type', '') == 'whatsapp':
+        show_whatsapp_read_and_typing(conversation, page)
+        return
     client = client_for(page)
     try:
         for action in ('mark_seen', 'typing_on'):
@@ -87,7 +115,7 @@ def deliver_via_meta(conversation, text, quick_replies=None):
             quick_replies=quick_replies,
         )
     except MetaGraphError as exc:
-        if exc.code == 10:
+        if exc.code in (10, 131047):
             raise ConversationSendError(WINDOW_CLOSED_ERROR, 400)
         logger.warning('Inbox send failed: %s', exc)
         raise ConversationSendError('Could not send the message. Please try again.', 502)
@@ -215,6 +243,8 @@ def send_product_cards(conversation, products):
     if not products or route != 'dm':
         return None
     page = conversation.page
+    if getattr(page, 'connection_type', '') == 'whatsapp':
+        return send_card_photos(conversation, page, target, products)
     if build_product_page_url(products[0]):
         return send_card_carousel(conversation, page, target, products)
     return send_card_photos(conversation, page, target, products)
