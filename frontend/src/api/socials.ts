@@ -110,6 +110,22 @@ export const connectWhatsApp = async (phoneNumberId: string, accessToken: string
     return response.data;
 };
 
+export const getWhatsAppConnectConfig = async (): Promise<{ app_id: string; config_id: string }> => {
+    const response = await apiClient.get('/socials/whatsapp/connect-config/');
+    return response.data;
+};
+
+export const completeWhatsAppOAuth = async (
+    code: string, phoneNumberId: string, wabaId: string,
+): Promise<ConnectedPage> => {
+    const response = await apiClient.post('/socials/whatsapp/oauth/', {
+        code,
+        phone_number_id: phoneNumberId,
+        waba_id: wabaId,
+    });
+    return response.data;
+};
+
 export const getInstagramConnectUrl = async (): Promise<string> => {
     const response = await apiClient.get('/socials/instagram/connect-url/');
     return response.data.url;

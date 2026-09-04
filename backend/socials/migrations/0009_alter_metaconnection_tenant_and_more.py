@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0027_remove_tenant_subscription'),
+        ('core', '0026_product_item_type'),
         ('socials', '0008_alter_connectedpage_connection_type'),
     ]
 

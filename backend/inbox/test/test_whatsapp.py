@@ -236,3 +236,58 @@ class WhatsAppConnectTests(WhatsAppTestBase):
             'phone_number_id': '1', 'access_token': 't',
         })
         self.assertEqual(response.status_code, 403)
+
+
+@override_settings(META_APP_ID='app-1', WHATSAPP_EMBEDDED_CONFIG_ID='cfg-1')
+class WhatsAppOAuthTests(WhatsAppTestBase):
+    def authenticate(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+
+    def test_connect_config_returns_launch_details(self):
+        self.authenticate()
+        response = self.client.get('/api/socials/whatsapp/connect-config/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'app_id': 'app-1', 'config_id': 'cfg-1'})
+
+    @override_settings(WHATSAPP_EMBEDDED_CONFIG_ID='')
+    def test_connect_config_501_when_unconfigured(self):
+        self.authenticate()
+        response = self.client.get('/api/socials/whatsapp/connect-config/')
+        self.assertEqual(response.status_code, 501)
+
+    @patch('socials.services.whatsapp_api.WhatsAppClient.register_phone')
+    @patch('socials.services.whatsapp_api.WhatsAppClient.subscribe_waba')
+    @patch('socials.services.whatsapp_api.WhatsAppClient.fetch_phone_details')
+    def test_oauth_connects_number(self, mock_details, mock_subscribe, mock_register):
+        from socials.services import whatsapp_api
+
+        with patch.object(whatsapp_api, 'exchange_business_code', return_value='biz-token') as exchange:
+            mock_details.return_value = {
+                'display_phone_number': '+977 980 111 2222', 'verified_name': 'Momo House',
+            }
+            self.authenticate()
+            response = self.client.post('/api/socials/whatsapp/oauth/', {
+                'code': 'auth-code', 'phone_number_id': '10999', 'waba_id': 'waba-7',
+            })
+        self.assertEqual(response.status_code, 201)
+        page = ConnectedPage.objects.get(page_id='10999')
+        self.assertEqual(page.connection_type, 'whatsapp')
+        self.assertEqual(page.name, 'Momo House')
+        self.assertEqual(page.get_access_token(), 'biz-token')
+        exchange.assert_called_once_with('auth-code')
+        mock_subscribe.assert_called_once_with('waba-7', 'biz-token')
+        mock_register.assert_called_once()
+
+    def test_oauth_requires_popup_details(self):
+        self.authenticate()
+        response = self.client.post('/api/socials/whatsapp/oauth/', {'code': 'auth-code'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_staff_cannot_use_oauth(self):
+        staff = User.objects.create_user(username='wa_staff2', password='pass12345')
+        VendorProfile.objects.create(user=staff, tenant=self.tenant, role='staff')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {Token.objects.create(user=staff).key}')
+        response = self.client.post('/api/socials/whatsapp/oauth/', {
+            'code': 'c', 'phone_number_id': '1', 'waba_id': 'w',
+        })
+        self.assertEqual(response.status_code, 403)

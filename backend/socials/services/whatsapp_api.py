@@ -1,6 +1,7 @@
 import logging
 
 import requests
+from django.conf import settings
 
 from socials.services.meta_graph import GRAPH_BASE_URL, MetaGraphError, parse_graph_response
 
@@ -24,6 +25,19 @@ def append_numbered_options(text, quick_replies):
     """Fall back to numbered choices inside the message body."""
     lines = [f'{index}. {label}' for index, label in enumerate(quick_replies, start=1)]
     return text + '\n\n' + '\n'.join(lines)
+
+
+def exchange_business_code(code):
+    """Exchange an embedded-signup OAuth code for a business token."""
+    data = WhatsAppClient().get('/oauth/access_token', {
+        'client_id': settings.META_APP_ID,
+        'client_secret': settings.META_APP_SECRET,
+        'code': code,
+    })
+    token = data.get('access_token', '')
+    if not token:
+        raise MetaGraphError('WhatsApp did not return an access token')
+    return token
 
 
 class WhatsAppClient:
@@ -109,6 +123,30 @@ class WhatsAppClient:
         except requests.exceptions.RequestException:
             raise MetaGraphError('Could not reach WhatsApp')
         return parse_graph_response(response)
+
+    def post(self, path, token, payload=None):
+        """POST a Graph call outside the messages endpoint."""
+        try:
+            response = requests.post(
+                f'{self.base_url}{path}',
+                params={'access_token': token},
+                json=payload or {},
+                timeout=15,
+            )
+        except requests.exceptions.RequestException:
+            raise MetaGraphError('Could not reach WhatsApp')
+        return parse_graph_response(response)
+
+    def subscribe_waba(self, waba_id, token):
+        """Subscribe the app to the WhatsApp account's webhooks."""
+        return self.post(f'/{waba_id}/subscribed_apps', token)
+
+    def register_phone(self, phone_number_id, token, pin):
+        """Register the number for Cloud API messaging."""
+        return self.post(f'/{phone_number_id}/register', token, {
+            'messaging_product': 'whatsapp',
+            'pin': pin,
+        })
 
     def fetch_phone_details(self, phone_number_id, token):
         """Validate credentials and return the number's display details."""

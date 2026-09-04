@@ -545,23 +545,57 @@ def download_page_picture(tenant, url):
     )
 
 
+def store_whatsapp_connection(tenant, phone_number_id, access_token, details):
+    """Persist the connected number; returns the ConnectedPage."""
+    display = details.get('display_phone_number', '')
+    verified_name = details.get('verified_name', '')
+    connection, _ = MetaConnection.objects.update_or_create(
+        tenant=tenant,
+        fb_user_id=f'wa-{phone_number_id}',
+        defaults={'status': 'connected'},
+    )
+    connection.set_access_token(access_token)
+    connection.save()
+    page, _ = ConnectedPage.objects.update_or_create(
+        page_id=phone_number_id,
+        defaults={
+            'tenant': tenant,
+            'connection': connection,
+            'name': verified_name or display or 'WhatsApp Business',
+            'connection_type': 'whatsapp',
+            'status': 'connected',
+        },
+    )
+    page.set_access_token(access_token)
+    page.save()
+    return page
+
+
+def whatsapp_owner_tenant(request):
+    """Return (tenant, error_response) after the owner guard."""
+    from vendor.team_views import is_owner
+
+    tenant = get_request_tenant(request)
+    if not tenant:
+        return None, Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
+    if not is_owner(request):
+        return None, Response(
+            {'error': 'Only the owner can connect accounts.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return tenant, None
+
+
 class WhatsAppConnectView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         """Connect a WhatsApp Business number from pasted credentials."""
-        from vendor.team_views import is_owner
-
         from socials.services.whatsapp_api import WhatsAppClient
 
-        tenant = get_request_tenant(request)
-        if not tenant:
-            return Response({'error': 'No business found'}, status=status.HTTP_404_NOT_FOUND)
-        if not is_owner(request):
-            return Response(
-                {'error': 'Only the owner can connect accounts.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        tenant, error = whatsapp_owner_tenant(request)
+        if error:
+            return error
         phone_number_id = str(request.data.get('phone_number_id') or '').strip()
         access_token = str(request.data.get('access_token') or '').strip()
         if not phone_number_id or not access_token:
@@ -577,27 +611,76 @@ class WhatsAppConnectView(APIView):
                 {'error': 'WhatsApp did not accept these credentials. Check the phone number ID and token.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        display = details.get('display_phone_number', '')
-        verified_name = details.get('verified_name', '')
-        connection, _ = MetaConnection.objects.update_or_create(
-            tenant=tenant,
-            fb_user_id=f'wa-{phone_number_id}',
-            defaults={'status': 'connected'},
-        )
-        connection.set_access_token(access_token)
-        connection.save()
-        page, _ = ConnectedPage.objects.update_or_create(
-            page_id=phone_number_id,
-            defaults={
-                'tenant': tenant,
-                'connection': connection,
-                'name': verified_name or display or 'WhatsApp Business',
-                'connection_type': 'whatsapp',
-                'status': 'connected',
-            },
-        )
-        page.set_access_token(access_token)
-        page.save()
+        page = store_whatsapp_connection(tenant, phone_number_id, access_token, details)
+        return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
+
+
+class WhatsAppConnectConfigView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Embedded-signup launch config, or 501 when not set up."""
+        if not settings.META_APP_ID or not settings.WHATSAPP_EMBEDDED_CONFIG_ID:
+            return Response(
+                {'error': 'WhatsApp embedded signup is not configured.'},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+        return Response({
+            'app_id': settings.META_APP_ID,
+            'config_id': settings.WHATSAPP_EMBEDDED_CONFIG_ID,
+        })
+
+
+def register_whatsapp_number(tenant, phone_number_id, token):
+    """Best-effort Cloud API registration for a fresh number."""
+    import secrets
+
+    from socials.services.whatsapp_api import WhatsAppClient
+
+    pin = f'{secrets.randbelow(1000000):06d}'
+    try:
+        WhatsAppClient().register_phone(phone_number_id, token, pin)
+    except MetaGraphError as exc:
+        logger.info('WhatsApp number registration skipped for %s: %s', phone_number_id, exc)
+        return
+    tenant.metadata['whatsappPin'] = pin
+    tenant.save(update_fields=['metadata'])
+
+
+class WhatsAppOAuthView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Finish embedded signup: exchange the code and store the number."""
+        from socials.services.whatsapp_api import WhatsAppClient, exchange_business_code
+
+        tenant, error = whatsapp_owner_tenant(request)
+        if error:
+            return error
+        code = str(request.data.get('code') or '').strip()
+        phone_number_id = str(request.data.get('phone_number_id') or '').strip()
+        waba_id = str(request.data.get('waba_id') or '').strip()
+        if not code or not phone_number_id or not waba_id:
+            return Response(
+                {'error': 'The signup popup did not return the number details. Try again, or connect manually.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        client = WhatsAppClient()
+        try:
+            access_token = exchange_business_code(code)
+            details = client.fetch_phone_details(phone_number_id, access_token)
+        except MetaGraphError as exc:
+            logger.warning('WhatsApp embedded signup failed: %s', exc)
+            return Response(
+                {'error': 'Could not complete the WhatsApp connection. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        try:
+            client.subscribe_waba(waba_id, access_token)
+        except MetaGraphError as exc:
+            logger.warning('WhatsApp webhook subscription failed for %s: %s', waba_id, exc)
+        register_whatsapp_number(tenant, phone_number_id, access_token)
+        page = store_whatsapp_connection(tenant, phone_number_id, access_token, details)
         return Response(ConnectedPageSerializer(page).data, status=status.HTTP_201_CREATED)
 
 

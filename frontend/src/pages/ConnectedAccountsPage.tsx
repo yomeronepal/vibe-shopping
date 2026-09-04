@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { connectWhatsApp, getInstagramConnectUrl } from '../api/socials';
+import {
+    completeWhatsAppOAuth,
+    connectWhatsApp,
+    getInstagramConnectUrl,
+    getWhatsAppConnectConfig,
+} from '../api/socials';
+import { launchWhatsAppSignup } from '../lib/facebookSdk';
 import { useShopTheme } from '../contexts/ShopThemeContext';
 import VendorShell from '../components/vendor/VendorShell';
 import SettingsTabs from '../components/vendor/SettingsTabs';
@@ -112,6 +118,33 @@ export default function ConnectedAccountsPage() {
     const [waPhoneId, setWaPhoneId] = useState('');
     const [waToken, setWaToken] = useState('');
     const [waSaving, setWaSaving] = useState(false);
+    const [waLaunching, setWaLaunching] = useState(false);
+
+    const handleWhatsAppSignup = async () => {
+        setWaLaunching(true);
+        try {
+            const config = await getWhatsAppConnectConfig();
+            const result = await launchWhatsAppSignup(config.app_id, config.config_id);
+            if (!result.phoneNumberId || !result.wabaId) {
+                toast.error('The signup popup did not return the number details. Connect manually below.');
+                setWaOpen(true);
+                return;
+            }
+            await completeWhatsAppOAuth(result.code, result.phoneNumberId, result.wabaId);
+            toast.success('WhatsApp number connected');
+            dispatch(fetchConnectedPages());
+        } catch (error: any) {
+            if (error.response?.status === 501) {
+                setWaOpen(true);
+                return;
+            }
+            toast.error(
+                error.response?.data?.error || error.message || 'Could not connect WhatsApp.',
+            );
+        } finally {
+            setWaLaunching(false);
+        }
+    };
 
     const handleConnectWhatsApp = async () => {
         setWaSaving(true);
@@ -188,14 +221,22 @@ export default function ConnectedAccountsPage() {
                     </p>
                     <div className="mt-4">
                         <button
-                            onClick={() => setWaOpen(true)}
-                            className="rounded-xl px-5 py-2.5 text-white font-semibold shadow-sm transition-transform hover:scale-[0.99]"
+                            onClick={handleWhatsAppSignup}
+                            disabled={waLaunching}
+                            className="rounded-xl px-5 py-2.5 text-white font-semibold shadow-sm transition-transform hover:scale-[0.99] disabled:opacity-60"
                             style={{ backgroundColor: '#25D366' }}
                         >
-                            Connect WhatsApp
+                            {waLaunching ? 'Opening WhatsApp signup…' : 'Connect WhatsApp'}
                         </button>
                         <p className="mt-3 text-xs" style={{ color: themeConfig.textSecondary }}>
-                            Customers message your WhatsApp Business number and the AI replies there too.
+                            Customers message your WhatsApp Business number and the AI replies there too.{' '}
+                            <button
+                                onClick={() => setWaOpen(true)}
+                                className="underline font-semibold"
+                                style={{ color: themeConfig.textSecondary }}
+                            >
+                                Connect manually instead
+                            </button>
                         </p>
                     </div>
 
