@@ -21,7 +21,6 @@ class Tenant(TimeStampedModel):
     """
     name = models.CharField(max_length=255)
     subdomain = models.SlugField(max_length=255, unique=True, null=True, blank=True)
-    subscription = models.CharField(max_length=50, default='Trial')
     is_active = models.BooleanField(default=False)
     metadata = models.JSONField(default=dict, blank=True)
 

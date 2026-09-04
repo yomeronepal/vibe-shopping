@@ -6,6 +6,7 @@ const TABS = [
     { to: '/vendor/settings/accounts', label: 'Connected accounts', icon: 'link' },
     { to: '/vendor/settings/assistant', label: 'AI assistant', icon: 'auto_awesome' },
     { to: '/vendor/settings/team', label: 'Team', icon: 'group' },
+    { to: '/vendor/settings/billing', label: 'Billing', icon: 'credit_card' },
 ];
 
 export default function SettingsTabs() {

@@ -191,6 +191,13 @@ class SuggestReplyView(APIView):
                 {'error': 'The AI assistant is turned off in Settings.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        from billing.services import is_expired
+
+        if is_expired(tenant):
+            return Response(
+                {'error': 'Your subscription has expired. Renew it in Settings to keep using the AI.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             suggestion = suggest_reply(conversation)
         except AssistantError as exc:
@@ -233,6 +240,13 @@ class ExtractOrderView(APIView):
             return Response(
                 {'error': 'The AI assistant is turned off in Settings.'},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        from billing.services import is_expired
+
+        if is_expired(tenant):
+            return Response(
+                {'error': 'Your subscription has expired. Renew it in Settings to keep using the AI.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
         try:
             extraction = extract_order(conversation)
