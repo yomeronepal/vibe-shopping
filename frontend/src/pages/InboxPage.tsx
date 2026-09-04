@@ -41,14 +41,20 @@ function displayName(conversation: InboxConversation): string {
     return conversation.customer.name || conversation.customer.platform_user_id;
 }
 
+const PLATFORM_BADGES: Record<string, { label: string; background: string }> = {
+    instagram: { label: 'IG', background: 'linear-gradient(135deg, #f09433, #dc2743)' },
+    whatsapp: { label: 'WA', background: '#25D366' },
+    facebook: { label: 'FB', background: '#1877F2' },
+};
+
 function PlatformBadge({ platform }: { platform: InboxConversation['platform'] }) {
-    const isInstagram = platform === 'instagram';
+    const badge = PLATFORM_BADGES[platform] ?? PLATFORM_BADGES.facebook;
     return (
         <span
             className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-            style={{ background: isInstagram ? 'linear-gradient(135deg, #f09433, #dc2743)' : '#1877F2' }}
+            style={{ background: badge.background }}
         >
-            {isInstagram ? 'IG' : 'FB'}
+            {badge.label}
         </span>
     );
 }

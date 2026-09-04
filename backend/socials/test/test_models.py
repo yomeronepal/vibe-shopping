@@ -22,10 +22,12 @@ class MetaConnectionTests(TestCase):
         self.assertNotIn('EAAG-user-token', conn.access_token_encrypted)
         self.assertEqual(conn.get_access_token(), 'EAAG-user-token')
 
-    def test_one_connection_per_tenant(self):
+    def test_one_connection_per_channel_identity(self):
         MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb1')
+        MetaConnection.objects.create(tenant=self.tenant, fb_user_id='ig-9')
+        MetaConnection.objects.create(tenant=self.tenant, fb_user_id='wa-15551234')
         with self.assertRaises(Exception):
-            MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb2')
+            MetaConnection.objects.create(tenant=self.tenant, fb_user_id='fb1')
 
 
 @override_settings(FERNET_KEY=TEST_KEY)

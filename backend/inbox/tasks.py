@@ -80,6 +80,15 @@ def auto_reply_to_message(message_id):
     conversation = message.conversation
     if conversation.ai_paused or not is_auto_reply_enabled(conversation.tenant):
         return 'skipped'
+    from billing.services import ai_allowance
+
+    allowed, block_reason = ai_allowance(conversation.tenant)
+    if not allowed:
+        logger.info(
+            'Auto-reply blocked for tenant %s: %s',
+            conversation.tenant_id, block_reason,
+        )
+        return block_reason
     if not is_latest_inbound(conversation, message):
         return 'superseded'
     if was_answered_after(conversation, message):

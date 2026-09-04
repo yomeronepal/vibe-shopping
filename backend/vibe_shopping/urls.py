@@ -10,6 +10,7 @@ from socials.views import MetaWebhookView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/vendor/billing/', include('billing.urls')),
     path('api/vendor/', include('vendor.urls')),
     path('api/', include('core.urls')),
     path('api/socials/', include('socials.urls')),

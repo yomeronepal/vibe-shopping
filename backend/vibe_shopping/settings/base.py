@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'core.apps.CoreConfig',
     'socials.apps.SocialsConfig',
     'inbox.apps.InboxConfig',
+    'billing.apps.BillingConfig',
 ]
 
 MIDDLEWARE = [
@@ -220,4 +221,12 @@ INSTAGRAM_LOGIN_FRONTEND_CALLBACK = config(
 META_OAUTH_REDIRECT_URI = config(
     'META_OAUTH_REDIRECT_URI',
     default='http://localhost:5173/vendor/settings/meta-callback',
+)
+
+BILLING_PAYMENT_INSTRUCTIONS = config(
+    'BILLING_PAYMENT_INSTRUCTIONS',
+    default=(
+        'Pay via eSewa or bank transfer using the QR on your invoice, '
+        'then send the receipt to your BizAlly contact to activate the plan.'
+    ),
 )

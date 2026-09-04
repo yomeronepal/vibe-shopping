@@ -583,3 +583,17 @@ class SafetyRuleTests(AutoReplyTestBase):
         args = mock_log.call_args[0]
         self.assertEqual(args[1], 'none')
         self.assertFalse(args[5])
+
+
+class SubscriptionGateTests(AutoReplyTestBase):
+    def test_expired_subscription_blocks_auto_reply(self):
+        from datetime import timedelta
+
+        from billing.services import get_subscription
+
+        subscription = get_subscription(self.tenant)
+        subscription.current_period_end = timezone.now() - timedelta(days=10)
+        subscription.save(update_fields=['current_period_end'])
+        result = auto_reply_to_message(self.inbound.id)
+        self.assertEqual(result, 'subscription_expired')
+        self.assertFalse(self.convo.messages.filter(direction='out').exists())

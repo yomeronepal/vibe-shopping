@@ -7,6 +7,7 @@ import { listVendorOrders, type VendorOrder } from '../api/orders';
 import { listConversations, type InboxConversation } from '../api/inbox';
 import { listConnectedPages, listPosts, type ConnectedPage, type ScheduledPost } from '../api/socials';
 import { mediaUrl } from '../api/media';
+import { getBilling, type BillingInfo } from '../api/billing';
 
 const ORDER_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
     pending_payment: { bg: '#fef3c7', fg: '#b45309' },
@@ -125,6 +126,37 @@ function ChecklistItem({ done, label, to }: { done: boolean; label: string; to: 
     );
 }
 
+interface BillingBanner {
+    text: string;
+    icon: string;
+    bg: string;
+    border: string;
+    fg: string;
+}
+
+function buildBillingBanner(billing: BillingInfo | null): BillingBanner | null {
+    if (!billing) return null;
+    if (billing.status === 'expired') {
+        return {
+            text: 'Your subscription has expired — the AI has stopped replying to customers.',
+            icon: 'error', bg: '#fee2e2', border: '#fca5a5', fg: '#b91c1c',
+        };
+    }
+    if (billing.status === 'grace') {
+        return {
+            text: 'Your plan has ended — renew now to keep the AI replying.',
+            icon: 'warning', bg: '#fef3c7', border: '#fcd34d', fg: '#b45309',
+        };
+    }
+    if (billing.is_trial) {
+        return {
+            text: `Free trial — ${billing.days_left} day${billing.days_left === 1 ? '' : 's'} left.`,
+            icon: 'hourglass_top', bg: '#e0f2fe', border: '#7dd3fc', fg: '#0369a1',
+        };
+    }
+    return null;
+}
+
 export default function VendorDashboardPage() {
     const { config: themeConfig } = useShopTheme();
     const [storeName, setStoreName] = useState('');
@@ -137,6 +169,13 @@ export default function VendorDashboardPage() {
     const [connectedPage, setConnectedPage] = useState<ConnectedPage | null>(null);
     const [posts, setPosts] = useState<ScheduledPost[]>([]);
     const [loading, setLoading] = useState(true);
+    const [billing, setBilling] = useState<BillingInfo | null>(null);
+
+    useEffect(() => {
+        getBilling().then(setBilling).catch(() => setBilling(null));
+    }, []);
+
+    const billingBanner = buildBillingBanner(billing);
 
     const primaryColor = themeConfig.primary;
     const accentColor = themeConfig.accent;
@@ -196,6 +235,23 @@ export default function VendorDashboardPage() {
         <VendorShell>
             <div className="overflow-y-auto h-full">
                 <div className="px-6 md:px-10 py-8 max-w-[1300px] mx-auto w-full">
+                    {billingBanner && (
+                        <Link
+                            to="/vendor/settings/billing"
+                            className="flex items-center gap-3 rounded-2xl border px-4 py-3 mb-6"
+                            style={{ backgroundColor: billingBanner.bg, borderColor: billingBanner.border }}
+                        >
+                            <span className="material-symbols-outlined text-[20px]" style={{ color: billingBanner.fg }}>
+                                {billingBanner.icon}
+                            </span>
+                            <span className="text-sm font-bold flex-1" style={{ color: billingBanner.fg }}>
+                                {billingBanner.text}
+                            </span>
+                            <span className="text-sm font-semibold underline" style={{ color: billingBanner.fg }}>
+                                View billing
+                            </span>
+                        </Link>
+                    )}
                     <header className="flex flex-wrap justify-between items-end gap-4 mb-8">
                         <div className="flex flex-col gap-1">
                             <span className="text-sm font-medium" style={{ color: themeConfig.textSecondary }}>{getGreeting()}</span>

@@ -9,8 +9,8 @@ from .models import (
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
-    list_display = ['name', 'subdomain', 'subscription', 'is_active', 'created_at']
-    list_filter = ['is_active', 'subscription', 'created_at']
+    list_display = ['name', 'subdomain', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
     search_fields = ['name', 'subdomain']
     prepopulated_fields = {'subdomain': ('name',)}
     readonly_fields = ['created_at', 'updated_at']
